@@ -45,7 +45,7 @@ internal object ExtensionLoader {
     private const val METADATA_HAS_README = "tachiyomi.animeextension.hasReadme"
     private const val METADATA_HAS_CHANGELOG = "tachiyomi.animeextension.hasChangelog"
     private const val METADATA_TORRENT = "tachiyomi.animeextension.torrent"
-    const val LIB_VERSION_MIN = 12
+    const val LIB_VERSION_MIN = 1
     const val LIB_VERSION_MAX = 15
 
     @Suppress("DEPRECATION")
@@ -121,18 +121,31 @@ internal object ExtensionLoader {
     fun loadExtensions(context: Context): List<LoadResult> {
         val pkgManager = context.packageManager
 
+        val scanFlags = PackageManager.GET_CONFIGURATIONS or PackageManager.GET_META_DATA
         val installedPkgs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pkgManager.getInstalledPackages(
-                PackageManager.PackageInfoFlags.of(PACKAGE_FLAGS.toLong()),
+                PackageManager.PackageInfoFlags.of(scanFlags.toLong()),
             )
         } else {
-            pkgManager.getInstalledPackages(PACKAGE_FLAGS)
+            pkgManager.getInstalledPackages(scanFlags)
         }
 
         val sharedExtPkgs = installedPkgs
             .asSequence()
             .filter { isPackageAnExtension(it) }
-            .map { ExtensionInfo(packageInfo = it, isShared = true) }
+            .map {
+                // Fetch full info including signatures
+                val pkgInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pkgManager.getPackageInfo(it.packageName, PackageManager.PackageInfoFlags.of(PACKAGE_FLAGS.toLong()))
+                    } else {
+                        pkgManager.getPackageInfo(it.packageName, PACKAGE_FLAGS)
+                    }
+                } catch (e: Exception) {
+                    it
+                }
+                ExtensionInfo(packageInfo = pkgInfo, isShared = true)
+            }
 
         val privateExtPkgs = getPrivateExtensionDir(context)
             .listFiles()
@@ -394,10 +407,26 @@ internal object ExtensionLoader {
      * @param pkgInfo The package info of the application.
      */
     private fun isPackageAnExtension(pkgInfo: PackageInfo): Boolean {
+        val pkgName = pkgInfo.packageName ?: return false
         val metaData = pkgInfo.applicationInfo?.metaData
-        return pkgInfo.reqFeatures.orEmpty().any { it.name == EXTENSION_FEATURE } ||
-            metaData?.containsKey(METADATA_SOURCE_CLASS) == true ||
-            metaData?.containsKey(METADATA_SOURCE_FACTORY) == true
+
+        val hasFeature = pkgInfo.reqFeatures.orEmpty().any {
+            it.name == EXTENSION_FEATURE ||
+                it.name == "tachiyomi.extension" ||
+                it.name == "aniyomi.animeextension"
+        }
+
+        val hasPrefix = pkgName.startsWith("eu.kanade.tachiyomi.animeextension.") ||
+            pkgName.startsWith("eu.kanade.tachiyomi.extension.") ||
+            pkgName.startsWith("eu.kanade.aniyomi.animeextension.") ||
+            pkgName.startsWith("eu.kanade.aniyomi.extension.")
+
+        val hasMetaData = metaData?.containsKey(METADATA_SOURCE_CLASS) == true ||
+            metaData?.containsKey(METADATA_SOURCE_FACTORY) == true ||
+            metaData?.containsKey("tachiyomi.extension.class") == true ||
+            metaData?.containsKey("tachiyomi.extension.factory") == true
+
+        return hasFeature || hasPrefix || hasMetaData
     }
 
     /**
@@ -408,7 +437,10 @@ internal object ExtensionLoader {
      */
     private fun getSignatures(pkgInfo: PackageInfo): List<String>? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val signingInfo = pkgInfo.signingInfo!!
+            val signingInfo = pkgInfo.signingInfo
+            if (signingInfo == null) {
+                return null
+            }
             if (signingInfo.hasMultipleSigners()) {
                 signingInfo.apkContentsSigners
             } else {

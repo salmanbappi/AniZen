@@ -26,7 +26,10 @@ class ChildFirstPathClassLoader(
         if (c == null && name != null && (
                 name.startsWith("eu.kanade.tachiyomi.animesource.") ||
                 name.startsWith("eu.kanade.tachiyomi.source.") ||
-                name.startsWith("eu.kanade.tachiyomi.network.")
+                name.startsWith("eu.kanade.tachiyomi.network.") ||
+                name.startsWith("tachiyomi.core.common.") ||
+                name.startsWith("okhttp3.") ||
+                name.startsWith("rx.")
             )
         ) {
             try {
