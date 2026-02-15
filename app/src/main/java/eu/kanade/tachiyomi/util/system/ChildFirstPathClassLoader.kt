@@ -23,6 +23,18 @@ class ChildFirstPathClassLoader(
     override fun loadClass(name: String?, resolve: Boolean): Class<*> {
         var c = findLoadedClass(name)
 
+        if (c == null && name != null && (
+                name.startsWith("eu.kanade.tachiyomi.animesource.") ||
+                name.startsWith("eu.kanade.tachiyomi.source.") ||
+                name.startsWith("eu.kanade.tachiyomi.network.")
+            )
+        ) {
+            try {
+                c = super.loadClass(name, resolve)
+            } catch (_: ClassNotFoundException) {
+            }
+        }
+
         if (c == null && systemClassLoader != null) {
             try {
                 c = systemClassLoader.loadClass(name)

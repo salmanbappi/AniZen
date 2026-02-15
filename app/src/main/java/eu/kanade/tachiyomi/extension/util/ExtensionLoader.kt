@@ -305,25 +305,29 @@ internal object ExtensionLoader {
             }
             .flatMap {
                 try {
-                    when (val obj = Class.forName(it, false, classLoader).getDeclaredConstructor().newInstance()) {
-                        is Source -> listOf(obj)
-                        is SourceFactory -> obj.createSources()
+                    val obj = Class.forName(it, false, classLoader).getDeclaredConstructor().newInstance()
+                    when {
+                        obj is Source -> listOf(obj)
+                        obj is SourceFactory -> obj.createSources()
+                        obj.javaClass.interfaces.any { it.name.endsWith("AnimeSourceFactory") } -> {
+                            val method = obj.javaClass.getMethod("createSources")
+                            @Suppress("UNCHECKED_CAST")
+                            method.invoke(obj) as List<Source>
+                        }
                         else -> throw Exception("Unknown source class type: ${obj.javaClass}")
                     }
                 } catch (e: LinkageError) {
                     try {
                         val fallBackClassLoader = PathClassLoader(appInfo.sourceDir, null, context.classLoader)
-                        when (
-                            val obj = Class.forName(
-                                it,
-                                false,
-                                fallBackClassLoader,
-                            ).getDeclaredConstructor().newInstance()
-                        ) {
-                            is Source -> {
-                                listOf(obj)
+                        val obj = Class.forName(it, false, fallBackClassLoader).getDeclaredConstructor().newInstance()
+                        when {
+                            obj is Source -> listOf(obj)
+                            obj is SourceFactory -> obj.createSources()
+                            obj.javaClass.interfaces.any { it.name.endsWith("AnimeSourceFactory") } -> {
+                                val method = obj.javaClass.getMethod("createSources")
+                                @Suppress("UNCHECKED_CAST")
+                                method.invoke(obj) as List<Source>
                             }
-                            is SourceFactory -> obj.createSources()
                             else -> throw Exception("Unknown source class type: ${obj.javaClass}")
                         }
                     } catch (e: Throwable) {
@@ -390,7 +394,10 @@ internal object ExtensionLoader {
      * @param pkgInfo The package info of the application.
      */
     private fun isPackageAnExtension(pkgInfo: PackageInfo): Boolean {
-        return pkgInfo.reqFeatures.orEmpty().any { it.name == EXTENSION_FEATURE }
+        val metaData = pkgInfo.applicationInfo?.metaData
+        return pkgInfo.reqFeatures.orEmpty().any { it.name == EXTENSION_FEATURE } ||
+            metaData?.containsKey(METADATA_SOURCE_CLASS) == true ||
+            metaData?.containsKey(METADATA_SOURCE_FACTORY) == true
     }
 
     /**
