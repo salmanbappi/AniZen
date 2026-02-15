@@ -121,31 +121,18 @@ internal object ExtensionLoader {
     fun loadExtensions(context: Context): List<LoadResult> {
         val pkgManager = context.packageManager
 
-        val scanFlags = PackageManager.GET_CONFIGURATIONS or PackageManager.GET_META_DATA
         val installedPkgs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pkgManager.getInstalledPackages(
-                PackageManager.PackageInfoFlags.of(scanFlags.toLong()),
+                PackageManager.PackageInfoFlags.of(PACKAGE_FLAGS.toLong()),
             )
         } else {
-            pkgManager.getInstalledPackages(scanFlags)
+            pkgManager.getInstalledPackages(PACKAGE_FLAGS)
         }
 
         val sharedExtPkgs = installedPkgs
             .asSequence()
             .filter { isPackageAnExtension(it) }
-            .map {
-                // Fetch full info including signatures
-                val pkgInfo = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        pkgManager.getPackageInfo(it.packageName, PackageManager.PackageInfoFlags.of(PACKAGE_FLAGS.toLong()))
-                    } else {
-                        pkgManager.getPackageInfo(it.packageName, PACKAGE_FLAGS)
-                    }
-                } catch (e: Exception) {
-                    it
-                }
-                ExtensionInfo(packageInfo = pkgInfo, isShared = true)
-            }
+            .map { ExtensionInfo(packageInfo = it, isShared = true) }
 
         val privateExtPkgs = getPrivateExtensionDir(context)
             .listFiles()
@@ -252,10 +239,14 @@ internal object ExtensionLoader {
         val pkgManager = context.packageManager
 
         val pkgInfo = extensionInfo.packageInfo
-        val appInfo = pkgInfo.applicationInfo!!
+        val appInfo = pkgInfo.applicationInfo ?: return LoadResult.Error
         val pkgName = pkgInfo.packageName
 
-        val extName = pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Aniyomi: ")
+        val extName = try {
+            pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Aniyomi: ")
+        } catch (e: Exception) {
+            pkgName
+        }
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
 
@@ -291,13 +282,14 @@ internal object ExtensionLoader {
             return LoadResult.Untrusted(extension)
         }
 
-        val isNsfw = appInfo.metaData.getInt(METADATA_NSFW) == 1
+        val metaData = appInfo.metaData
+        val isNsfw = metaData?.getInt(METADATA_NSFW) == 1
         if (!loadNsfwSource && isNsfw) {
             logcat(LogPriority.WARN) { "NSFW extension $pkgName not allowed" }
             return LoadResult.Error
         }
 
-        val isTorrent = appInfo.metaData.getInt(METADATA_TORRENT) == 1
+        val isTorrent = metaData?.getInt(METADATA_TORRENT) == 1
 
         val classLoader = try {
             ChildFirstPathClassLoader(appInfo.sourceDir, null, context.classLoader)
@@ -306,7 +298,11 @@ internal object ExtensionLoader {
             return LoadResult.Error
         }
 
-        val sources = appInfo.metaData.getString(METADATA_SOURCE_CLASS)!!
+        val sourceClasses = metaData?.getString(METADATA_SOURCE_CLASS)
+            ?: metaData?.getString("tachiyomi.extension.class")
+            ?: return LoadResult.Error
+
+        val sources = sourceClasses
             .split(";")
             .map {
                 val sourceClass = it.trim()
@@ -322,36 +318,23 @@ internal object ExtensionLoader {
                     when {
                         obj is Source -> listOf(obj)
                         obj is SourceFactory -> obj.createSources()
-                        obj.javaClass.interfaces.any { it.name.endsWith("AnimeSourceFactory") } -> {
+                        obj.javaClass.interfaces.any { it.name.endsWith("AnimeSourceFactory") || it.name.endsWith("SourceFactory") } -> {
                             val method = obj.javaClass.getMethod("createSources")
                             @Suppress("UNCHECKED_CAST")
-                            method.invoke(obj) as List<Source>
+                            val result = method.invoke(obj) as List<*>
+                            result.filterIsInstance<Source>()
                         }
-                        else -> throw Exception("Unknown source class type: ${obj.javaClass}")
-                    }
-                } catch (e: LinkageError) {
-                    try {
-                        val fallBackClassLoader = PathClassLoader(appInfo.sourceDir, null, context.classLoader)
-                        val obj = Class.forName(it, false, fallBackClassLoader).getDeclaredConstructor().newInstance()
-                        when {
-                            obj is Source -> listOf(obj)
-                            obj is SourceFactory -> obj.createSources()
-                            obj.javaClass.interfaces.any { it.name.endsWith("AnimeSourceFactory") } -> {
-                                val method = obj.javaClass.getMethod("createSources")
-                                @Suppress("UNCHECKED_CAST")
-                                method.invoke(obj) as List<Source>
-                            }
-                            else -> throw Exception("Unknown source class type: ${obj.javaClass}")
-                        }
-                    } catch (e: Throwable) {
-                        logcat(LogPriority.ERROR, e) { "Extension load error: $extName ($it)" }
-                        return LoadResult.Error
+                        else -> emptyList()
                     }
                 } catch (e: Throwable) {
                     logcat(LogPriority.ERROR, e) { "Extension load error: $extName ($it)" }
-                    return LoadResult.Error
+                    emptyList<Source>()
                 }
             }
+
+        if (sources.isEmpty()) {
+            return LoadResult.Error
+        }
 
         val langs = sources.filterIsInstance<CatalogueSource>()
             .map { it.lang }
@@ -372,7 +355,7 @@ internal object ExtensionLoader {
             isNsfw = isNsfw,
             isTorrent = isTorrent,
             sources = sources,
-            pkgFactory = appInfo.metaData.getString(METADATA_SOURCE_FACTORY),
+            pkgFactory = metaData.getString(METADATA_SOURCE_FACTORY) ?: metaData.getString("tachiyomi.extension.factory"),
             icon = appInfo.loadIcon(pkgManager),
             isShared = extensionInfo.isShared,
         )
@@ -407,26 +390,16 @@ internal object ExtensionLoader {
      * @param pkgInfo The package info of the application.
      */
     private fun isPackageAnExtension(pkgInfo: PackageInfo): Boolean {
-        val pkgName = pkgInfo.packageName ?: return false
         val metaData = pkgInfo.applicationInfo?.metaData
-
-        val hasFeature = pkgInfo.reqFeatures.orEmpty().any {
-            it.name == EXTENSION_FEATURE ||
-                it.name == "tachiyomi.extension" ||
-                it.name == "aniyomi.animeextension"
+        val hasFeature = pkgInfo.reqFeatures.orEmpty().any { 
+            it.name == EXTENSION_FEATURE || it.name == "tachiyomi.extension" || it.name == "aniyomi.animeextension"
         }
-
-        val hasPrefix = pkgName.startsWith("eu.kanade.tachiyomi.animeextension.") ||
-            pkgName.startsWith("eu.kanade.tachiyomi.extension.") ||
-            pkgName.startsWith("eu.kanade.aniyomi.animeextension.") ||
-            pkgName.startsWith("eu.kanade.aniyomi.extension.")
-
         val hasMetaData = metaData?.containsKey(METADATA_SOURCE_CLASS) == true ||
             metaData?.containsKey(METADATA_SOURCE_FACTORY) == true ||
             metaData?.containsKey("tachiyomi.extension.class") == true ||
             metaData?.containsKey("tachiyomi.extension.factory") == true
-
-        return hasFeature || hasPrefix || hasMetaData
+        
+        return hasFeature || hasMetaData
     }
 
     /**
@@ -438,9 +411,7 @@ internal object ExtensionLoader {
     private fun getSignatures(pkgInfo: PackageInfo): List<String>? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val signingInfo = pkgInfo.signingInfo
-            if (signingInfo == null) {
-                return null
-            }
+            if (signingInfo == null) return null
             if (signingInfo.hasMultipleSigners()) {
                 signingInfo.apkContentsSigners
             } else {
