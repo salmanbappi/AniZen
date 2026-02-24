@@ -560,6 +560,7 @@ class Downloader(
         tmpDir: UniFile,
         filename: String,
     ): UniFile {
+        logcat { "Downloader: Entering nativeHlsDownload for $filename" }
         val video = download.video!!
         val client = networkHelper.downloadClient
         val headers = (video.headers ?: download.source.headers).toMutableList()
@@ -726,6 +727,7 @@ class Downloader(
         tmpDir: UniFile,
         filename: String,
     ): UniFile {
+        logcat { "Downloader: Entering internalDownload for $filename" }
         val video = download.video!!
         val videoFile = tmpDir.findFile("$filename.tmp") ?: tmpDir.createFile("$filename.tmp")!!
         
@@ -899,6 +901,7 @@ class Downloader(
         tmpDir: UniFile,
         filename: String,
     ): UniFile {
+        logcat { "Downloader: Entering ffmpegDownload for $filename" }
         val video = download.video!!
 
         // always delete tmp file
