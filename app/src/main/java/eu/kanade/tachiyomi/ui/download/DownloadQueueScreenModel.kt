@@ -27,7 +27,8 @@ class DownloadQueueScreenModel(
     private val _state = MutableStateFlow(emptyList<DownloadHeaderItem>())
     val state = _state.asStateFlow()
 
-    val alwaysUseInternalDownloader = downloadPreferences.alwaysUseInternalDownloader().stateIn(screenModelScope)
+    val alwaysUseInternalDownloader = downloadPreferences.alwaysUseInternalDownloader().changes()
+        .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), downloadPreferences.alwaysUseInternalDownloader().get())
 
     fun toggleAlwaysUseInternalDownloader() {
         downloadPreferences.alwaysUseInternalDownloader().set(!alwaysUseInternalDownloader.value)
