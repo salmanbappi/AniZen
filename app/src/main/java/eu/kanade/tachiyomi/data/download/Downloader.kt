@@ -24,6 +24,7 @@ import java.nio.ByteBuffer
 import kotlinx.coroutines.ensureActive
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.model.VideoType
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.library.LibraryUpdateNotifier
 import eu.kanade.tachiyomi.data.notification.NotificationHandler
@@ -498,11 +499,22 @@ class Downloader(
             if (downloadScope.isActive) {
                 file = try {
                     val video = download.video!!
-                    val isHls = video.videoUrl.contains(".m3u8") || video.videoUrl.contains(".mpd")
+                    val url = video.videoUrl
+                    val isVideoFile = url.substringBefore("?").endsWith(".mp4", ignoreCase = true) ||
+                                      url.substringBefore("?").endsWith(".mkv", ignoreCase = true) ||
+                                      url.substringBefore("?").endsWith(".mov", ignoreCase = true) ||
+                                      filename.endsWith(".mkv", ignoreCase = true) ||
+                                      filename.endsWith(".mp4", ignoreCase = true) ||
+                                      filename.endsWith(".avi", ignoreCase = true)
+                                      
+                    val isHls = video.type == VideoType.HLS || 
+                               (video.type == VideoType.VIDEO && (url.contains(".m3u8") || url.contains(".mpd")) && !isVideoFile)
+                    val isDash = video.type == VideoType.DASH || 
+                                (video.type == VideoType.VIDEO && url.contains(".mpd") && !isVideoFile)
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
-                    } else if (isHls) {
+                    } else if (isHls || isDash) {
                         // TRY NATIVE HLS FIRST (1DM+ Style)
                         try {
                             nativeHlsDownload(download, tmpDir, filename)

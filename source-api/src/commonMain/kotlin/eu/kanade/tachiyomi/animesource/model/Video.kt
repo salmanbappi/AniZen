@@ -38,6 +38,7 @@ open class Video(
     val timestamps: List<TimeStamp> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
+    val type: VideoType = VideoType.VIDEO,
     // TODO(1.6): Remove after ext lib bump
     val videoPageUrl: String = "",
 ) {
@@ -81,6 +82,7 @@ open class Video(
         audioTracks: List<Track> = emptyList(),
         timestamps: List<TimeStamp> = emptyList(),
         internalData: String = "",
+        type: VideoType = VideoType.VIDEO,
     ) : this(
         videoUrl = videoUrl,
         videoTitle = videoTitle,
@@ -92,6 +94,7 @@ open class Video(
         audioTracks = audioTracks,
         timestamps = timestamps,
         internalData = internalData,
+        type = type,
         videoPageUrl = "",
     )
 
@@ -130,6 +133,7 @@ open class Video(
         audioTracks: List<Track> = this.audioTracks,
         timestamps: List<TimeStamp> = this.timestamps,
         internalData: String = this.internalData,
+        type: VideoType = this.type,
     ): Video {
         return Video(
             videoUrl = videoUrl,
@@ -142,6 +146,7 @@ open class Video(
             audioTracks = audioTracks,
             timestamps = timestamps,
             internalData = internalData,
+            type = type,
         )
     }
 
@@ -157,6 +162,7 @@ open class Video(
         timestamps: List<TimeStamp> = this.timestamps,
         internalData: String = this.internalData,
         initialized: Boolean = this.initialized,
+        type: VideoType = this.type,
         videoPageUrl: String = this.videoPageUrl,
     ): Video {
         return Video(
@@ -171,6 +177,7 @@ open class Video(
             timestamps = timestamps,
             internalData = internalData,
             initialized = initialized,
+            type = type,
             videoPageUrl = videoPageUrl,
         )
     }
@@ -196,6 +203,7 @@ data class SerializableVideo(
     val timestamps: List<TimeStamp> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
+    val type: VideoType = VideoType.VIDEO,
     // TODO(1.6): Remove after ext lib bump
     val videoPageUrl: String = "",
 ) {
@@ -216,6 +224,7 @@ data class SerializableVideo(
                         vid.timestamps,
                         vid.internalData,
                         vid.initialized,
+                        vid.type,
                         vid.videoPageUrl,
                     )
                 },
@@ -238,6 +247,7 @@ data class SerializableVideo(
                         sVid.timestamps,
                         sVid.internalData,
                         sVid.initialized,
+                        sVid.type,
                         sVid.videoPageUrl,
                     )
                 }
