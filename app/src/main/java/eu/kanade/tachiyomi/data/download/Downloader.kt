@@ -509,6 +509,8 @@ class Downloader(
                     val isHls = (video.type == VideoType.HLS || (video.type == VideoType.VIDEO && extension == "m3u8")) && !isVideoFile
                     val isDash = (video.type == VideoType.DASH || (video.type == VideoType.VIDEO && extension == "mpd")) && !isVideoFile
                     
+                    logcat { "Download Detection: url=$url, extension=$extension, isVideoFile=$isVideoFile, videoType=${video.type}, isHls=$isHls, isDash=$isDash" }
+                    
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
                     } else if (isHls || isDash) {
