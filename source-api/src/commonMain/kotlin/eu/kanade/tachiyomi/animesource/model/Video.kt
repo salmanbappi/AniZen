@@ -68,6 +68,7 @@ open class Video(
         headers = headers,
         subtitleTracks = subtitleTracks,
         audioTracks = audioTracks,
+        type = VideoType.VIDEO, // Default to VIDEO
     )
 
     // TODO(1.6): Remove after ext lib bump
@@ -106,7 +107,13 @@ open class Video(
         videoUrl: String?,
         uri: Uri? = null,
         headers: Headers? = null,
-    ) : this(url, quality, videoUrl, headers)
+    ) : this(
+        videoPageUrl = url,
+        videoTitle = quality,
+        videoUrl = videoUrl ?: "null",
+        headers = headers,
+        type = VideoType.VIDEO,
+    )
 
     @Transient
     @Volatile

@@ -23,6 +23,7 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import kotlinx.coroutines.ensureActive
 import eu.kanade.tachiyomi.animesource.model.Track
+import android.util.Log
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.model.VideoType
 import eu.kanade.tachiyomi.data.download.model.Download
@@ -503,19 +504,22 @@ class Downloader(
                     val path = url.substringBefore("?")
                     val extension = path.substringAfterLast(".", "").lowercase()
                     
-                    // AGGRESSIVE BYPASS: If it contains any video extension or belongs to known direct mirrors, it's NOT HLS.
-                    val isExplicitVideo = url.contains(".mp4", ignoreCase = true) ||
-                                          url.contains(".mkv", ignoreCase = true) ||
-                                          url.contains(".avi", ignoreCase = true) ||
-                                          url.contains(".mov", ignoreCase = true) ||
-                                          url.contains("discoveryftp.net", ignoreCase = true) ||
-                                          url.contains("cineplexbd.net", ignoreCase = true) ||
-                                          url.contains("download.php", ignoreCase = true)
-                                      
-                    val isHls = !isExplicitVideo && (video.type == VideoType.HLS || (video.type == VideoType.VIDEO && extension == "m3u8"))
-                    val isDash = !isExplicitVideo && (video.type == VideoType.DASH || (video.type == VideoType.VIDEO && extension == "mpd"))
+                    val hasVideoExtension = url.contains(".mp4", ignoreCase = true) ||
+                                            url.contains(".mkv", ignoreCase = true) ||
+                                            url.contains(".avi", ignoreCase = true) ||
+                                            url.contains(".mov", ignoreCase = true) ||
+                                            url.contains(".ts", ignoreCase = true)
                     
-                    logcat { "Download Detection [FINAL]: url=$url, isExplicitVideo=$isExplicitVideo, videoType=${video.type}, isHls=$isHls" }
+                    val isBDIX = url.contains("discoveryftp.net", ignoreCase = true) ||
+                                 url.contains("cineplexbd.net", ignoreCase = true) ||
+                                 url.contains("ftpbd.net", ignoreCase = true) ||
+                                 url.contains("sam-bd.com", ignoreCase = true) ||
+                                 url.contains("download.php", ignoreCase = true)
+                                      
+                    val isHls = (video.type == VideoType.HLS || (extension == "m3u8" || url.contains(".m3u8", ignoreCase = true))) && !hasVideoExtension && !isBDIX
+                    val isDash = (video.type == VideoType.DASH || (extension == "mpd" || url.contains(".mpd", ignoreCase = true))) && !hasVideoExtension && !isBDIX
+                    
+                    Log.d("AniZen", "Download Detection [FINAL]: url=$url, hasVideoExtension=$hasVideoExtension, isBDIX=$isBDIX, isHls=$isHls")
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
@@ -560,7 +564,7 @@ class Downloader(
         tmpDir: UniFile,
         filename: String,
     ): UniFile {
-        logcat { "Downloader: Entering nativeHlsDownload for $filename" }
+        Log.d("AniZen", "Downloader: Entering nativeHlsDownload for $filename")
         val video = download.video!!
         val client = networkHelper.downloadClient
         val headers = (video.headers ?: download.source.headers).toMutableList()
@@ -727,7 +731,7 @@ class Downloader(
         tmpDir: UniFile,
         filename: String,
     ): UniFile {
-        logcat { "Downloader: Entering internalDownload for $filename" }
+        Log.d("AniZen", "Downloader: Entering internalDownload for $filename")
         val video = download.video!!
         val videoFile = tmpDir.findFile("$filename.tmp") ?: tmpDir.createFile("$filename.tmp")!!
         
@@ -901,7 +905,7 @@ class Downloader(
         tmpDir: UniFile,
         filename: String,
     ): UniFile {
-        logcat { "Downloader: Entering ffmpegDownload for $filename" }
+        Log.d("AniZen", "Downloader: Entering ffmpegDownload for $filename")
         val video = download.video!!
 
         // always delete tmp file
