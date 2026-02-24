@@ -508,7 +508,9 @@ class Downloader(
                                             url.contains(".mkv", ignoreCase = true) ||
                                             url.contains(".avi", ignoreCase = true) ||
                                             url.contains(".mov", ignoreCase = true) ||
-                                            url.contains(".ts", ignoreCase = true)
+                                            url.contains(".ts", ignoreCase = true) ||
+                                            url.contains(".flv", ignoreCase = true) ||
+                                            url.contains(".webm", ignoreCase = true)
                     
                     val isBDIX = url.contains("discoveryftp.net", ignoreCase = true) ||
                                  url.contains("cineplexbd.net", ignoreCase = true) ||
@@ -516,11 +518,46 @@ class Downloader(
                                  url.contains("sam-bd.com", ignoreCase = true) ||
                                  url.contains("download.php", ignoreCase = true)
                                       
-                    // TEST: Completely disable HLS engine to force internal multi-threaded downloader
-                    val isHls = false
-                    val isDash = false
+                    var isHls = (video.type == VideoType.HLS || extension == "m3u8" || url.contains(".m3u8", ignoreCase = true)) && !hasVideoExtension && !isBDIX
+                    var isDash = (video.type == VideoType.DASH || extension == "mpd" || url.contains(".mpd", ignoreCase = true)) && !hasVideoExtension && !isBDIX
                     
-                    Log.d("AniZen", "Download Detection [TEST]: Forcing internalDownload for url=$url")
+                    // 1DM+ Style Intelligence: If still unsure or if HLS is suspected on a non-obvious URL, sniff Content-Type
+                    if (!hasVideoExtension && !isBDIX && !preferences.alwaysUseInternalDownloader().get()) {
+                        try {
+                            val client = networkHelper.client
+                            val headers = video.headers ?: download.source.headers
+                            val request = Request.Builder().url(url).head().headers(headers).build()
+                            // Use a short timeout for sniffing
+                            val response = client.newBuilder()
+                                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                                .build()
+                                .newCall(request).await()
+                            
+                            val contentType = response.header("Content-Type")?.lowercase() ?: ""
+                            response.close()
+                            
+                            if (contentType.contains("mpegurl") || contentType.contains("x-mpegurl")) {
+                                isHls = true
+                            } else if (contentType.contains("dash+xml")) {
+                                isDash = true
+                            } else if (contentType.startsWith("video/") || contentType.contains("octet-stream")) {
+                                // Explicitly a video file or generic stream, bypass HLS
+                                isHls = false
+                                isDash = false
+                            }
+                        } catch (e: Exception) {
+                            Log.d("AniZen", "Sniffing failed for $url: ${e.message}")
+                        }
+                    }
+                    
+                    // Final override if user preference is set
+                    if (preferences.alwaysUseInternalDownloader().get()) {
+                        isHls = false
+                        isDash = false
+                    }
+                    
+                    Log.d("AniZen", "Download Detection [SMART]: url=$url, isHls=$isHls, isDash=$isDash")
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)

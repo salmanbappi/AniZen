@@ -74,6 +74,19 @@ fun GET(
         .build()
 }
 
+fun HEAD(
+    url: String,
+    headers: Headers = DEFAULT_HEADERS,
+    cache: CacheControl = DEFAULT_CACHE_CONTROL,
+): Request {
+    return Request.Builder()
+        .url(url)
+        .head()
+        .headers(headers)
+        .cacheControl(cache)
+        .build()
+}
+
 fun POST(
     url: String,
     headers: Headers = DEFAULT_HEADERS,
