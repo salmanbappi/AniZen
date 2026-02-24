@@ -516,10 +516,11 @@ class Downloader(
                                  url.contains("sam-bd.com", ignoreCase = true) ||
                                  url.contains("download.php", ignoreCase = true)
                                       
-                    val isHls = (video.type == VideoType.HLS || (extension == "m3u8" || url.contains(".m3u8", ignoreCase = true))) && !hasVideoExtension && !isBDIX && !preferences.alwaysUseInternalDownloader().get()
-                    val isDash = (video.type == VideoType.DASH || (extension == "mpd" || url.contains(".mpd", ignoreCase = true))) && !hasVideoExtension && !isBDIX && !preferences.alwaysUseInternalDownloader().get()
+                    // TEST: Completely disable HLS engine to force internal multi-threaded downloader
+                    val isHls = false
+                    val isDash = false
                     
-                    Log.d("AniZen", "Download Detection [FINAL]: url=$url, hasVideoExtension=$hasVideoExtension, isBDIX=$isBDIX, isHls=$isHls")
+                    Log.d("AniZen", "Download Detection [TEST]: Forcing internalDownload for url=$url")
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
