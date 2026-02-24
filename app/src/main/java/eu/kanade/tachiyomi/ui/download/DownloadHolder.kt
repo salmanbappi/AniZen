@@ -75,13 +75,39 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
      */
     fun notifyDownloadedPages() {
         val speed = download.speed
-        val segments = if (download.totalSegments > 0) " • ${download.downloadedSegments}/${download.totalSegments}" else ""
-        val statusText = if (speed.isNotEmpty()) "$speed$segments" else ""
+        val eta = download.eta
+        val segments = if (download.totalSegments > 0) "${download.downloadedSegments}/${download.totalSegments}" else ""
         
-        binding.downloadProgressText.text = if (download.progress == 0) {
+        val statusParts = mutableListOf<String>()
+        if (speed.isNotEmpty()) statusParts.add(speed)
+        if (segments.isNotEmpty()) statusParts.add(segments)
+        if (eta.isNotEmpty()) statusParts.add(eta)
+        
+        val statusText = statusParts.joinToString(" • ")
+        
+        binding.downloadProgressText.text = if (download.progress <= 0) {
             if (statusText.isNotEmpty()) statusText else view.context.stringResource(MR.strings.update_check_notification_download_in_progress)
         } else {
-            "${download.progress}% • $statusText"
+            "${download.progress}%" + (if (statusText.isNotEmpty()) " • $statusText" else "")
+        }
+
+        // Update Engine Icon
+        when (download.engineType) {
+            "Normal" -> {
+                binding.engineIcon.visibility = View.VISIBLE
+                binding.engineIcon.setImageResource(R.drawable.ic_download_item_24dp)
+            }
+            "HLS" -> {
+                binding.engineIcon.visibility = View.VISIBLE
+                binding.engineIcon.setImageResource(R.drawable.ic_video_chapter_20dp)
+            }
+            "Torrent" -> {
+                binding.engineIcon.visibility = View.VISIBLE
+                binding.engineIcon.setImageResource(R.drawable.ic_sync_24dp)
+            }
+            else -> {
+                binding.engineIcon.visibility = View.GONE
+            }
         }
     }
 

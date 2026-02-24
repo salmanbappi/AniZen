@@ -561,8 +561,10 @@ class Downloader(
                     Log.d("AniZen", "Download Detection [SMART]: url=$url, isHls=$isHls, isDash=$isDash")
                     
                     if (isTor(video)) {
+                        download.engineType = "Torrent"
                         torrentDownload(download, tmpDir, filename)
                     } else if (isHls || isDash) {
+                        download.engineType = "HLS"
                         // TRY NATIVE HLS FIRST (1DM+ Style)
                         try {
                             nativeHlsDownload(download, tmpDir, filename)
@@ -573,6 +575,7 @@ class Downloader(
                             }
                         }
                     } else {
+                        download.engineType = "Normal"
                         internalDownload(download, tmpDir, filename)
                     }
                 } catch (e: Throwable) {
