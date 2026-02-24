@@ -778,7 +778,7 @@ class Downloader(
         val headers = video.headers ?: download.source.headers
         
         val threadCount = preferences.downloadThreads().get().coerceAtLeast(8)
-        val segmentSize = 4 * 1024 * 1024L // Larger segments for stability
+        val segmentSize = 16 * 1024 * 1024L // 16MB segments for high-speed stability
         val totalDownloaded = java.util.concurrent.atomic.AtomicLong(0)
         val progressMap = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         

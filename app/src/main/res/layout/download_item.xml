@@ -12,13 +12,14 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingVertical="8dp">
+        android:paddingVertical="12dp"
+        android:paddingHorizontal="4dp">
 
         <ImageView
             android:id="@+id/reorder"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="16dp"
+            android:padding="12dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
@@ -33,7 +34,8 @@
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceTitleSmall"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textSize="15sp"
             app:layout_constraintEnd_toStartOf="@+id/menu"
             app:layout_constraintStart_toEndOf="@+id/reorder"
             app:layout_constraintTop_toTopOf="parent"
@@ -58,20 +60,21 @@
             android:id="@+id/download_progress"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             app:layout_constraintEnd_toStartOf="@+id/menu"
             app:layout_constraintStart_toEndOf="@+id/reorder"
             app:layout_constraintTop_toBottomOf="@+id/chapter_title"
-            app:trackThickness="4dp" />
+            app:trackThickness="5dp"
+            app:trackCornerRadius="4dp" />
 
         <ImageView
             android:id="@+id/engine_icon"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:layout_marginTop="8dp"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginTop="10dp"
             app:layout_constraintStart_toStartOf="@+id/manga_full_title"
             app:layout_constraintTop_toBottomOf="@+id/download_progress"
-            app:tint="?android:attr/textColorSecondary"
+            app:tint="?attr/colorPrimary"
             tools:ignore="ContentDescription"
             tools:srcCompat="@drawable/ic_lightning_bolt_24dp" />
 
@@ -79,16 +82,16 @@
             android:id="@+id/download_progress_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:maxLines="3"
+            android:layout_marginStart="8dp"
+            android:maxLines="4"
             android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?android:textColorSecondary"
-            android:textSize="11sp"
-            android:lineSpacingExtra="2dp"
+            android:textColor="?android:textColorPrimary"
+            android:textSize="12sp"
+            android:lineSpacingExtra="3dp"
             app:layout_constraintEnd_toStartOf="@+id/menu"
             app:layout_constraintStart_toEndOf="@+id/engine_icon"
             app:layout_constraintTop_toTopOf="@+id/engine_icon"
-            tools:text="120.5 MB / 250 MB (45%)\nSpeed: 2.5 MB/s • ETA: 45s\nThreads: 12/60" />
+            tools:text="120.5 MB / 250 MB (45%)\nSpeed: 2.5 MB/s • ETA: 45s\nThreads: 12 Active / 60 Total\nEngine: Normal (Multi-threaded)" />
 
         <ImageButton
             android:id="@+id/menu"

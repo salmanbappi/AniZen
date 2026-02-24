@@ -77,23 +77,40 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         val speed = download.speed
         val eta = download.eta
         val sizeInfo = download.downloadedSize
-        val isHls = download.engineType == "HLS"
+        val engine = download.engineType ?: "Normal"
+        val isHls = engine == "HLS"
+        
         val segments = if (download.totalSegments > 0) {
             if (isHls) "Segments: ${download.downloadedSegments}/${download.totalSegments}"
             else "Connections: ${download.downloadedSegments}/${download.totalSegments}"
         } else ""
         
-        val line1 = if (sizeInfo.isNotEmpty()) "$sizeInfo (${download.progress}%)" else "(${download.progress}%)"
-        val line2 = mutableListOf<String>()
-        if (speed.isNotEmpty()) line2.add("Speed: $speed")
-        if (eta.isNotEmpty()) line2.add("ETA: $eta")
-        
-        val line3 = if (segments.isNotEmpty()) segments else ""
-        
+        // 1DM+ Ultimate Status Line Implementation
         val statusText = buildString {
-            append(line1)
-            if (line2.isNotEmpty()) append("\n").append(line2.joinToString(" • "))
-            if (line3.isNotEmpty()) append("\n").append(line3)
+            // Line 1: Progress & Size
+            if (sizeInfo.isNotEmpty()) {
+                append(sizeInfo).append(" (").append(download.progress).append("%)")
+            } else if (download.progress > 0) {
+                append(download.progress).append("%")
+            }
+            
+            // Line 2: Performance
+            if (speed.isNotEmpty() || eta.isNotEmpty()) {
+                append("\n")
+                if (speed.isNotEmpty()) append("Speed: ").append(speed)
+                if (eta.isNotEmpty()) {
+                    if (speed.isNotEmpty()) append(" • ")
+                    append("ETA: ").append(eta)
+                }
+            }
+            
+            // Line 3: Internal Logic (Transparency)
+            if (segments.isNotEmpty()) {
+                append("\n").append(segments)
+            }
+            
+            // Line 4: Engine Info
+            append("\nEngine: ").append(if (isHls) "HLS (Sequential/Playlist)" else "Normal (Multi-threaded/Direct)")
         }
         
         binding.downloadProgressText.text = if (download.progress <= 0 && sizeInfo.isEmpty()) {
@@ -102,18 +119,16 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             statusText
         }
 
-        // Update Engine Icon
-        when (download.engineType) {
+        // Update Engine Icon & Tint for visibility
+        binding.engineIcon.visibility = View.VISIBLE
+        when (engine) {
             "Normal" -> {
-                binding.engineIcon.visibility = View.VISIBLE
                 binding.engineIcon.setImageResource(R.drawable.ic_download_item_24dp)
             }
             "HLS" -> {
-                binding.engineIcon.visibility = View.VISIBLE
                 binding.engineIcon.setImageResource(R.drawable.ic_video_chapter_20dp)
             }
             "Torrent" -> {
-                binding.engineIcon.visibility = View.VISIBLE
                 binding.engineIcon.setImageResource(R.drawable.ic_sync_24dp)
             }
             else -> {
