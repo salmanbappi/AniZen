@@ -17,10 +17,15 @@ interface Episode : SEpisode, Serializable {
     var bookmark: Boolean
 
     // AM (FILLERMARK) -->
-    var fillermark: Boolean
+    override var fillermark: Boolean
     // <-- AM (FILLERMARK)
 
+    override var summary: String?
+
+    override var preview_url: String?
+
     var last_second_seen: Long
+
 
     var total_seconds: Long
 

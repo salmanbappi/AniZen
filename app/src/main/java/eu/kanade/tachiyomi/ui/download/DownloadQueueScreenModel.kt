@@ -7,9 +7,9 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.databinding.DownloadListBinding
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -41,208 +41,106 @@ class DownloadQueueScreenModel(
     var adapter: DownloadAdapter? = null
 
     /**
-     * Map of jobs for active downloads.
+     * Maintains the queue of downloads.
      */
-    private val progressJobs = mutableMapOf<Download, Job>()
-
-    val listener = object : DownloadAdapter.DownloadItemListener {
-        /**
-         * Called when an item is released from a drag.
-         *
-         * @param position The position of the released item.
-         */
-        override fun onItemReleased(position: Int) {
-            val adapter = adapter ?: return
-            val downloads = adapter.headerItems.flatMap { header ->
-                adapter.getSectionItems(header).map { item ->
-                    (item as DownloadItem).download
-                }
-            }
-            reorder(downloads)
-        }
-
-        /**
-         * Called when the menu item of a download is pressed
-         *
-         * @param position The position of the item
-         * @param menuItem The menu Item pressed
-         */
-        override fun onMenuItemClick(position: Int, menuItem: MenuItem) {
-            val item = adapter?.getItem(position) ?: return
-            if (item is DownloadItem) {
-                when (menuItem.itemId) {
-                    R.id.move_to_top, R.id.move_to_bottom -> {
-                        val headerItems = adapter?.headerItems ?: return
-                        val newDownloads = mutableListOf<Download>()
-                        headerItems.forEach { headerItem ->
-                            headerItem as DownloadHeaderItem
-                            if (headerItem == item.header) {
-                                headerItem.removeSubItem(item)
-                                if (menuItem.itemId == R.id.move_to_top) {
-                                    headerItem.addSubItem(0, item)
-                                } else {
-                                    headerItem.addSubItem(item)
-                                }
-                            }
-                            newDownloads.addAll(headerItem.subItems.map { it.download })
-                        }
-                        reorder(newDownloads)
-                    }
-                    R.id.move_to_top_series, R.id.move_to_bottom_series -> {
-                        val (selectedSeries, otherSeries) = adapter?.currentItems
-                            ?.filterIsInstance<DownloadItem>()
-                            ?.map(DownloadItem::download)
-                            ?.partition { item.download.anime.id == it.anime.id }
-                            ?: Pair(emptyList(), emptyList())
-                        if (menuItem.itemId == R.id.move_to_top_series) {
-                            reorder(selectedSeries + otherSeries)
-                        } else {
-                            reorder(otherSeries + selectedSeries)
-                        }
-                    }
-                    R.id.cancel_download -> {
-                        cancel(listOf(item.download))
-                    }
-                    R.id.cancel_series -> {
-                        val allAnimeDownloadsForSeries = adapter?.currentItems
-                            ?.filterIsInstance<DownloadItem>()
-                            ?.filter { item.download.anime.id == it.download.anime.id }
-                            ?.map(DownloadItem::download)
-                        if (!allAnimeDownloadsForSeries.isNullOrEmpty()) {
-                            cancel(allAnimeDownloadsForSeries)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    private var downloadQueue: List<Download> = emptyList()
 
     init {
         screenModelScope.launch {
             downloadManager.queueState
                 .map { downloads ->
-                    downloads
-                        .groupBy { it.source }
-                        .map { entry ->
-                            DownloadHeaderItem(entry.key.id, entry.key.name, entry.value.size).apply {
-                                addSubItems(0, entry.value.map { DownloadItem(it, this) })
+                    val grouped = downloads.groupBy { it.anime.id }
+                    grouped.map { (animeId, animeDownloads) ->
+                        val anime = animeDownloads[0].anime
+                        DownloadHeaderItem(anime, animeDownloads.size).apply {
+                            animeDownloads.forEach { download ->
+                                addSubItem(DownloadItem(download, this))
                             }
                         }
+                    }
                 }
-                .collect { newList -> _state.update { newList } }
+                .update(_state)
         }
     }
-
-    override fun onDispose() {
-        for (job in progressJobs.values) {
-            job.cancel()
-        }
-        progressJobs.clear()
-        adapter = null
-    }
-
-    val isDownloaderRunning = downloadManager.isDownloaderRunning
-        .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun getDownloadStatusFlow() = downloadManager.statusFlow()
-    fun getDownloadProgressFlow() = downloadManager.progressFlow()
 
-    fun startDownloads() {
-        downloadManager.startDownloads()
-    }
+    fun getDownloadProgressFlow() = downloadManager.progressFlow()
 
     fun pauseDownloads() {
         downloadManager.pauseDownloads()
+    }
+
+    fun startDownloads() {
+        downloadManager.startDownloads()
     }
 
     fun clearQueue() {
         downloadManager.clearQueue()
     }
 
-    fun reorder(downloads: List<Download>) {
+    fun reorderQueue(downloads: List<Download>) {
         downloadManager.reorderQueue(downloads)
     }
 
-    fun cancel(downloads: List<Download>) {
+    fun <T : Comparable<T>> reorderQueue(selector: (DownloadItem) -> T, reverse: Boolean) {
+        val newQueue = state.value
+            .flatMap { header ->
+                header.subItems.map { it }
+            }
+            .sortedBy(selector)
+            .run { if (reverse) reversed() else this }
+            .map { it.download }
+        reorderQueue(newQueue)
+    }
+
+    fun cancelDownload(download: Download) {
+        downloadManager.cancelQueuedDownloads(listOf(download))
+    }
+
+    fun cancelDownloads(downloads: List<Download>) {
         downloadManager.cancelQueuedDownloads(downloads)
     }
 
-    fun <R : Comparable<R>> reorderQueue(
-        selector: (DownloadItem) -> R,
-        reverse: Boolean = false,
-    ) {
-        val adapter = adapter ?: return
-        val newDownloads = mutableListOf<Download>()
-        adapter.headerItems.forEach { headerItem ->
-            headerItem as DownloadHeaderItem
-            headerItem.subItems = headerItem.subItems.sortedBy(selector).toMutableList().apply {
-                if (reverse) {
-                    reverse()
-                }
+    fun onMove(from: Int, to: Int) {
+        adapter?.let { adapter ->
+            val obj = adapter.getItem(from) as? DownloadItem ?: return
+            val target = adapter.getItem(to) as? DownloadItem ?: return
+            
+            val list = downloadManager.queueState.value.toMutableList()
+            val fromIdx = list.indexOf(obj.download)
+            val toIdx = list.indexOf(target.download)
+            if (fromIdx != -1 && toIdx != -1) {
+                val item = list.removeAt(fromIdx)
+                list.add(toIdx, item)
+                reorderQueue(list)
             }
-            newDownloads.addAll(headerItem.subItems.map { it.download })
         }
-        reorder(newDownloads)
     }
 
-    /**
-     * Called when the status of a download changes.
-     *
-     * @param download the download whose status has changed.
-     */
-    fun onStatusChange(download: Download) {
-        when (download.status) {
-            Download.State.DOWNLOADING -> {
-                // Initial update of the downloaded pages
-                onUpdateProgress(download)
-                onUpdateDownloadedPages(download)
+    fun onMenuItemClick(position: Int, item: MenuItem) {
+        val download = (adapter?.getItem(position) as? DownloadItem)?.download ?: return
+        when (item.itemId) {
+            R.id.move_to_top -> {
+                val list = downloadManager.queueState.value.toMutableList()
+                list.remove(download)
+                list.add(0, download)
+                reorderQueue(list)
             }
-            Download.State.DOWNLOADED -> {
-                cancelProgressJob(download)
-                onUpdateProgress(download)
-                onUpdateDownloadedPages(download)
+            R.id.move_to_bottom -> {
+                val list = downloadManager.queueState.value.toMutableList()
+                list.remove(download)
+                list.add(download)
+                reorderQueue(list)
             }
-            Download.State.ERROR -> cancelProgressJob(download)
-            else -> {
-                /* unused */
+            R.id.cancel_download -> {
+                cancelDownload(download)
             }
         }
     }
 
     /**
-     * Unsubscribes the given download from the progress subscriptions.
-     *
-     * @param download the download to unsubscribe.
-     */
-    private fun cancelProgressJob(download: Download) {
-        progressJobs.remove(download)?.cancel()
-    }
-
-    /**
-     * Called when the progress of a download changes.
-     *
-     * @param download the download whose progress has changed.
-     */
-    private fun onUpdateProgress(download: Download) {
-        getHolder(download)?.notifyProgress()
-        getHolder(download)?.notifyDownloadedPages()
-    }
-
-    /**
-     * Called when a page of a download is downloaded.
-     *
-     * @param download the download whose page has been downloaded.
-     */
-    fun onUpdateDownloadedPages(download: Download) {
-        getHolder(download)?.notifyDownloadedPages()
-        getHolder(download)?.notifyProgress()
-    }
-
-    /**
-     * Returns the holder for the given download.
-     *
-     * @param download the download to find.
-     * @return the holder of the download or null if it's not bound.
+     * Returns the holder of the download or null if it's not bound.
      */
     private fun getHolder(download: Download): DownloadHolder? {
         return controllerBinding.root.findViewHolderForItemId(download.episode.id) as? DownloadHolder
