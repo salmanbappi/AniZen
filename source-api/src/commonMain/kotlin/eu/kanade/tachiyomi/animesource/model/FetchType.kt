@@ -6,4 +6,6 @@ import kotlinx.serialization.Serializable
 enum class FetchType {
     SHORT,
     ALL,
+    EPISODES,
+    Episodes, // Some extensions might use this casing
 }

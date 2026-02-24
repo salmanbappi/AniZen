@@ -68,7 +68,7 @@
             android:id="@+id/engine_icon"
             android:layout_width="14dp"
             android:layout_height="14dp"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="8dp"
             app:layout_constraintStart_toStartOf="@+id/manga_full_title"
             app:layout_constraintTop_toBottomOf="@+id/download_progress"
             app:tint="?android:attr/textColorSecondary"
@@ -80,16 +80,15 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
-            android:ellipsize="end"
-            android:maxLines="1"
+            android:maxLines="3"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="?android:textColorSecondary"
             android:textSize="11sp"
-            app:layout_constraintBottom_toBottomOf="@+id/engine_icon"
+            android:lineSpacingExtra="2dp"
             app:layout_constraintEnd_toStartOf="@+id/menu"
             app:layout_constraintStart_toEndOf="@+id/engine_icon"
             app:layout_constraintTop_toTopOf="@+id/engine_icon"
-            tools:text="45% • 120.5 MB / 250 MB • 2.5 MB/s • ETA: 45s" />
+            tools:text="120.5 MB / 250 MB (45%)\nSpeed: 2.5 MB/s • ETA: 45s\nThreads: 12/60" />
 
         <ImageButton
             android:id="@+id/menu"

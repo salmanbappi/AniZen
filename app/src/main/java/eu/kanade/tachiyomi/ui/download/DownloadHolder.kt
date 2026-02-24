@@ -77,20 +77,29 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         val speed = download.speed
         val eta = download.eta
         val sizeInfo = download.downloadedSize
-        val segments = if (download.totalSegments > 0) "${download.downloadedSegments}/${download.totalSegments}" else ""
+        val isHls = download.engineType == "HLS"
+        val segments = if (download.totalSegments > 0) {
+            if (isHls) "Segments: ${download.downloadedSegments}/${download.totalSegments}"
+            else "Connections: ${download.downloadedSegments}/${download.totalSegments}"
+        } else ""
         
-        val statusParts = mutableListOf<String>()
-        if (sizeInfo.isNotEmpty()) statusParts.add(sizeInfo)
-        if (speed.isNotEmpty()) statusParts.add(speed)
-        if (segments.isNotEmpty()) statusParts.add("Part: $segments")
-        if (eta.isNotEmpty()) statusParts.add("ETA: $eta")
+        val line1 = if (sizeInfo.isNotEmpty()) "$sizeInfo (${download.progress}%)" else "(${download.progress}%)"
+        val line2 = mutableListOf<String>()
+        if (speed.isNotEmpty()) line2.add("Speed: $speed")
+        if (eta.isNotEmpty()) line2.add("ETA: $eta")
         
-        val statusText = statusParts.joinToString(" • ")
+        val line3 = if (segments.isNotEmpty()) segments else ""
         
-        binding.downloadProgressText.text = if (download.progress <= 0) {
-            if (statusText.isNotEmpty()) statusText else view.context.stringResource(MR.strings.update_check_notification_download_in_progress)
+        val statusText = buildString {
+            append(line1)
+            if (line2.isNotEmpty()) append("\n").append(line2.joinToString(" • "))
+            if (line3.isNotEmpty()) append("\n").append(line3)
+        }
+        
+        binding.downloadProgressText.text = if (download.progress <= 0 && sizeInfo.isEmpty()) {
+            view.context.stringResource(MR.strings.update_check_notification_download_in_progress)
         } else {
-            "(${download.progress}%) • $statusText"
+            statusText
         }
 
         // Update Engine Icon
