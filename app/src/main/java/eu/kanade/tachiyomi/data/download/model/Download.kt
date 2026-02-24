@@ -60,9 +60,11 @@ data class Download(
      * Updates the status of the download
      */
     override fun update(bytesRead: Long, contentLength: Long, done: Boolean) {
-        totalSize = contentLength
-        val newProgress = if (contentLength > 0) {
-            (100 * bytesRead / contentLength).toInt()
+        if (contentLength > 0) {
+            totalSize = contentLength
+        }
+        val newProgress = if (totalSize > 0) {
+            (100 * bytesRead / totalSize).toInt()
         } else {
             -1
         }
