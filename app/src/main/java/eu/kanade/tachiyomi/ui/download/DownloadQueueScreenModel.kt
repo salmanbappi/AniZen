@@ -15,15 +15,27 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import tachiyomi.domain.download.service.DownloadPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class DownloadQueueScreenModel(
     private val downloadManager: DownloadManager = Injekt.get(),
+    private val downloadPreferences: DownloadPreferences = Injekt.get(),
 ) : ScreenModel {
 
     private val _state = MutableStateFlow(emptyList<DownloadHeaderItem>())
     val state = _state.asStateFlow()
+
+    val alwaysUseInternalDownloader = downloadPreferences.alwaysUseInternalDownloader().stateIn(
+        screenModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        false,
+    )
+
+    fun toggleAlwaysUseInternalDownloader() {
+        downloadPreferences.alwaysUseInternalDownloader().set(!alwaysUseInternalDownloader.value)
+    }
 
     lateinit var controllerBinding: DownloadListBinding
 

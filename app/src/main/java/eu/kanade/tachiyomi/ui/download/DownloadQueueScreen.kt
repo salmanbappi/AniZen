@@ -217,6 +217,8 @@ data object DownloadQueueScreen : Screen {
         animeScreenModel: DownloadQueueScreenModel,
         animeDownloadList: List<DownloadHeaderItem>,
     ) {
+        val alwaysUseInternal by animeScreenModel.alwaysUseInternalDownloader.collectAsState()
+        
         if (animeDownloadList.isNotEmpty()) {
             var sortExpanded by remember { mutableStateOf(false) }
             val onDismissRequest = { sortExpanded = false }
@@ -286,6 +288,14 @@ data object DownloadQueueScreen : Screen {
                         title = stringResource(MR.strings.action_sort),
                         icon = Icons.AutoMirrored.Outlined.Sort,
                         onClick = { sortExpanded = true },
+                    ),
+                    AppBar.OverflowAction(
+                        title = if (alwaysUseInternal) {
+                            stringResource(MR.strings.action_use_hls_download)
+                        } else {
+                            stringResource(MR.strings.action_use_normal_download)
+                        },
+                        onClick = { animeScreenModel.toggleAlwaysUseInternalDownloader() },
                     ),
                     AppBar.OverflowAction(
                         title = stringResource(MR.strings.action_cancel_all),

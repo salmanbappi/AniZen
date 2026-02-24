@@ -1448,4 +1448,6 @@
     <string name="onboarding_storage_action_create_folder">Create default AniZen folder</string>
     <string name="download_speed_limit">Chapter download speed limit</string>
     <string name="download_speed_limit_hint">Set to 0 to disable the speed limit.</string>
+    <string name="action_use_hls_download">Use HLS Engine (Native/FFmpeg)</string>
+    <string name="action_use_normal_download">Use Normal Engine (Multi-threaded)</string>
 </resources>

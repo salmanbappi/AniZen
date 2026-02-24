@@ -56,6 +56,8 @@ class DownloadPreferences(
     fun concurrentDownloads() = preferenceStore.getInt("concurrent_downloads", 10)
     fun downloadThreads() = preferenceStore.getInt("download_threads", 4)
 
+    fun alwaysUseInternalDownloader() = preferenceStore.getBoolean("always_use_internal_downloader", false)
+
     fun downloadNewUnreadChaptersOnly() = preferenceStore.getBoolean("download_new_unread_episodes_only", false)
 
     // KMK -->
