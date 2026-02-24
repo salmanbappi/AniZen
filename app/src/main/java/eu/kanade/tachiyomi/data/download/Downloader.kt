@@ -502,14 +502,20 @@ class Downloader(
                     val url = video.videoUrl
                     val path = url.substringBefore("?")
                     val extension = path.substringAfterLast(".", "").lowercase()
-                    val isVideoFile = extension in listOf("mp4", "mkv", "mov", "avi", "flv", "webm", "ts", "m4v", "3gp") ||
-                                      url.contains(".mp4", ignoreCase = true) ||
-                                      url.contains(".mkv", ignoreCase = true)
-                                      
-                    val isHls = (video.type == VideoType.HLS || (video.type == VideoType.VIDEO && extension == "m3u8")) && !isVideoFile
-                    val isDash = (video.type == VideoType.DASH || (video.type == VideoType.VIDEO && extension == "mpd")) && !isVideoFile
                     
-                    logcat { "Download Detection: url=$url, extension=$extension, isVideoFile=$isVideoFile, videoType=${video.type}, isHls=$isHls, isDash=$isDash" }
+                    // AGGRESSIVE BYPASS: If it contains any video extension or belongs to known direct mirrors, it's NOT HLS.
+                    val isExplicitVideo = url.contains(".mp4", ignoreCase = true) ||
+                                          url.contains(".mkv", ignoreCase = true) ||
+                                          url.contains(".avi", ignoreCase = true) ||
+                                          url.contains(".mov", ignoreCase = true) ||
+                                          url.contains("discoveryftp.net", ignoreCase = true) ||
+                                          url.contains("cineplexbd.net", ignoreCase = true) ||
+                                          url.contains("download.php", ignoreCase = true)
+                                      
+                    val isHls = !isExplicitVideo && (video.type == VideoType.HLS || (video.type == VideoType.VIDEO && extension == "m3u8"))
+                    val isDash = !isExplicitVideo && (video.type == VideoType.DASH || (video.type == VideoType.VIDEO && extension == "mpd"))
+                    
+                    logcat { "Download Detection [FINAL]: url=$url, isExplicitVideo=$isExplicitVideo, videoType=${video.type}, isHls=$isHls" }
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
