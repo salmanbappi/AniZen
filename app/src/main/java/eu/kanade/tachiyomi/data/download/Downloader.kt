@@ -111,13 +111,11 @@ class Downloader(
         val userThreads = preferences.downloadThreads().get()
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
         
-        // Rationale: High thread counts (30+) can cause out-of-memory errors on older devices.
-        // We dynamically cap the threads based on the device's memory profile if the user 
-        // doesn't force a high limit.
+        // Rationale: We strictly respect user setting but cap it for stability on low-ram devices.
         return when {
-            activityManager?.isLowRamDevice == true -> userThreads.coerceIn(1, 8)
-            Runtime.getRuntime().maxMemory() < 256 * 1024 * 1024 -> userThreads.coerceIn(1, 12)
-            else -> userThreads.coerceAtLeast(12)
+            activityManager?.isLowRamDevice == true -> userThreads.coerceIn(1, 4)
+            Runtime.getRuntime().maxMemory() < 256 * 1024 * 1024 -> userThreads.coerceIn(1, 8)
+            else -> userThreads.coerceIn(1, 64) // Safety cap
         }
     }
 
@@ -526,7 +524,10 @@ class Downloader(
                     var isHls = (video.type == VideoType.HLS || extension == "m3u8" || url.contains(".m3u8", ignoreCase = true)) && !hasVideoExtension && !isBDIX
                     var isDash = (video.type == VideoType.DASH || extension == "mpd" || url.contains(".mpd", ignoreCase = true)) && !hasVideoExtension && !isBDIX
                     
-                    if (!hasVideoExtension && !isBDIX && !preferences.alwaysUseInternalDownloader().get()) {
+                    // 1DM+ Style Intelligence: Peek at the first few bytes only if really ambiguous
+                    val isAmbiguous = !hasVideoExtension && !isBDIX && !url.contains(".m3u8") && !url.contains(".mpd")
+                    
+                    if (isAmbiguous && !preferences.alwaysUseInternalDownloader().get()) {
                         try {
                             val client = networkHelper.client
                             val headers = video.headers ?: download.source.headers
@@ -667,10 +668,9 @@ class Downloader(
         download.downloadedSegments = 0
 
         // 3. Parallel segment downloading with Sequential Writing (High Performance)
-        // Rationale: We use a Semaphore to saturate bandwidth while the OOM prevention loop 
-        // ensures that we don't buffer too many segments in memory before they are 
-        // sequentially written to the file channel.
         val concurrency = calculateDynamicConcurrency()
+        download.activeThreads = concurrency
+        
         val semaphore = Semaphore(concurrency)
         var failedSegments = 0
         
@@ -777,7 +777,9 @@ class Downloader(
         val client = networkHelper.downloadClient
         val headers = video.headers ?: download.source.headers
         
-        val threadCount = preferences.downloadThreads().get().coerceAtLeast(8)
+        val threadCount = calculateDynamicConcurrency()
+        download.activeThreads = threadCount
+        
         val segmentSize = 16 * 1024 * 1024L // 16MB segments for high-speed stability
         val totalDownloaded = java.util.concurrent.atomic.AtomicLong(0)
         val progressMap = java.util.concurrent.ConcurrentHashMap<Int, Long>()

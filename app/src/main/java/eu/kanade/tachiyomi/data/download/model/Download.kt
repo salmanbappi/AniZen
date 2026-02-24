@@ -50,6 +50,7 @@ data class Download(
     @Transient var downloadedSize: String = ""
     @Transient var downloadedSegments: Int = 0
     @Transient var totalSegments: Int = 0
+    @Transient var activeThreads: Int = 0
     @Transient var engineType: String = "" // "HLS" or "Normal"
     
     private var lastUpdateTime: Long = System.currentTimeMillis()
@@ -103,6 +104,8 @@ data class Download(
             downloadedSize = formatSize(bytesRead)
             if (totalSize > 0) {
                 downloadedSize += " / " + formatSize(totalSize)
+            } else {
+                downloadedSize += " (Calculating...)"
             }
 
             // Calculate ETA
