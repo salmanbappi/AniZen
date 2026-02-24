@@ -11,10 +11,4 @@ import kotlinx.serialization.Serializable
 enum class FetchType {
     Seasons,
     Episodes,
-    
-    // Legacy/Compatibility mappings
-    SHORT,
-    ALL,
-    EPISODES,
-    SEASONS,
 }
