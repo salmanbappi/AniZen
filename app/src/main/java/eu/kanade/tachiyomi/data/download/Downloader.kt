@@ -104,7 +104,7 @@ class Downloader(
     init {
         launchIO {
             val downloads = store.restore()
-            _queueState.update { downloads }
+            addAllToQueue(downloads)
         }
     }
 
@@ -297,6 +297,7 @@ class Downloader(
         context.contentResolver.openFileDescriptor(videoFile.uri, "rw")?.use { pfd ->
             FileOutputStream(pfd.fileDescriptor).channel.use { channel ->
                 coroutineScope {
+                    val segmentsToDownload = AtomicInteger(0)
                     segments.forEachIndexed { index, segUrl ->
                         launch {
                             memorySemaphore.withPermit {
@@ -312,7 +313,7 @@ class Downloader(
                                             nextWriteIdx.incrementAndGet()
                                             download.downloadedSegments = nextWriteIdx.get()
                                             download.update(total, -1, false)
-                                            notifier.onProgressChange(download)
+                                            if (nextWriteIdx.get() % 5 == 0) notifier.onProgressChange(download)
                                         }
                                     }
                                 } catch (e: Exception) {
@@ -347,7 +348,7 @@ class Downloader(
 
     private suspend fun ensureSuccessfulAnimeDownload(download: Download, animeDir: UniFile, tmpDir: UniFile, dirname: String) {
         val downloadedVideo = tmpDir.listFiles().orEmpty().filterNot { it.getName()?.endsWith(".tmp") == true }
-        if (downloadedVideo.size == 1) {
+        if (downloadedVideo.size >= 1) {
             tmpDir.renameTo(dirname)
             cache.addEpisode(dirname, animeDir, download.anime)
             download.status = Download.State.DOWNLOADED

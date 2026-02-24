@@ -104,8 +104,6 @@ data class Download(
             downloadedSize = formatSize(bytesRead)
             if (totalSize > 0) {
                 downloadedSize += " / " + formatSize(totalSize)
-            } else {
-                downloadedSize += " (Calculating...)"
             }
 
             // Calculate ETA
