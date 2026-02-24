@@ -500,17 +500,17 @@ class Downloader(
                 file = try {
                     val video = download.video!!
                     val url = video.videoUrl
-                    val isVideoFile = url.substringBefore("?").endsWith(".mp4", ignoreCase = true) ||
-                                      url.substringBefore("?").endsWith(".mkv", ignoreCase = true) ||
-                                      url.substringBefore("?").endsWith(".mov", ignoreCase = true) ||
-                                      filename.endsWith(".mkv", ignoreCase = true) ||
-                                      filename.endsWith(".mp4", ignoreCase = true) ||
-                                      filename.endsWith(".avi", ignoreCase = true)
+                    val isVideoFile = url.contains(".mp4", ignoreCase = true) ||
+                                      url.contains(".mkv", ignoreCase = true) ||
+                                      url.contains(".mov", ignoreCase = true) ||
+                                      url.contains(".avi", ignoreCase = true) ||
+                                      url.contains(".flv", ignoreCase = true) ||
+                                      url.contains(".webm", ignoreCase = true)
                                       
                     val isHls = video.type == VideoType.HLS || 
-                               (video.type == VideoType.VIDEO && (url.contains(".m3u8") || url.contains(".mpd")) && !isVideoFile)
+                               (video.type == VideoType.VIDEO && (url.contains(".m3u8", ignoreCase = true) || url.contains(".mpd", ignoreCase = true)) && !isVideoFile)
                     val isDash = video.type == VideoType.DASH || 
-                                (video.type == VideoType.VIDEO && url.contains(".mpd") && !isVideoFile)
+                                (video.type == VideoType.VIDEO && url.contains(".mpd", ignoreCase = true) && !isVideoFile)
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
