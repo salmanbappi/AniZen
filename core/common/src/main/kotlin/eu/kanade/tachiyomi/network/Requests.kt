@@ -21,7 +21,7 @@ private val DEFAULT_BODY: RequestBody = FormBody.Builder().build()
  * @since extensions-lib 1.6
  */
 suspend fun OkHttpClient.get(
-    url: HttpUrl,
+    url: String,
     headers: Headers = DEFAULT_HEADERS,
     cache: CacheControl = DEFAULT_CACHE_CONTROL,
 ): Response {
@@ -32,11 +32,23 @@ suspend fun OkHttpClient.get(
  * @since extensions-lib 1.6
  */
 suspend fun OkHttpClient.get(
-    url: String,
+    url: HttpUrl,
     headers: Headers = DEFAULT_HEADERS,
     cache: CacheControl = DEFAULT_CACHE_CONTROL,
 ): Response {
-    return get(url.toHttpUrl(), headers, cache)
+    return newCall(GET(url, headers, cache)).awaitSuccess()
+}
+
+/**
+ * @since extensions-lib 1.6
+ */
+suspend fun OkHttpClient.post(
+    url: String,
+    headers: Headers = DEFAULT_HEADERS,
+    body: RequestBody = DEFAULT_BODY,
+    cache: CacheControl = DEFAULT_CACHE_CONTROL,
+): Response {
+    return newCall(POST(url, headers, body, cache)).awaitSuccess()
 }
 
 fun GET(

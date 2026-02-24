@@ -500,17 +500,22 @@ class Downloader(
                 file = try {
                     val video = download.video!!
                     val url = video.videoUrl
+                    val path = url.substringBefore("?")
                     val isVideoFile = url.contains(".mp4", ignoreCase = true) ||
                                       url.contains(".mkv", ignoreCase = true) ||
                                       url.contains(".mov", ignoreCase = true) ||
                                       url.contains(".avi", ignoreCase = true) ||
                                       url.contains(".flv", ignoreCase = true) ||
-                                      url.contains(".webm", ignoreCase = true)
+                                      url.contains(".webm", ignoreCase = true) ||
+                                      url.contains(".ts", ignoreCase = true) ||
+                                      filename.endsWith(".mkv", ignoreCase = true) ||
+                                      filename.endsWith(".mp4", ignoreCase = true) ||
+                                      filename.endsWith(".avi", ignoreCase = true)
                                       
                     val isHls = video.type == VideoType.HLS || 
-                               (video.type == VideoType.VIDEO && (url.contains(".m3u8", ignoreCase = true) || url.contains(".mpd", ignoreCase = true)) && !isVideoFile)
+                               (video.type == VideoType.VIDEO && (path.endsWith(".m3u8", ignoreCase = true) || path.endsWith(".mpd", ignoreCase = true)) && !isVideoFile)
                     val isDash = video.type == VideoType.DASH || 
-                                (video.type == VideoType.VIDEO && url.contains(".mpd", ignoreCase = true) && !isVideoFile)
+                                (video.type == VideoType.VIDEO && path.endsWith(".mpd", ignoreCase = true) && !isVideoFile)
                     
                     if (isTor(video)) {
                         torrentDownload(download, tmpDir, filename)
