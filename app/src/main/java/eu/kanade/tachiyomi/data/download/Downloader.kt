@@ -104,7 +104,7 @@ class Downloader(
     init {
         launchIO {
             val downloads = store.restore()
-            addAllToQueue(downloads)
+            _queueState.update { downloads }
         }
     }
 
@@ -311,7 +311,7 @@ class Downloader(
                                             val total = downloadedBytes.addAndGet(writeData.size.toLong())
                                             nextWriteIdx.incrementAndGet()
                                             download.downloadedSegments = nextWriteIdx.get()
-                                            download.update(downloadedBytes.get(), -1, false)
+                                            download.update(total, -1, false)
                                             notifier.onProgressChange(download)
                                         }
                                     }
@@ -346,14 +346,12 @@ class Downloader(
     }
 
     private suspend fun ensureSuccessfulAnimeDownload(download: Download, animeDir: UniFile, tmpDir: UniFile, dirname: String) {
-        val downloadedVideo = tmpDir.listFiles().orEmpty().filterNot { it.name?.endsWith(".tmp") == true }
+        val downloadedVideo = tmpDir.listFiles().orEmpty().filterNot { it.getName()?.endsWith(".tmp") == true }
         if (downloadedVideo.size == 1) {
             tmpDir.renameTo(dirname)
             cache.addEpisode(dirname, animeDir, download.anime)
             download.status = Download.State.DOWNLOADED
-        } else {
-            throw Exception("Unable to finalize download")
-        }
+        } else throw Exception("Unable to finalize download")
     }
 
     private fun areAllDownloadsFinished() = queueState.value.none { it.status.value <= Download.State.DOWNLOADING.value }

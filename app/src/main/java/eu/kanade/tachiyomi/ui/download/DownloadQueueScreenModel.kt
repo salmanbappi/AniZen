@@ -10,7 +10,9 @@ import eu.kanade.tachiyomi.databinding.DownloadListBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -27,8 +29,7 @@ class DownloadQueueScreenModel(
     private val _state = MutableStateFlow(emptyList<DownloadHeaderItem>())
     val state = _state.asStateFlow()
 
-    val alwaysUseInternalDownloader = downloadPreferences.alwaysUseInternalDownloader()
-        .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), downloadPreferences.alwaysUseInternalDownloader().get())
+    val alwaysUseInternalDownloader = downloadPreferences.alwaysUseInternalDownloader().stateIn(screenModelScope)
 
     fun toggleAlwaysUseInternalDownloader() {
         downloadPreferences.alwaysUseInternalDownloader().set(!alwaysUseInternalDownloader.value)
@@ -96,7 +97,7 @@ class DownloadQueueScreenModel(
                             }
                         }
                 }
-                .collect { newList -> _state.update { newList } }
+                .collectLatest { newList -> _state.update { newList } }
         }
     }
 
