@@ -522,33 +522,34 @@ class Downloader(
                     var isHls = (video.type == VideoType.HLS || extension == "m3u8" || url.contains(".m3u8", ignoreCase = true)) && !hasVideoExtension && !isBDIX
                     var isDash = (video.type == VideoType.DASH || extension == "mpd" || url.contains(".mpd", ignoreCase = true)) && !hasVideoExtension && !isBDIX
                     
-                    // 1DM+ Style Intelligence: If still unsure or if HLS is suspected on a non-obvious URL, sniff Content-Type
+                    // 1DM+ Style Intelligence: Peek at the first few bytes if unsure
                     if (!hasVideoExtension && !isBDIX && !preferences.alwaysUseInternalDownloader().get()) {
                         try {
                             val client = networkHelper.client
                             val headers = video.headers ?: download.source.headers
-                            val request = Request.Builder().url(url).head().headers(headers).build()
-                            // Use a short timeout for sniffing
-                            val response = client.newBuilder()
-                                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                                .build()
-                                .newCall(request).await()
+                            // Request first 512 bytes to sniff magic numbers and check Content-Type
+                            val request = Request.Builder().url(url).header("Range", "bytes=0-511").headers(headers).build()
+                            val response = client.newCall(request).await()
                             
                             val contentType = response.header("Content-Type")?.lowercase() ?: ""
+                            val bodySource = response.body?.source()
+                            val peek = bodySource?.peek()?.readByteString(8)?.hex()?.lowercase() ?: ""
+                            val peekText = bodySource?.peek()?.readUtf8(10) ?: ""
                             response.close()
                             
-                            if (contentType.contains("mpegurl") || contentType.contains("x-mpegurl")) {
+                            Log.d("AniZen", "Sniffing: url=$url, type=$contentType, peek=$peek")
+
+                            if (contentType.contains("mpegurl") || contentType.contains("x-mpegurl") || peekText.contains("#EXTM3U")) {
                                 isHls = true
-                            } else if (contentType.contains("dash+xml")) {
+                            } else if (contentType.contains("dash+xml") || peekText.contains("<MPD")) {
                                 isDash = true
-                            } else if (contentType.startsWith("video/") || contentType.contains("octet-stream")) {
-                                // Explicitly a video file or generic stream, bypass HLS
+                            } else if (contentType.startsWith("video/") || peek.startsWith("1a45dfa3") || peek.contains("66747970") || contentType.contains("octet-stream")) {
+                                // 1a45dfa3 = MKV, 66747970 = ftyp (MP4)
                                 isHls = false
                                 isDash = false
                             }
                         } catch (e: Exception) {
-                            Log.d("AniZen", "Sniffing failed for $url: ${e.message}")
+                            Log.d("AniZen", "Sniffing failed: ${e.message}")
                         }
                     }
                     

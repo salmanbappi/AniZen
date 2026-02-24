@@ -76,19 +76,21 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
     fun notifyDownloadedPages() {
         val speed = download.speed
         val eta = download.eta
+        val sizeInfo = download.downloadedSize
         val segments = if (download.totalSegments > 0) "${download.downloadedSegments}/${download.totalSegments}" else ""
         
         val statusParts = mutableListOf<String>()
+        if (sizeInfo.isNotEmpty()) statusParts.add(sizeInfo)
         if (speed.isNotEmpty()) statusParts.add(speed)
-        if (segments.isNotEmpty()) statusParts.add(segments)
-        if (eta.isNotEmpty()) statusParts.add(eta)
+        if (segments.isNotEmpty()) statusParts.add("Part: $segments")
+        if (eta.isNotEmpty()) statusParts.add("ETA: $eta")
         
         val statusText = statusParts.joinToString(" • ")
         
         binding.downloadProgressText.text = if (download.progress <= 0) {
             if (statusText.isNotEmpty()) statusText else view.context.stringResource(MR.strings.update_check_notification_download_in_progress)
         } else {
-            "${download.progress}%" + (if (statusText.isNotEmpty()) " • $statusText" else "")
+            "(${download.progress}%) • $statusText"
         }
 
         // Update Engine Icon

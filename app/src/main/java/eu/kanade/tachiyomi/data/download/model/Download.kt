@@ -47,6 +47,7 @@ data class Download(
     @Transient var speed: String = ""
     @Transient var eta: String = ""
     @Transient var totalSize: Long = -1L
+    @Transient var downloadedSize: String = ""
     @Transient var downloadedSegments: Int = 0
     @Transient var totalSegments: Int = 0
     @Transient var engineType: String = "" // "HLS" or "Normal"
@@ -96,6 +97,12 @@ data class Download(
                 else -> "${smoothSpeed.toLong()} B/s"
             }
 
+            // Update Downloaded Size String
+            downloadedSize = formatSize(bytesRead)
+            if (totalSize > 0) {
+                downloadedSize += " / " + formatSize(totalSize)
+            }
+
             // Calculate ETA
             if (totalSize > 0 && smoothSpeed > 0) {
                 val remainingBytes = totalSize - bytesRead
@@ -115,6 +122,15 @@ data class Download(
             seconds >= 3600 -> "%dh %dm %ds".format(seconds / 3600, (seconds % 3600) / 60, seconds % 60)
             seconds >= 60 -> "%dm %ds".format(seconds / 60, seconds % 60)
             else -> "%ds".format(seconds)
+        }
+    }
+
+    private fun formatSize(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 * 1024 -> "%.2f GB".format(bytes.toDouble() / (1024 * 1024 * 1024))
+            bytes >= 1024 * 1024 -> "%.1f MB".format(bytes.toDouble() / (1024 * 1024))
+            bytes >= 1024 -> "%.1f KB".format(bytes.toDouble() / 1024)
+            else -> "$bytes B"
         }
     }
 
