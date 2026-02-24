@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.system.Os
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.FFmpegKitConfig
@@ -555,7 +556,7 @@ class Downloader(
                         isDash = false
                     }
 
-                    Log.d("AniZen", "Download Detection [SMART]: url=$url, isHls=$isHls, isDash=$isDash")
+                    android.util.Log.d("AniZen", "Download Detection [SMART]: url=$url, isHls=$isHls, isDash=$isDash")
                     
                     if (isTor(video)) {
                         download.engineType = "Torrent"
