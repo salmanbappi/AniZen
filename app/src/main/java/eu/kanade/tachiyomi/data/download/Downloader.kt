@@ -920,7 +920,19 @@ class Downloader(
 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
             
-            context.startActivity(intent)
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed explicit intent, trying fallback..." }
+                // Fallback: remove explicit component and just use package name and MIME type
+                intent.component = null
+                intent.setDataAndType(Uri.parse(url), "video/*")
+                if (packageName.isNotBlank() && packageName != "None") {
+                    intent.setPackage(packageName)
+                }
+                context.startActivity(intent)
+            }
+            
             delay(1500) // Give external downloader time to register intent and prevent dropping multiple downloads
             return true
         } catch (e: Exception) {
