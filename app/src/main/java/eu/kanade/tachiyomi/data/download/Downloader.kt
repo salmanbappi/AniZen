@@ -265,7 +265,6 @@ class Downloader(
     private suspend fun downloadEpisode(download: Download) {
         val animeDir = provider.getAnimeDir(download.anime.title, download.source)
         val episodeDirname = provider.getEpisodeDirName(download.episode.name, download.episode.scanlator)
-        val tmpDir = animeDir.createDirectory(episodeDirname + TMP_DIR_SUFFIX)!!
         download.status = Download.State.DOWNLOADING
         
         notifier.onProgressChange(download)
@@ -280,7 +279,7 @@ class Downloader(
             download.video = video
 
             if (download.changeDownloader) {
-                val success = externalDownload(download)
+                val success = externalDownload(download, animeDir)
                 if (success) {
                     download.status = Download.State.DOWNLOADED
                     _queueState.update { it - download }
@@ -292,6 +291,7 @@ class Downloader(
                 }
             }
 
+            val tmpDir = animeDir.createDirectory(episodeDirname + TMP_DIR_SUFFIX)!!
             val filename = DiskUtil.buildValidFilename(download.episode.name)
             val url = video.videoUrl
             var isHls = video.type == VideoType.HLS || url.contains(".m3u8")
@@ -828,7 +828,7 @@ class Downloader(
         if (wasRunning) start()
     }
 
-    private fun externalDownload(download: Download): Boolean {
+    private suspend fun externalDownload(download: Download, animeDir: UniFile): Boolean {
         val video = download.video ?: return false
         val url = video.videoUrl
         val packageName = preferences.externalDownloaderSelection().get()
@@ -853,7 +853,13 @@ class Downloader(
             putExtra("title", "${download.anime.title} - ${download.episode.name}")
             putExtra("filename", filename)
 
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            val dirPath = animeDir.filePath
+            if (dirPath != null) {
+                putExtra("extra_path", dirPath) // 1DM extra
+                putExtra("com.dv.get.ext_dir", dirPath) // ADM extra
+            }
+
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
 
             if (packageName.isNotBlank() && packageName != "None") {
                 setPackage(packageName)
@@ -862,6 +868,7 @@ class Downloader(
 
         return try {
             context.startActivity(intent)
+            delay(800) // Give external downloader time to register intent
             true
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to launch external downloader" }
