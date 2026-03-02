@@ -279,7 +279,7 @@ class Downloader(
             download.video = video
 
             if (download.changeDownloader) {
-                val success = externalDownload(download, animeDir)
+                val success = externalDownload(download, animeDir, episodeDirname)
                 if (success) {
                     download.status = Download.State.DOWNLOADED
                     _queueState.update { it - download }
@@ -828,51 +828,107 @@ class Downloader(
         if (wasRunning) start()
     }
 
-    private suspend fun externalDownload(download: Download, animeDir: UniFile): Boolean {
+    private suspend fun externalDownload(download: Download, animeDir: UniFile, episodeDirname: String): Boolean {
         val video = download.video ?: return false
         val url = video.videoUrl
         val packageName = preferences.externalDownloaderSelection().get()
-
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse(url)
-            
-            val headers = video.headers ?: (download.source as? HttpSource)?.headers
-            if (headers != null) {
-                val headersBundle = Bundle()
-                for (header in headers) {
-                    headersBundle.putString(header.first, header.second)
-                }
-                putExtra("android.media.intent.extra.HTTP_HEADERS", headersBundle)
-                
-                val headersArray = headers.map { "${it.first}: ${it.second}" }.toTypedArray()
-                putExtra("headers", headersArray)
+        val pm = context.packageManager
+        
+        try {
+            val intent = if (packageName.isNotBlank() && packageName != "None") {
+                pm.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_VIEW)
+            } else {
+                Intent(Intent.ACTION_VIEW)
             }
 
             val filename = DiskUtil.buildValidFilename(download.episode.name) + ".mp4"
+            
+            // Create the episode directory so external downloader can save inside it
+            val episodeDir = animeDir.createDirectory(episodeDirname)
+            val dirPath = episodeDir?.filePath ?: animeDir.filePath
 
-            putExtra("title", "${download.anime.title} - ${download.episode.name}")
-            putExtra("filename", filename)
-
-            val dirPath = animeDir.filePath
-            if (dirPath != null) {
-                putExtra("extra_path", dirPath) // 1DM extra
-                putExtra("com.dv.get.ext_dir", dirPath) // ADM extra
+            withUIContext {
+                if (dirPath != null) {
+                    context.copyToClipboard("Episode download location", dirPath)
+                }
             }
 
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            when {
+                packageName.startsWith("idm.internet.download.manager") -> {
+                    val headers = video.headers ?: (download.source as? HttpSource)?.headers
+                    val bundle = Bundle()
+                    headers?.forEach { (key, value) ->
+                        bundle.putString(key, value)
+                    }
 
-            if (packageName.isNotBlank() && packageName != "None") {
-                setPackage(packageName)
+                    intent.apply {
+                        component = ComponentName(packageName, "idm.internet.download.manager.Downloader")
+                        action = Intent.ACTION_VIEW
+                        data = Uri.parse(url)
+                        
+                        putExtra("extra_filename", filename)
+                        putExtra("extra_headers", bundle)
+                        if (dirPath != null) {
+                            putExtra("extra_path", dirPath)
+                        }
+                    }
+                }
+                packageName.startsWith("com.dv.adm") -> {
+                    val headers = video.headers ?: (download.source as? HttpSource)?.headers
+                    val bundle = Bundle()
+                    headers?.forEach { (key, value) ->
+                        bundle.putString(key, value.replace("http", "h_ttp"))
+                    }
+
+                    intent.apply {
+                        component = ComponentName(packageName, "$packageName.AEditor")
+                        action = Intent.ACTION_VIEW
+                        putExtra(
+                            "com.dv.get.ACTION_LIST_ADD",
+                            "${Uri.parse(url)}<info>$filename",
+                        )
+                        if (dirPath != null) {
+                            putExtra("com.dv.get.ACTION_LIST_PATH", dirPath)
+                        }
+                        putExtra("android.media.intent.extra.HTTP_HEADERS", bundle)
+                    }
+                }
+                else -> {
+                    val headers = video.headers ?: (download.source as? HttpSource)?.headers
+                    if (headers != null) {
+                        val headersBundle = Bundle()
+                        for (header in headers) {
+                            headersBundle.putString(header.first, header.second)
+                        }
+                        intent.putExtra("android.media.intent.extra.HTTP_HEADERS", headersBundle)
+                        val headersArray = headers.map { "${it.first}: ${it.second}" }.toTypedArray()
+                        intent.putExtra("headers", headersArray)
+                    }
+
+                    intent.apply {
+                        action = Intent.ACTION_VIEW
+                        data = Uri.parse(url)
+                        putExtra("title", "${download.anime.title} - ${download.episode.name}")
+                        putExtra("filename", filename)
+                        if (dirPath != null) {
+                            putExtra("extra_path", dirPath) // fallback 1DM
+                            putExtra("com.dv.get.ext_dir", dirPath) // fallback ADM
+                        }
+                        if (packageName.isNotBlank() && packageName != "None") {
+                            setPackage(packageName)
+                        }
+                    }
+                }
             }
-        }
 
-        return try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            
             context.startActivity(intent)
-            delay(800) // Give external downloader time to register intent
-            true
+            delay(1500) // Give external downloader time to register intent and prevent dropping multiple downloads
+            return true
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to launch external downloader" }
-            false
+            return false
         }
     }
 
