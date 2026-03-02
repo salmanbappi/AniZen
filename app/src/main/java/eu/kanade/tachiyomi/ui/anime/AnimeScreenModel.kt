@@ -867,7 +867,7 @@ class AnimeScreenModel(
             if (startNow) {
                 val episodeId = episodes.singleOrNull()?.id ?: return@launchNonCancellable
                 downloadManager.startDownloadNow(episodeId)
-            } else downloadEpisodes(episodes, false, video)
+            } else downloadEpisodes(episodes, useExternalDownloader, video)
             if (!isFavorited && !successState.hasPromptedToAddBefore) {
                 updateSuccessState { it.copy(hasPromptedToAddBefore = true) }
                 val result = snackbarHostState.showSnackbar(message = context.stringResource(MR.strings.snack_add_to_anime_library), actionLabel = context.stringResource(MR.strings.action_add), withDismissAction = true)

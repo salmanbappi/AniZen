@@ -189,7 +189,7 @@ class UpdatesScreenModel(
         screenModelScope.launch {
             when (action) {
                 EpisodeDownloadAction.START -> {
-                    downloadEpisodes(items)
+                    downloadEpisodes(items, useExternalDownloader)
                     if (items.any { it.downloadStateProvider() == Download.State.ERROR }) {
                         downloadManager.startDownloads()
                     }

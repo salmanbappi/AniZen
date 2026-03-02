@@ -278,6 +278,20 @@ class Downloader(
                 } ?: throw Exception(context.stringResource(MR.strings.video_list_empty_error))
             }
             download.video = video
+
+            if (download.changeDownloader) {
+                val success = externalDownload(download)
+                if (success) {
+                    download.status = Download.State.DOWNLOADED
+                    _queueState.update { it - download }
+                    store.remove(download)
+                    notifier.dismissProgress(download)
+                    return
+                } else {
+                    throw Exception("Could not open external downloader")
+                }
+            }
+
             val filename = DiskUtil.buildValidFilename(download.episode.name)
             val url = video.videoUrl
             var isHls = video.type == VideoType.HLS || url.contains(".m3u8")
@@ -812,6 +826,47 @@ class Downloader(
         }
         addAllToQueue(downloads)
         if (wasRunning) start()
+    }
+
+    private fun externalDownload(download: Download): Boolean {
+        val video = download.video ?: return false
+        val url = video.videoUrl
+        val packageName = preferences.externalDownloaderSelection().get()
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse(url)
+            
+            val headers = video.headers ?: (download.source as? HttpSource)?.headers
+            if (headers != null) {
+                val headersBundle = Bundle()
+                for (header in headers) {
+                    headersBundle.putString(header.first, header.second)
+                }
+                putExtra("android.media.intent.extra.HTTP_HEADERS", headersBundle)
+                
+                val headersArray = headers.map { "${it.first}: ${it.second}" }.toTypedArray()
+                putExtra("headers", headersArray)
+            }
+
+            val filename = DiskUtil.buildValidFilename(download.episode.name) + ".mp4"
+
+            putExtra("title", "${download.anime.title} - ${download.episode.name}")
+            putExtra("filename", filename)
+
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+
+            if (packageName.isNotBlank() && packageName != "None") {
+                setPackage(packageName)
+            }
+        }
+
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to launch external downloader" }
+            false
+        }
     }
 
     companion object {
