@@ -847,6 +847,8 @@ class Downloader(
                 }
             }
 
+            intent.setDataAndType(Uri.parse(url), "video/*")
+
             when {
                 packageName.startsWith("idm.internet.download.manager") -> {
                     val headers = video.headers ?: (download.source as? HttpSource)?.headers
@@ -858,8 +860,7 @@ class Downloader(
                     }
 
                     intent.apply {
-                        component = ComponentName(packageName, "idm.internet.download.manager.Downloader")
-                        data = Uri.parse(url)
+                        setPackage(packageName)
                         
                         putExtra("extra_filename", filename)
                         putExtra("extra_headers", bundle)
@@ -878,7 +879,7 @@ class Downloader(
                     }
 
                     intent.apply {
-                        component = ComponentName(packageName, "$packageName.AEditor")
+                        setPackage(packageName)
                         putExtra(
                             "com.dv.get.ACTION_LIST_ADD",
                             "${Uri.parse(url)}<info>$filename",
@@ -903,7 +904,6 @@ class Downloader(
                     }
 
                     intent.apply {
-                        setDataAndType(Uri.parse(url), "video/*")
                         putExtra("title", "${download.anime.title} - ${download.episode.name}")
                         putExtra("filename", filename)
                         putExtra("extra_filename", filename)
@@ -920,18 +920,7 @@ class Downloader(
 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
             
-            try {
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR, e) { "Failed explicit intent, trying fallback..." }
-                // Fallback: remove explicit component and just use package name and MIME type
-                intent.component = null
-                intent.setDataAndType(Uri.parse(url), "video/*")
-                if (packageName.isNotBlank() && packageName != "None") {
-                    intent.setPackage(packageName)
-                }
-                context.startActivity(intent)
-            }
+            context.startActivity(intent)
             
             delay(1500) // Give external downloader time to register intent and prevent dropping multiple downloads
             return true
