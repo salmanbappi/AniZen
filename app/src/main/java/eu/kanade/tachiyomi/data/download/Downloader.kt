@@ -832,6 +832,7 @@ class Downloader(
         val video = download.video ?: return false
         val url = video.videoUrl
         val packageName = preferences.externalDownloaderSelection().get()
+        val pm = context.packageManager
         
         try {
             val intent = Intent(Intent.ACTION_VIEW)
@@ -860,8 +861,6 @@ class Downloader(
                     }
 
                     intent.apply {
-                        setPackage(packageName)
-                        
                         putExtra("extra_filename", filename)
                         putExtra("extra_headers", bundle)
                         if (dirPath != null) {
@@ -879,7 +878,6 @@ class Downloader(
                     }
 
                     intent.apply {
-                        setPackage(packageName)
                         putExtra(
                             "com.dv.get.ACTION_LIST_ADD",
                             "${Uri.parse(url)}<info>$filename",
@@ -911,16 +909,31 @@ class Downloader(
                             putExtra("extra_path", dirPath) // fallback 1DM
                             putExtra("com.dv.get.ext_dir", dirPath) // fallback ADM
                         }
-                        if (packageName.isNotBlank() && packageName != "None") {
-                            setPackage(packageName)
-                        }
                     }
                 }
             }
 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
             
+            if (packageName.isNotBlank() && packageName != "None") {
+                intent.setPackage(packageName)
+                // Attempt to find the specific downloader activity to bypass the 'Open With' dialog
+                val resolveInfo = pm.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+                if (resolveInfo.isNotEmpty()) {
+                    // Try to find an activity with 'Download' in its name, otherwise pick the first one
+                    val bestMatch = resolveInfo.find { it.activityInfo.name.contains("Download", ignoreCase = true) } 
+                                     ?: resolveInfo.first()
+                    intent.component = ComponentName(bestMatch.activityInfo.packageName, bestMatch.activityInfo.name)
+                }
+            }
+            
             context.startActivity(intent)
+            
+            // Explicitly remove from queue after successful handoff
+            download.status = Download.State.DOWNLOADED
+            _queueState.update { it - download }
+            store.remove(download)
+            notifier.dismissProgress(download)
             
             delay(1500) // Give external downloader time to register intent and prevent dropping multiple downloads
             return true
