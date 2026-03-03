@@ -1,0 +1,49 @@
+name: Feature External Download Build
+
+on:
+  push:
+    branches:
+      - feature/external-download
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/wrapper-validation-action@v2
+
+      - name: Setup Android SDK
+        run: |
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --build-tools 34.0.0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: zulu
+
+      - name: Copy CI gradle.properties
+        run: |
+          mkdir -p ~/.gradle
+          cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
+
+      - name: Build app
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: assembleStandardDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: anizen-external-download
+          path: "**/*.apk"
+          retention-days: 1
