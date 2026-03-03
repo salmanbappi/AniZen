@@ -2,9 +2,11 @@ name: Preview Build
 on:
   push:
     branches:
+      - feature/external-download
       - preview
   pull_request:
     branches:
+      - feature/external-download
       - preview
   workflow_dispatch:
 
