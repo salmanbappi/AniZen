@@ -1,8 +1,7 @@
 package eu.kanade.tachiyomi.ui.player
 
-import android.widget.Toast
-import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPVNode
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 
@@ -30,30 +29,21 @@ class PlayerObserver(val activity: PlayerActivity) :
         activity.runOnUiThread { activity.onObserverEvent(property, value) }
     }
 
-    override fun event(eventId: Int) {
-        activity.runOnUiThread { activity.event(eventId) }
+    override fun eventProperty(property: String, value: MPVNode) {
+        activity.runOnUiThread { activity.onObserverEvent(property) }
     }
 
-    override fun efEvent(err: String?) {
-        if (err == null) return // Ignore normal EOF or file replacement events
-        
-        var errorMessage = err
-        if (!httpError.isNullOrEmpty()) {
-            errorMessage += ": $httpError"
-            httpError = null
-        }
-        activity.runOnUiThread {
-            activity.onVideoError(errorMessage)
-        }
+    override fun event(eventId: Int, data: MPVNode) {
+        activity.runOnUiThread { activity.event(eventId) }
     }
 
     private var httpError: String? = null
 
     override fun logMessage(prefix: String, level: Int, text: String) {
         val logPriority = when (level) {
-            MPVLib.mpvLogLevel.MPV_LOG_LEVEL_FATAL, MPVLib.mpvLogLevel.MPV_LOG_LEVEL_ERROR -> LogPriority.ERROR
-            MPVLib.mpvLogLevel.MPV_LOG_LEVEL_WARN -> LogPriority.WARN
-            MPVLib.mpvLogLevel.MPV_LOG_LEVEL_INFO -> LogPriority.INFO
+            MPVLib.MpvLogLevel.MPV_LOG_LEVEL_FATAL, MPVLib.MpvLogLevel.MPV_LOG_LEVEL_ERROR -> LogPriority.ERROR
+            MPVLib.MpvLogLevel.MPV_LOG_LEVEL_WARN -> LogPriority.WARN
+            MPVLib.MpvLogLevel.MPV_LOG_LEVEL_INFO -> LogPriority.INFO
             else -> LogPriority.VERBOSE
         }
         if (text.contains("HTTP error")) httpError = text

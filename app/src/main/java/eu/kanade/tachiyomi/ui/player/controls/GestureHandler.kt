@@ -142,7 +142,7 @@ fun GestureHandler(
     fun rampSpeed(targetSpeed: Float, onComplete: () -> Unit = {}) {
         speedRampJob?.cancel()
         speedRampJob = scope.launch {
-            var currentSpeed = MPVLib.getPropertyDouble("speed").toFloat()
+            var currentSpeed = (MPVLib.getPropertyDouble("speed") ?: 1.0).toFloat()
             val step = if (targetSpeed > currentSpeed) 0.1f else -0.1f
             
             while (if (step > 0) currentSpeed < targetSpeed else currentSpeed > targetSpeed) {
@@ -275,7 +275,7 @@ fun GestureHandler(
                                         viewModel.isLongPressing.update { true }
                                         isSpeedLongPress = true
                                         viewModel.unpause()
-                                        originalSpeed = MPVLib.getPropertyDouble("speed").toFloat()
+                                        originalSpeed = (MPVLib.getPropertyDouble("speed") ?: 1.0).toFloat()
                                         rampSpeed(playerPreferences.playerSpeedLongPress().get())
                                     }
                                     else -> {}
@@ -284,7 +284,7 @@ fun GestureHandler(
                                 if (longPressAction == LongPressAction.Speed) {
                                     viewModel.isLongPressing.update { true }
                                     isSpeedLongPress = true
-                                    originalSpeed = MPVLib.getPropertyDouble("speed").toFloat()
+                                    originalSpeed = (MPVLib.getPropertyDouble("speed") ?: 1.0).toFloat()
                                     rampSpeed(playerPreferences.playerSpeedLongPress().get())
                                 } else if (longPressAction == LongPressAction.Screenshot) {
                                     viewModel.sheetShown.update { Sheets.Screenshot }
@@ -323,7 +323,7 @@ fun GestureHandler(
                                 pointer.consume()
                                 if (longPressSliding && isSpeedLongPress && !viewModel.paused.value) {
                                     if (!hasInitializedDragSpeed) {
-                                        unsnappedCurrentSpeed = MPVLib.getPropertyDouble("speed")
+                                        unsnappedCurrentSpeed = MPVLib.getPropertyDouble("speed") ?: 1.0
                                         hasInitializedDragSpeed = true
                                     }
                                     val diffX = pointer.position.x - lastX

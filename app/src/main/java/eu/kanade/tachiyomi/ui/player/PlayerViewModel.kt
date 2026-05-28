@@ -433,7 +433,7 @@ class PlayerViewModel @JvmOverloads constructor(
     }
     val getTrackMPVId: (Int) -> Int = {
         if (it != -1) {
-            MPVLib.getPropertyInt("track-list/$it/id")
+            MPVLib.getPropertyInt("track-list/$it/id") ?: -1
         } else {
             -1
         }
@@ -462,7 +462,7 @@ class PlayerViewModel @JvmOverloads constructor(
                         else -> error("Unrecognized track type")
                     }
                 }
-            } catch (e: NullPointerException) {
+            } catch (e: Exception) {
                 logcat(LogPriority.ERROR) { "Couldn't load tracks, probably cause mpv was destroyed" }
                 return@launch
             }
@@ -505,10 +505,10 @@ class PlayerViewModel @JvmOverloads constructor(
 
     fun loadChapters() {
         val chapters = mutableListOf<IndexedSegment>()
-        val count = MPVLib.getPropertyInt("chapter-list/count")!!
+        val count = MPVLib.getPropertyInt("chapter-list/count") ?: 0
         for (i in 0 until count) {
-            val title = MPVLib.getPropertyString("chapter-list/$i/title")
-            val time = MPVLib.getPropertyInt("chapter-list/$i/time")!!
+            val title = MPVLib.getPropertyString("chapter-list/$i/title") ?: ""
+            val time = MPVLib.getPropertyInt("chapter-list/$i/time") ?: 0
             chapters.add(
                 IndexedSegment(
                     name = title,
@@ -759,7 +759,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
     val maxVolume = activity.audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
     fun changeVolumeBy(change: Int) {
-        val mpvVol = MPVLib.getPropertyInt("volume")
+        val mpvVol = MPVLib.getPropertyInt("volume") ?: 100
         val sysVol = currentVolume.value
 
         if (change > 0) { // Increasing
@@ -969,7 +969,7 @@ class PlayerViewModel @JvmOverloads constructor(
             }
             "launch_int_picker" -> {
                 val (title, nameFormat, start, stop, step, pickerProperty) = data.split("|")
-                val defaultValue = MPVLib.getPropertyInt(pickerProperty)
+                val defaultValue = MPVLib.getPropertyInt(pickerProperty) ?: start.toInt()
                 showDialog(
                     Dialogs.IntegerPicker(
                         defaultValue = defaultValue,

@@ -911,12 +911,12 @@ class PlayerActivity : BaseActivity() {
     internal fun event(eventId: Int) {
         if (player.isExiting) return
         when (eventId) {
-            MPVLib.mpvEventId.MPV_EVENT_FILE_LOADED -> {
+            MPVLib.MpvEventId.MPV_EVENT_FILE_LOADED -> {
                 PlayerStats.isAdaptiveDowngraded.value = false
                 viewModel.viewModelScope.launchIO { fileLoaded() }
             }
-            MPVLib.mpvEventId.MPV_EVENT_SEEK -> viewModel.isLoading.update { true }
-            MPVLib.mpvEventId.MPV_EVENT_PLAYBACK_RESTART -> {
+            MPVLib.MpvEventId.MPV_EVENT_SEEK -> viewModel.isLoading.update { true }
+            MPVLib.MpvEventId.MPV_EVENT_PLAYBACK_RESTART -> {
                 player.isExiting = false
                 viewModel.restoreAspectRatio()
             }
@@ -1303,7 +1303,7 @@ class PlayerActivity : BaseActivity() {
                 torrentLinkHandler(video.videoUrl, video.quality)
             }
         } else {
-            MPVLib.command("loadfile", parseVideoUrl(video.videoUrl))
+            MPVLib.command("loadfile", parseVideoUrl(video.videoUrl) ?: "")
         }
         updateDiscordRPC(exitingPlayer = false)
     }
