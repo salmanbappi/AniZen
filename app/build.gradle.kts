@@ -169,6 +169,19 @@ android {
                 "libxml2",
             )
                 .map { "**/$it.so" }
+
+            pickFirsts += listOf(
+                "libavcodec",
+                "libavdevice",
+                "libavfilter",
+                "libavformat",
+                "libavutil",
+                "libc++_shared",
+                "libpostproc",
+                "libswresample",
+                "libswscale",
+                "libxml2"
+            ).map { "**/$it.so" }
         }
         resources {
             excludes += setOf(

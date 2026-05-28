@@ -1,5 +1,5 @@
 [versions]
-aniyomi-mpv-lib = "1.18.n"
+aniyomi-mpv-lib = "0ad2902ed4"
 arthenica-smartexceptions = "0.2.1"
 constraint-layout = "1.1.1"
 ffmpeg-kit = "1.18"
@@ -10,7 +10,7 @@ nanohttpd-version = "2.3.1"
 
 [libraries]
 nanohttpd = { module = "org.nanohttpd:nanohttpd", version.ref = "nanohttpd-version" }
-aniyomi-mpv = { module = "com.github.aniyomiorg:aniyomi-mpv-lib", version.ref = "aniyomi-mpv-lib" }
+aniyomi-mpv = { module = "com.github.salmanbappi:mpvlibAndroid", version.ref = "aniyomi-mpv-lib" }
 arthenica-smartexceptions = { module = "com.arthenica:smart-exception-java", version.ref = "arthenica-smartexceptions" }
 compose-constraintlayout = { module = "androidx.constraintlayout:constraintlayout-compose", version.ref = "constraint-layout" }
 ffmpeg-kit = { module = "com.github.jmir1:ffmpeg-kit", version.ref = "ffmpeg-kit" }
