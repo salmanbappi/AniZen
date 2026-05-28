@@ -33,15 +33,15 @@ fun applyDebandMode(mode: Debanding, prefs: DecoderPreferences) {
     when (mode) {
         Debanding.None -> {
             MPVLib.setOptionString("deband", "no")
-            MPVLib.command(arrayOf("vf", "remove", "@deband"))
+            MPVLib.command("vf", "remove", "@deband")
         }
         Debanding.CPU -> {
             MPVLib.setOptionString("deband", "no")
-            MPVLib.command(arrayOf("vf", "add", "@deband:gradfun=radius=12"))
+            MPVLib.command("vf", "add", "@deband:gradfun=radius=12")
         }
         Debanding.GPU -> {
             MPVLib.setOptionString("deband", "yes")
-            MPVLib.command(arrayOf("vf", "remove", "@deband"))
+            MPVLib.command("vf", "remove", "@deband")
             // Apply current GPU settings
             DebandSettings.entries.forEach {
                 MPVLib.setPropertyInt(it.mpvProperty, it.preference(prefs).get())

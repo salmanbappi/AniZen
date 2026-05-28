@@ -394,7 +394,7 @@ class PlayerActivity : BaseActivity() {
 
         player.isExiting = true
         if (isFinishing) {
-            MPVLib.command(arrayOf("stop"))
+            MPVLib.command("stop")
         } else {
             viewModel.pause()
         }
@@ -488,7 +488,7 @@ class PlayerActivity : BaseActivity() {
 
     private fun executeMPVCommand(commands: Array<String>) {
         if (!player.isExiting) {
-            MPVLib.command(commands)
+            MPVLib.command(*commands)
         }
     }
 
@@ -663,7 +663,7 @@ class PlayerActivity : BaseActivity() {
             }
 
             file?.let {
-                MPVLib.command(arrayOf("load-script", it.filePath))
+                MPVLib.command("load-script", it.filePath)
             }
         }
     }
@@ -701,9 +701,9 @@ class PlayerActivity : BaseActivity() {
             }
 
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                MPVLib.command(arrayOf("multiply", "volume", "0.5"))
+                MPVLib.command("multiply", "volume", "0.5")
                 restoreAudioFocus = {
-                    MPVLib.command(arrayOf("multiply", "volume", "2"))
+                    MPVLib.command("multiply", "volume", "2")
                 }
             }
 
@@ -1075,7 +1075,7 @@ class PlayerActivity : BaseActivity() {
                                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             }
                             SingleActionGesture.Custom -> {
-                                MPVLib.command(arrayOf("keypress", CustomKeyCodes.MediaPlay.keyCode))
+                                MPVLib.command("keypress", CustomKeyCodes.MediaPlay.keyCode)
                             }
 
                             SingleActionGesture.Switch -> {}
@@ -1104,7 +1104,7 @@ class PlayerActivity : BaseActivity() {
                                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             }
                             SingleActionGesture.Custom -> {
-                                MPVLib.command(arrayOf("keypress", CustomKeyCodes.MediaPlay.keyCode))
+                                MPVLib.command("keypress", CustomKeyCodes.MediaPlay.keyCode)
                             }
 
                             SingleActionGesture.Switch -> {}
@@ -1121,7 +1121,7 @@ class PlayerActivity : BaseActivity() {
                                 viewModel.pauseUnpause()
                             }
                             SingleActionGesture.Custom -> {
-                                MPVLib.command(arrayOf("keypress", CustomKeyCodes.MediaPrevious.keyCode))
+                                MPVLib.command("keypress", CustomKeyCodes.MediaPrevious.keyCode)
                             }
 
                             SingleActionGesture.Switch -> viewModel.changeEpisode(true)
@@ -1138,7 +1138,7 @@ class PlayerActivity : BaseActivity() {
                                 viewModel.pauseUnpause()
                             }
                             SingleActionGesture.Custom -> {
-                                MPVLib.command(arrayOf("keypress", CustomKeyCodes.MediaNext.keyCode))
+                                MPVLib.command("keypress", CustomKeyCodes.MediaNext.keyCode)
                             }
 
                             SingleActionGesture.Switch -> viewModel.changeEpisode(false)
@@ -1286,11 +1286,11 @@ class PlayerActivity : BaseActivity() {
                     } else {
                         episode.last_second_seen
                     }
-                MPVLib.command(arrayOf("set", "start", "${resumePosition / 1000F}"))
+                MPVLib.command("set", "start", "${resumePosition / 1000F}")
             }
         } else {
             player.timePos?.let {
-                MPVLib.command(arrayOf("set", "start", "${player.timePos}"))
+                MPVLib.command("set", "start", "${player.timePos}")
             }
         }
         if (video.videoUrl.startsWith(TorrentServerUtils.hostUrl) ||
@@ -1303,7 +1303,7 @@ class PlayerActivity : BaseActivity() {
                 torrentLinkHandler(video.videoUrl, video.quality)
             }
         } else {
-            MPVLib.command(arrayOf("loadfile", parseVideoUrl(video.videoUrl)))
+            MPVLib.command("loadfile", parseVideoUrl(video.videoUrl))
         }
         updateDiscordRPC(exitingPlayer = false)
     }
@@ -1316,7 +1316,7 @@ class PlayerActivity : BaseActivity() {
             val videoInputStream = applicationContext.contentResolver.openInputStream(Uri.parse(videoUrl))
             val torrent = TorrentServerApi.uploadTorrent(videoInputStream!!, quality, "", "", false)
             val torrentUrl = TorrentServerUtils.getTorrentPlayLink(torrent, 0)
-            MPVLib.command(arrayOf("loadfile", torrentUrl))
+            MPVLib.command("loadfile", torrentUrl)
             return
         }
 
@@ -1333,7 +1333,7 @@ class PlayerActivity : BaseActivity() {
 
         val currentTorrent = TorrentServerApi.addTorrent(videoUrl, quality, "", "", false)
         val videoTorrentUrl = TorrentServerUtils.getTorrentPlayLink(currentTorrent, index)
-        MPVLib.command(arrayOf("loadfile", videoTorrentUrl))
+        MPVLib.command("loadfile", videoTorrentUrl)
     }
 
     /**
@@ -1481,7 +1481,7 @@ class PlayerActivity : BaseActivity() {
             if (subExtensions.contains(extension.lowercase()) && filename.startsWith(videoFilename)) {
                 val path = file.uri.openContentFd(this)
                 if (path != null) {
-                    MPVLib.command(arrayOf("sub-add", path, "auto", filename))
+                    MPVLib.command("sub-add", path, "auto", filename)
                 }
             }
         }

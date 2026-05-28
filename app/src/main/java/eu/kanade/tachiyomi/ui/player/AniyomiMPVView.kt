@@ -292,8 +292,8 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
     override fun postInitOptions() {
         advancedPreferences.playerStatisticsPage().get().let {
             if (it in 1..5) {
-                MPVLib.command(arrayOf("script-binding", "stats/display-stats-toggle"))
-                MPVLib.command(arrayOf("script-binding", "stats/display-page-$it"))
+                MPVLib.command("script-binding", "stats/display-stats-toggle")
+                MPVLib.command("script-binding", "stats/display-page-$it")
             } else if (it == 6 || it == 0) {
                 MPVLib.setPropertyString("user-data/stats/display-page", "0")
             }
@@ -302,7 +302,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
 
     fun onKey(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_MULTIPLE || KeyEvent.isModifierKey(event.keyCode)) return false
-        var mapped = KeyMapping.map.get(event.keyCode)
+        var mapped = KeyMapping.get(event.keyCode)
         if (mapped == null) {
             if (!event.isPrintingKey) return false
             val ch = event.unicodeChar
@@ -317,49 +317,49 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         event.isMetaPressed && mod.add("meta")
         val action = if (event.action == KeyEvent.ACTION_DOWN) "keydown" else "keyup"
         mod.add(mapped)
-        MPVLib.command(arrayOf(action, mod.joinToString("+")))
+        MPVLib.command(action, mod.joinToString("+"))
         return true
     }
 
     private val observedProps = mapOf(
-        "chapter" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "chapter-list" to MPVLib.mpvFormat.MPV_FORMAT_NONE,
-        "track-list" to MPVLib.mpvFormat.MPV_FORMAT_NONE,
-        "time-pos" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "demuxer-cache-time" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "duration" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "volume" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "volume-max" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "sid" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "secondary-sid" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "aid" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "speed" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
-        "video-zoom" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
-        "video-pan-x" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
-        "video-pan-y" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
-        "video-params/aspect" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
-        "pause" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
-        "paused-for-cache" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
-        "core-idle" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
-        "seeking" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
-        "eof-reached" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
-        "hwdec-current" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "hwdec" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/current-anime/intro-length" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
-        "user-data/aniyomi/show_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/toggle_ui" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/show_panel" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/software_keyboard" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/set_button_title" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/reset_button_title" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/toggle_button" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/switch_episode" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/pause" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/seek_by" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/seek_to" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/seek_by_with_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/seek_to_with_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
-        "user-data/aniyomi/launch_int_picker" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
+        "chapter" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "chapter-list" to MPVLib.MpvFormat.MPV_FORMAT_NONE,
+        "track-list" to MPVLib.MpvFormat.MPV_FORMAT_NONE,
+        "time-pos" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "demuxer-cache-time" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "duration" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "volume" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "volume-max" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "sid" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "secondary-sid" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "aid" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "speed" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
+        "video-zoom" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
+        "video-pan-x" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
+        "video-pan-y" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
+        "video-params/aspect" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
+        "pause" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+        "paused-for-cache" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+        "core-idle" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+        "seeking" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+        "eof-reached" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+        "hwdec-current" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "hwdec" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/current-anime/intro-length" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
+        "user-data/aniyomi/show_text" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/toggle_ui" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/show_panel" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/software_keyboard" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/set_button_title" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/reset_button_title" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/toggle_button" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/switch_episode" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/pause" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/seek_by" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/seek_to" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/seek_by_with_text" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/seek_to_with_text" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
+        "user-data/aniyomi/launch_int_picker" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
     )
 
     private fun setupAudioOptions() {

@@ -216,25 +216,25 @@ fun MoreSheet(
                             if (isPageSix) {
                                 // If switching TO page 6, hide internal stats and show native Page 6
                                 if (wasInternalPage) {
-                                    MPVLib.command(arrayOf("script-binding", "stats/display-stats-toggle"))
+                                    MPVLib.command("script-binding", "stats/display-stats-toggle")
                                 }
-                                MPVLib.command(arrayOf("script-message", "display-page-6"))
+                                MPVLib.command("script-message", "display-page-6")
                             } else {
                                 // If switching away FROM Page 6
                                 if (wasPageSix) {
-                                    MPVLib.command(arrayOf("script-message", "hide-page-6"))
+                                    MPVLib.command("script-message", "hide-page-6")
                                 }
                                 
                                 if (isInternalPage) {
                                     // If switching TO an internal page (1-5)
                                     if (statisticsPage == 0 || wasPageSix) {
-                                        MPVLib.command(arrayOf("script-binding", "stats/display-stats-toggle"))
+                                        MPVLib.command("script-binding", "stats/display-stats-toggle")
                                     }
-                                    MPVLib.command(arrayOf("script-binding", "stats/display-page-$page"))
+                                    MPVLib.command("script-binding", "stats/display-page-$page")
                                 } else if (page == 0) {
                                     // If turning stats OFF
                                     if (wasInternalPage) {
-                                        MPVLib.command(arrayOf("script-binding", "stats/display-stats-toggle"))
+                                        MPVLib.command("script-binding", "stats/display-stats-toggle")
                                     }
                                 }
                             }
