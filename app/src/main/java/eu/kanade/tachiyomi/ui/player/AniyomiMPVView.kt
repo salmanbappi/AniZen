@@ -179,6 +179,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         MPVLib.setPropertyBoolean("pause", true)
         MPVLib.setOptionString("profile", "fast")
         MPVLib.setOptionString("hwdec", if (decoderPreferences.tryHWDecoding().get()) "auto" else "no")
+
+        MPVLib.setOptionString("sub-ass-force-margins", "yes")
+        MPVLib.setOptionString("sub-use-margins", "yes")
         
         // Gated Defaults to avoid pass-splitting
         MPVLib.setOptionString("scale", "bilinear")
