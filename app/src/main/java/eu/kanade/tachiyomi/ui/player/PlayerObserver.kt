@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.player
 
 import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPVLib.MpvLogLevel
 import `is`.xyz.mpv.MPVNode
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -41,9 +42,9 @@ class PlayerObserver(val activity: PlayerActivity) :
 
     override fun logMessage(prefix: String, level: Int, text: String) {
         val logPriority = when (level) {
-            MPVLib.MpvLogLevel.MPV_LOG_LEVEL_FATAL, MPVLib.MpvLogLevel.MPV_LOG_LEVEL_ERROR -> LogPriority.ERROR
-            MPVLib.MpvLogLevel.MPV_LOG_LEVEL_WARN -> LogPriority.WARN
-            MPVLib.MpvLogLevel.MPV_LOG_LEVEL_INFO -> LogPriority.INFO
+            MpvLogLevel.MPV_LOG_LEVEL_FATAL, MpvLogLevel.MPV_LOG_LEVEL_ERROR -> LogPriority.ERROR
+            MpvLogLevel.MPV_LOG_LEVEL_WARN -> LogPriority.WARN
+            MpvLogLevel.MPV_LOG_LEVEL_INFO -> LogPriority.INFO
             else -> LogPriority.VERBOSE
         }
         if (text.contains("HTTP error")) httpError = text

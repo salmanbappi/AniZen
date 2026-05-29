@@ -95,6 +95,7 @@ import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPVLib.MpvEventId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
@@ -911,12 +912,12 @@ class PlayerActivity : BaseActivity() {
     internal fun event(eventId: Int) {
         if (player.isExiting) return
         when (eventId) {
-            MPVLib.MpvEventId.MPV_EVENT_FILE_LOADED -> {
+            MpvEventId.MPV_EVENT_FILE_LOADED -> {
                 PlayerStats.isAdaptiveDowngraded.value = false
                 viewModel.viewModelScope.launchIO { fileLoaded() }
             }
-            MPVLib.MpvEventId.MPV_EVENT_SEEK -> viewModel.isLoading.update { true }
-            MPVLib.MpvEventId.MPV_EVENT_PLAYBACK_RESTART -> {
+            MpvEventId.MPV_EVENT_SEEK -> viewModel.isLoading.update { true }
+            MpvEventId.MPV_EVENT_PLAYBACK_RESTART -> {
                 player.isExiting = false
                 viewModel.restoreAspectRatio()
             }

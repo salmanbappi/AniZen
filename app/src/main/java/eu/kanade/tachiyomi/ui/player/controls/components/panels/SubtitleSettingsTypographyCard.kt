@@ -145,7 +145,7 @@ fun SubtitleSettingsTypographyCard(
             }
             var borderStyle by remember {
                 mutableStateOf(
-                    SubtitlesBorderStyle.entries.firstOrNull { it.value == MPVLib.getPropertyString("sub-border-style") } ?: SubtitlesBorderStyle.OutlineAndDropShadow,
+                    SubtitlesBorderStyle.entries.firstOrNull { it.value == MPVLib.getPropertyString("sub-border-style") } ?: SubtitlesBorderStyle.OutlineAndShadow,
                 )
             }
             var borderSize by remember {
@@ -221,7 +221,7 @@ fun SubtitleSettingsTypographyCard(
                     font = MPVLib.getPropertyString("sub-font") ?: ""
                     fontSize = MPVLib.getPropertyInt("sub-font-size") ?: 55
                     borderStyle =
-                        SubtitlesBorderStyle.entries.firstOrNull { it.value == MPVLib.getPropertyString("sub-border-style") } ?: SubtitlesBorderStyle.OutlineAndDropShadow
+                        SubtitlesBorderStyle.entries.firstOrNull { it.value == MPVLib.getPropertyString("sub-border-style") } ?: SubtitlesBorderStyle.OutlineAndShadow
                     borderSize = MPVLib.getPropertyInt("sub-border-size") ?: 3
                     shadowOffset = MPVLib.getPropertyInt("sub-shadow-offset") ?: 0
                 }) {
