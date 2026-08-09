@@ -38,14 +38,38 @@ class DiscordLoginActivity : BaseActivity() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                if (url != null && url.endsWith("/app")) {
+                if (url != null && url.contains("/channels/")) {
                     webView.stopLoading()
                     webView.evaluateJavascript(
                         """
                         (function() {
-                            const wreq = (webpackChunkdiscord_app.push([[''], {}, e => { m = []; for (let c in e.c) m.push(e.c[c])}]), m)
-                            webpackChunkdiscord_app.pop()
-                            const token = wreq.find(m => m?.exports?.default?.getToken !== void 0).exports.default.getToken();
+                            let token = null;
+                            webpackChunkdiscord_app.push([
+                                [Symbol()],
+                                {},
+                                (req) => {
+                                    for (const id in req.c) {
+                                        const exports = req.c[id]?.exports;
+                                        if (!exports) continue;
+                                        for (const key in exports) {
+                                            if (exports[key]?.getToken && typeof exports[key].getToken === 'function') {
+                                                const t = exports[key].getToken();
+                                                if (t && typeof t === 'string') {
+                                                    token = t;
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                        if (exports.getToken && typeof exports.getToken === 'function') {
+                                            const t = exports.getToken();
+                                            if (t && typeof t === 'string') {
+                                                token = t;
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            ]);
                             return token;
                         })()
                         """.trimIndent(),
