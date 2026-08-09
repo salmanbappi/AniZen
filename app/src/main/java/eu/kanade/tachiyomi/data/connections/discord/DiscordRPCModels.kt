@@ -161,6 +161,7 @@ data class PlayerData(
     val thumbnailUrl: String? = null,
     val startTimestamp: Long? = null,
     val endTimestamp: Long? = null,
+    val isPaused: Boolean = false,
 )
 
 data class ReaderData(
@@ -179,27 +180,28 @@ enum class DiscordScreen(
     val imageUrl: String,
 ) {
     APP(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
-    LIBRARY(R.string.label_library, R.string.discord_status_browsing, LIBRARY_IMAGE_URL),
-    UPDATES(R.string.label_recent_updates, R.string.discord_status_scrolling, UPDATES_IMAGE_URL),
-    HISTORY(R.string.label_recent_manga, R.string.discord_status_scrolling, HISTORY_IMAGE_URL),
-    BROWSE(R.string.label_sources, R.string.discord_status_browsing, BROWSE_IMAGE_URL),
-    MORE(R.string.label_settings, R.string.discord_status_messing, MORE_IMAGE_URL),
-    WEBVIEW(R.string.action_web_view, R.string.discord_status_browsing, WEBVIEW_IMAGE_URL),
+    LIBRARY(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
+    UPDATES(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
+    HISTORY(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
+    BROWSE(R.string.label_sources, R.string.discord_status_exploring, ANIMETAIL_IMAGE),
+    MORE(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
+    WEBVIEW(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
+    DETAILS(R.string.app_name, R.string.discord_status_using, ANIMETAIL_IMAGE),
     VIDEO(R.string.video, R.string.watching, VIDEO_IMAGE_URL),
     MANGA(R.string.manga, R.string.reading, MANGA_IMAGE_URL),
 }
 
 // Constants for standard Rich Presence image urls
-private const val ANIZEN_LOGO_IMAGE_URL = "https://raw.githubusercontent.com/salmanbappi/AniZen/preview/app/src/main/res/drawable/ic_splash_logo_raw.png"
+private const val ANIZEN_LOGO_IMAGE_URL = "https://raw.githubusercontent.com/salmanbappi/AniZen/preview/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
 private const val ANIMETAIL_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
 private const val ANIMETAIL_PREVIEW_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
 private val ANIMETAIL_IMAGE = if (isPreviewBuildType) ANIMETAIL_PREVIEW_IMAGE_URL else ANIMETAIL_IMAGE_URL
-private const val LIBRARY_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
-private const val UPDATES_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
-private const val HISTORY_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
-private const val BROWSE_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
-private const val MORE_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
-private const val WEBVIEW_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
+private const val BROWSE_IMAGE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/png/action/explore/materialicons/48dp/1x/baseline_explore_white_48dp.png"
+private const val LIBRARY_IMAGE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/png/av/video_library/materialicons/48dp/1x/baseline_video_library_white_48dp.png"
+private const val UPDATES_IMAGE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/png/navigation/refresh/materialicons/48dp/1x/baseline_refresh_white_48dp.png"
+private const val HISTORY_IMAGE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/png/action/history/materialicons/48dp/1x/baseline_history_white_48dp.png"
+private const val MORE_IMAGE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/png/action/settings/materialicons/48dp/1x/baseline_settings_white_48dp.png"
+private const val WEBVIEW_IMAGE_URL = "https://raw.githubusercontent.com/google/material-design-icons/master/png/action/language/materialicons/48dp/1x/baseline_language_white_48dp.png"
 private const val VIDEO_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
 private const val MANGA_IMAGE_URL = ANIZEN_LOGO_IMAGE_URL
 

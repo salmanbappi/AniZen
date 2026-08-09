@@ -25,11 +25,11 @@ class DiscordRPC(val token: String, val status: String) {
      * @param since the activity start time.
      */
     suspend fun updateRPC(
-        activity: Activity,
+        activity: Activity?,
         since: Long? = null,
     ) {
         rpc = Presence(
-            activities = listOf(activity),
+            activities = if (activity != null) listOf(activity) else emptyList(),
             afk = true,
             since = since,
             status = status,

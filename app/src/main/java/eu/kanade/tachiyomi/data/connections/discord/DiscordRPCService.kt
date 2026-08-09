@@ -52,11 +52,7 @@ class DiscordRPCService : Service() {
         if (rpc != null) {
             launchIO {
                 try {
-                    if (lastUsedScreen == DiscordScreen.VIDEO) {
-                        setAnimeScreen(this@DiscordRPCService, lastUsedScreen)
-                    } else if (lastUsedScreen == DiscordScreen.MANGA) {
-                        setMangaScreen(this@DiscordRPCService, lastUsedScreen)
-                    }
+                    setAnimeScreen(this@DiscordRPCService, lastUsedScreen)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error setting screen: ${e.message}", e)
                 }
@@ -148,22 +144,87 @@ class DiscordRPCService : Service() {
         }
         private const val TAG = "DiscordRPCService"
 
+        private var lastCustomDetails: String? = null
+        private var lastCustomState: String? = null
+        private var lastPlayerData: PlayerData? = null
+        private var isIncognitoActive: Boolean = false
+
+        private fun isIncognitoModeActive(incognitoMode: Boolean = false): Boolean {
+            val basePreferences: eu.kanade.domain.base.BasePreferences by injectLazy()
+            val isGlobalIncognito = basePreferences.incognitoMode().get()
+            val isDiscordIncognito = connectionsPreferences.discordRPCIncognito().get()
+            return isGlobalIncognito || isDiscordIncognito || incognitoMode
+        }
+
         internal suspend fun setAnimeScreen(
             context: Context,
             discordScreen: DiscordScreen,
+            customDetails: String? = null,
+            customState: String? = null,
             playerData: PlayerData = PlayerData(),
+            smallImageUri: String? = null,
         ) {
-            if (discordScreen != DiscordScreen.VIDEO) return
-            lastUsedScreen = discordScreen // Update last used screen
+            if (isIncognitoModeActive(playerData.incognitoMode)) {
+                if (!isIncognitoActive) {
+                    isIncognitoActive = true
+                    rpc?.updateRPC(null)
+                }
+                return
+            }
+            isIncognitoActive = false
+
+            if (discordScreen == lastUsedScreen &&
+                customDetails == lastCustomDetails &&
+                customState == lastCustomState &&
+                playerData == lastPlayerData
+            ) {
+                return
+            }
+
+            lastUsedScreen = discordScreen
+            lastCustomDetails = customDetails
+            lastCustomState = customState
+            lastPlayerData = playerData
 
             if (rpc == null) return
-            updateDiscordRPC(context, playerData, discordScreen)
+
+            if (discordScreen == DiscordScreen.VIDEO) {
+                updateDiscordRPC(
+                    context = context,
+                    playerData = playerData,
+                    discordScreen = discordScreen,
+                    customDetails = customDetails,
+                    customState = customState,
+                    largeImageUri = playerData.thumbnailUrl,
+                    smallImageUri = smallImageUri ?: DiscordScreen.APP.imageUrl,
+                )
+            } else {
+                withIOContext {
+                    val rpcExternalAsset = getRPCExternalAsset()
+                    val appLogoUri = getDiscordThumbnail(rpcExternalAsset, DiscordScreen.APP.imageUrl, false)
+
+                    updateDiscordRPC(
+                        context = context,
+                        playerData = playerData,
+                        discordScreen = discordScreen,
+                        customDetails = customDetails,
+                        customState = customState,
+                        largeImageUri = appLogoUri,
+                        smallImageUri = null,
+                    )
+                }
+            }
         }
+
         private suspend fun updateDiscordRPC(
             context: Context,
             playerData: PlayerData,
             discordScreen: DiscordScreen,
             sinceTime: Long = since,
+            customDetails: String? = null,
+            customState: String? = null,
+            largeImageUri: String? = null,
+            smallImageUri: String? = null,
         ) {
             val appName = context.getString(R.string.app_name)
 
@@ -174,22 +235,32 @@ class DiscordRPCService : Service() {
             val showDownloadButton = connectionsPreferences.discordShowDownloadButton().get()
             val showDiscordButton = connectionsPreferences.discordShowDiscordButton().get()
 
-            val name = playerData.animeTitle ?: appName
+            val name = when (discordScreen) {
+                DiscordScreen.VIDEO -> playerData.animeTitle ?: appName
+                else -> appName
+            }
+
             val details = when {
+                customDetails != null -> customDetails
                 customMessage.isNotBlank() -> customMessage
-                playerData.animeTitle != null -> playerData.animeTitle
+                discordScreen == DiscordScreen.VIDEO -> playerData.animeTitle ?: appName
                 else -> context.getString(discordScreen.details)
             }
 
             val state = when {
-                !showProgress -> null
-                playerData.episodeNumber != null -> playerData.episodeNumber
-                else -> context.getString(discordScreen.text)
+                customState != null -> customState
+                discordScreen == DiscordScreen.VIDEO && showProgress -> playerData.episodeNumber
+                else -> null
             }
 
-            val imageUrl = playerData.thumbnailUrl ?: discordScreen.imageUrl
+            val finalLargeImage = largeImageUri ?: playerData.thumbnailUrl ?: DiscordScreen.APP.imageUrl
+            val finalSmallImage = if (discordScreen == DiscordScreen.VIDEO) {
+                smallImageUri ?: DiscordScreen.APP.imageUrl
+            } else {
+                null
+            }
 
-            val timestamps = if (showTimestamp) {
+            val timestamps = if (showTimestamp && !playerData.isPaused && discordScreen == DiscordScreen.VIDEO) {
                 Activity.Timestamps(
                     start = playerData.startTimestamp ?: since,
                     end = playerData.endTimestamp,
@@ -225,8 +296,8 @@ class DiscordRPCService : Service() {
                     type = 3,
                     timestamps = timestamps,
                     assets = Activity.Assets(
-                        largeImage = imageUrl.fixDiscordImage(),
-                        smallImage = DiscordScreen.APP.imageUrl.fixDiscordImage(),
+                        largeImage = finalLargeImage.fixDiscordImage(),
+                        smallImage = finalSmallImage?.fixDiscordImage(),
                         smallText = context.getString(DiscordScreen.APP.text),
                     ),
                     buttons = buttons,
@@ -241,9 +312,13 @@ class DiscordRPCService : Service() {
             discordScreen: DiscordScreen,
             readerData: ReaderData = ReaderData(),
         ) {
-            lastUsedScreen = discordScreen // Update last used screen
-            if (rpc == null) return
-            updateDiscordRPC(context, readerData, discordScreen)
+            if (discordScreen == DiscordScreen.MANGA) {
+                lastUsedScreen = discordScreen // Update last used screen
+                if (rpc == null) return
+                updateDiscordRPC(context, readerData, discordScreen)
+            } else {
+                setAnimeScreen(context, discordScreen)
+            }
         }
 
         private suspend fun updateDiscordRPC(
@@ -302,7 +377,45 @@ class DiscordRPCService : Service() {
 
         private fun String.fixDiscordImage(): String {
             if (this.startsWith(MP_PREFIX)) return this
+            if (this.startsWith(EXTERNAL_PREFIX)) return "$MP_PREFIX$this"
+            if (this.startsWith("https://")) return "${MP_PREFIX}${EXTERNAL_PREFIX}https/${this.removePrefix("https://")}"
+            if (this.startsWith("http://")) return "${MP_PREFIX}${EXTERNAL_PREFIX}http/${this.removePrefix("http://")}"
             return "$MP_PREFIX$this"
+        }
+
+        @Suppress("SwallowedException", "TooGenericExceptionCaught")
+        internal suspend fun setAnimeDetailsActivity(
+            context: Context,
+            animeTitle: String?,
+            thumbnailUrl: String?,
+            animeId: Long? = null,
+        ) {
+            if (rpc == null || animeTitle == null) return
+            try {
+                val categories = if (animeId != null) getCategories(animeId) else emptyList()
+                val discordIncognito = isIncognito(categories, false)
+
+                val displayTitle = animeTitle.takeUnless { discordIncognito }
+                val displayThumbnail = if (discordIncognito) null else thumbnailUrl
+
+                withIOContext {
+                    val rpcExternalAsset = getRPCExternalAsset()
+                    val animeThumbnail = getDiscordThumbnail(rpcExternalAsset, displayThumbnail, discordIncognito)
+                    val appLogoUri = getDiscordThumbnail(rpcExternalAsset, DiscordScreen.APP.imageUrl, false)
+
+                    setAnimeScreen(
+                        context = context,
+                        discordScreen = DiscordScreen.DETAILS,
+                        playerData = PlayerData(
+                            animeTitle = displayTitle,
+                            thumbnailUrl = animeThumbnail,
+                        ),
+                        smallImageUri = appLogoUri,
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting anime details activity: ${e.message}", e)
+            }
         }
 
         @Suppress("SwallowedException", "TooGenericExceptionCaught", "CyclomaticComplexMethod")
@@ -324,6 +437,8 @@ class DiscordRPCService : Service() {
                     val rpcExternalAsset = getRPCExternalAsset() // Get RPCExternalAsset
                     val animeThumbnail =
                         getDiscordThumbnail(rpcExternalAsset, playerData.thumbnailUrl, discordIncognito)
+                    val appLogoUri =
+                        getDiscordThumbnail(rpcExternalAsset, DiscordScreen.APP.imageUrl, false)
 
                     setAnimeScreen(
                         context = context,
@@ -334,7 +449,9 @@ class DiscordRPCService : Service() {
                             thumbnailUrl = animeThumbnail,
                             startTimestamp = startTime,
                             endTimestamp = end,
+                            isPaused = playerData.isPaused,
                         ),
+                        smallImageUri = appLogoUri,
                     )
                 }
             } catch (e: Exception) {
@@ -392,14 +509,7 @@ class DiscordRPCService : Service() {
         }
 
         private fun getFormattedEpisodeNumber(playerData: PlayerData, discordIncognito: Boolean): String? {
-            return playerData.episodeNumber?.let {
-                when {
-                    discordIncognito -> null
-                    connectionsPreferences.useChapterTitles().get() -> it
-                    ceil(it.toDouble()) == floor(it.toDouble()) -> "Episode ${it.toInt()}"
-                    else -> "Episode $it"
-                }
-            }
+            return playerData.episodeNumber?.takeUnless { discordIncognito }
         }
         private fun getFormattedChapterNumber(readerData: ReaderData, discordIncognito: Boolean): String? {
             val chapterNumber = readerData.chapterNumber

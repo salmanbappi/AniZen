@@ -199,6 +199,11 @@
     <string name="discord_status_description">%1$s %2$s</string>
     <string name="discord_status_using">Using</string>
     <string name="discord_status_browsing">Browsing</string>
+    <string name="discord_status_exploring">Exploring</string>
+    <string name="discord_status_checking">Checking</string>
+    <string name="discord_status_reviewing">Reviewing</string>
+    <string name="discord_status_configuring">Configuring</string>
+    <string name="discord_status_details">Viewing details of</string>
     <string name="discord_status_scrolling">Scrolling through</string>
     <string name="discord_status_messing">Messing around with</string>
     <string name="discord_download_button">Read on %s</string>

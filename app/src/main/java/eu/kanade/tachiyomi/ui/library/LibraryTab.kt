@@ -546,7 +546,7 @@ data object LibraryTab : Tab {
             if (!state.isLoading) {
                 (context as? MainActivity)?.ready = true
                 // AM (DISCORD) -->
-                DiscordRPCService.setAnimeScreen(context, DiscordScreen.LIBRARY)
+                DiscordRPCService.setAnimeScreen(context, DiscordScreen.APP)
                 // <-- AM (DISCORD)
             }
         }

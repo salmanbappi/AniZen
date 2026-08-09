@@ -179,8 +179,7 @@ data object HistoryTab : Tab {
         }
 
         LaunchedEffect(Unit) {
-            DiscordRPCService.setAnimeScreen(context, DiscordScreen.HISTORY)
-            DiscordRPCService.setMangaScreen(context, DiscordScreen.HISTORY)
+            DiscordRPCService.setAnimeScreen(context, DiscordScreen.APP)
         }
     }
 }

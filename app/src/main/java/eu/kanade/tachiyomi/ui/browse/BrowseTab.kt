@@ -145,7 +145,6 @@ data object BrowseTab : Tab {
             (context as? MainActivity)?.ready = true
             // AM (DISCORD) -->
             DiscordRPCService.setAnimeScreen(context, DiscordScreen.BROWSE)
-            DiscordRPCService.setMangaScreen(context, DiscordScreen.BROWSE)
             // <-- AM (DISCORD)
         }
     }

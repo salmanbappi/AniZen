@@ -1569,16 +1569,25 @@ class PlayerActivity : BaseActivity() {
                 if (!exitingPlayer) {
                     val anime = viewModel.currentAnime.value ?: return@launchIO
                     val episode = viewModel.currentEpisode.value ?: return@launchIO
-                    val currentPosition = viewModel.pos.value.toLong() * 1000
-                    val duration = player.duration?.toLong()?.times(1000) ?: 1440000L
+                    val isPaused = player.paused == true
 
-                    val startTimestamp = Calendar.getInstance().apply {
-                        timeInMillis = System.currentTimeMillis() - currentPosition
+                    val (startTime, endTime) = if (isPaused) {
+                        Pair(null, null)
+                    } else {
+                        val currentPosition = viewModel.pos.value.toLong() * 1000
+                        val duration = player.duration?.toLong()?.times(1000) ?: 1440000L
+
+                        val startTimestamp = Calendar.getInstance().apply {
+                            timeInMillis = System.currentTimeMillis() - currentPosition
+                        }
+                        val endTimestamp = Calendar.getInstance().apply {
+                            timeInMillis = startTimestamp.timeInMillis
+                            add(Calendar.MILLISECOND, duration.toInt())
+                        }
+                        Pair(startTimestamp.timeInMillis, endTimestamp.timeInMillis)
                     }
-                    val endTimestamp = Calendar.getInstance().apply {
-                        timeInMillis = startTimestamp.timeInMillis
-                        add(Calendar.MILLISECOND, duration.toInt())
-                    }
+
+                    val formattedEpisodeNumber = episode.name
 
                     DiscordRPCService.setPlayerActivity(
                         context = this@PlayerActivity,
@@ -1587,13 +1596,10 @@ class PlayerActivity : BaseActivity() {
                             animeId = anime.id,
                             animeTitle = anime.ogTitle,
                             thumbnailUrl = anime.thumbnailUrl ?: "",
-                            episodeNumber = if (connectionsPreferences.useChapterTitles().get()) {
-                                episode.name
-                            } else {
-                                episode.episode_number.toString()
-                            },
-                            startTimestamp = startTimestamp.timeInMillis,
-                            endTimestamp = endTimestamp.timeInMillis,
+                            episodeNumber = formattedEpisodeNumber,
+                            startTimestamp = startTime,
+                            endTimestamp = endTime,
+                            isPaused = isPaused,
                         ),
                     )
                 } else {

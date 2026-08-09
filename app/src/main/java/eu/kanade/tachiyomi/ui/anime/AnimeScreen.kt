@@ -36,7 +36,10 @@ import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.anime.EditCoverAction
 import eu.kanade.presentation.anime.EpisodeOptionsDialogScreen
 import eu.kanade.presentation.anime.EpisodeSettingsDialog
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.anime.components.AnimeCoverDialog
+import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
+import uy.kohesive.injekt.injectLazy
 import eu.kanade.presentation.anime.components.ClearAnimeDialog
 import eu.kanade.presentation.anime.components.DeleteEpisodesDialog
 import eu.kanade.presentation.anime.components.SetIntervalDialog
@@ -137,7 +140,15 @@ class AnimeScreen(
             }
         }
 
-        LaunchedEffect(successState.anime, screenModel.source) {            if (isHttpSource) {
+        LaunchedEffect(successState.anime, screenModel.source) {
+            val connectionsPreferences: ConnectionsPreferences by injectLazy()
+            if (connectionsPreferences.enableDiscordRPC().get()) {
+                DiscordRPCService.setAnimeScreen(
+                    context = context,
+                    discordScreen = eu.kanade.tachiyomi.data.connections.discord.DiscordScreen.APP,
+                )
+            }
+            if (isHttpSource) {
                 try {
                     withIOContext {
                         assistUrl = getAnimeUrl(screenModel.anime, screenModel.source)

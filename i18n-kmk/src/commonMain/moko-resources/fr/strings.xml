@@ -129,4 +129,15 @@
     <string name="custom_theme_palette_bubblegum">Bubblegum</string>
     <string name="custom_theme_palette_springfield">Springfield</string>
     <string name="pref_library_filter_categories_details">Les entrées dans les catégories exclues ne seront pas affichées, même si elles se trouvent également dans les catégories incluses.</string>
+
+    <!-- Discord section -->
+    <string name="discord_status_using">Utilise</string>
+    <string name="discord_status_browsing">Parcourt</string>
+    <string name="discord_status_exploring">Explore</string>
+    <string name="discord_status_checking">Consulte</string>
+    <string name="discord_status_reviewing">Revoit</string>
+    <string name="discord_status_configuring">Configure</string>
+    <string name="discord_status_details">Consulte la fiche de</string>
+    <string name="discord_status_scrolling">Fait défiler</string>
+    <string name="discord_status_messing">Dans les réglages de</string>
 </resources>

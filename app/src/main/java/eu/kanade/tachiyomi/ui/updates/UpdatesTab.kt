@@ -143,8 +143,7 @@ data object UpdatesTab : Tab {
         }
 
         LaunchedEffect(Unit) {
-            DiscordRPCService.setAnimeScreen(context, DiscordScreen.UPDATES)
-            DiscordRPCService.setMangaScreen(context, DiscordScreen.UPDATES)
+            DiscordRPCService.setAnimeScreen(context, DiscordScreen.APP)
         }
 
         DisposableEffect(Unit) {

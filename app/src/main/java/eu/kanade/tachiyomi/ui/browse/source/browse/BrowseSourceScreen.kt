@@ -38,6 +38,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import eu.kanade.domain.connections.service.ConnectionsPreferences
+import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
+import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
+import uy.kohesive.injekt.injectLazy
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -134,6 +138,19 @@ data class BrowseSourceScreen(
         val haptic = LocalHapticFeedback.current
         val uriHandler = LocalUriHandler.current
         val snackbarHostState = remember { SnackbarHostState() }
+
+        val context = LocalContext.current
+
+        LaunchedEffect(screenModel.source) {
+            val connectionsPreferences: ConnectionsPreferences by injectLazy()
+            if (connectionsPreferences.enableDiscordRPC().get()) {
+                DiscordRPCService.setAnimeScreen(
+                    context = context,
+                    discordScreen = DiscordScreen.BROWSE,
+                    customState = screenModel.source.name,
+                )
+            }
+        }
 
         val onHelpClick = { uriHandler.openUri(LocalAnimeSource.HELP_URL) }
         val onWebViewClick = f@{

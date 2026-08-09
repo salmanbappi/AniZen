@@ -59,6 +59,7 @@ open class DiscordWebSocketImpl(
         get() = SupervisorJob() + Dispatchers.IO
 
     private fun sendIdentify() {
+        log("Sending IDENTIFY (op: 2) with token: $token")
         val response = Identity.Response(
             op = 2,
             d = Identity(
@@ -72,7 +73,9 @@ open class DiscordWebSocketImpl(
                 intents = 0,
             ),
         )
-        webSocket?.send(json.encodeToString(response))
+        val payload = json.encodeToString(response)
+        log("IDENTIFY Payload: $payload")
+        webSocket?.send(payload)
     }
 
     @Suppress("MagicNumber")

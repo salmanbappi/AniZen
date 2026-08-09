@@ -279,8 +279,19 @@ class MainActivity : BaseActivity() {
                         .onEach {
                             DiscordRPCService.stop(this@MainActivity.applicationContext, 0L)
                             DiscordRPCService.start(this@MainActivity.applicationContext)
-                            DiscordRPCService.setAnimeScreen(this@MainActivity, DiscordScreen.MORE)
-                            DiscordRPCService.setMangaScreen(this@MainActivity, DiscordScreen.MORE)
+                            DiscordRPCService.setAnimeScreen(this@MainActivity, DiscordScreen.APP)
+                        }.launchIn(this)
+
+                    preferences.incognitoMode().changes()
+                        .drop(1)
+                        .onEach {
+                            DiscordRPCService.setAnimeScreen(this@MainActivity, DiscordRPCService.lastUsedScreen)
+                        }.launchIn(this)
+
+                    connectionsPreferences.discordRPCIncognito().changes()
+                        .drop(1)
+                        .onEach {
+                            DiscordRPCService.setAnimeScreen(this@MainActivity, DiscordRPCService.lastUsedScreen)
                         }.launchIn(this)
                     // <-- AM (DISCORD)
                 }
