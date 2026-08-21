@@ -73,13 +73,6 @@ android {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-${getCommitCount()}"
             isPseudoLocalesEnabled = true
-            isMinifyEnabled = providers.gradleProperty("enable-r8-debug")
-                .map(String::toBoolean)
-                .getOrElse(false)
-            isShrinkResources = providers.gradleProperty("enable-r8-debug")
-                .map(String::toBoolean)
-                .getOrElse(false)
-            proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
         }
         val release by getting {
             isMinifyEnabled = Config.enableCodeShrink
@@ -142,9 +135,7 @@ android {
     splits {
         abi {
             isEnable = true
-            // Universal APKs bundle every native player ABI and are unnecessarily large.
-            // Release each ABI separately; the build command selects the target ABI.
-            isUniversalApk = false
+            isUniversalApk = true
             reset()
             val abis = (project.findProperty("abiList") as? String)?.split(",") ?: listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             include(*abis.toTypedArray())
