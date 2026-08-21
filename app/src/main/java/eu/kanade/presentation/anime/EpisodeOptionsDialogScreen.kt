@@ -89,6 +89,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import tachiyomi.core.common.i18n.stringResource as stringResourceContext
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withIOContext
@@ -407,12 +408,12 @@ class EpisodeOptionsDialogScreenModel(
             if (result.isSuccess) {
                 _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.SUCCESS) }
                 launchUI {
-                    context.toast(context.stringResource(MR.strings.subtitles_downloaded, track.lang.ifBlank { "sub" }))
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_downloaded, track.lang.ifBlank { "sub" }))
                 }
             } else {
                 _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.ERROR) }
                 launchUI {
-                    context.toast(context.stringResource(MR.strings.subtitles_download_failed, track.lang.ifBlank { "sub" }))
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_download_failed, track.lang.ifBlank { "sub" }))
                 }
             }
         }
@@ -442,9 +443,9 @@ class EpisodeOptionsDialogScreenModel(
             }
             launchUI {
                 if (successCount > 0) {
-                    context.toast(context.stringResource(MR.strings.subtitles_downloaded, "$successCount tracks"))
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_downloaded, "$successCount tracks"))
                 } else {
-                    context.toast(context.stringResource(MR.strings.subtitles_download_failed, "All"))
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_download_failed, "All"))
                 }
             }
         }
