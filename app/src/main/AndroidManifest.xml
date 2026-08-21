@@ -2,15 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools" >
 
-    <!-- Android TV Compatibility -->
-    <uses-feature android:name="android.software.leanback" android:required="false" />
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <uses-feature android:name="android.hardware.faketouch" android:required="false" />
-    <uses-feature android:name="android.hardware.telephony" android:required="false" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <!-- Android TV -->
+   <uses-feature android:name="android.software.leanback" android:required="false" />
+   <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
    <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -27,6 +21,8 @@
     <!-- For background jobs -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Allows schedule notification bells to fire at the exact airing time on Android 12+. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -66,7 +62,6 @@
         android:enableOnBackInvokedCallback="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:largeHeap="true"
         android:localeConfig="@xml/locales_config"
@@ -303,6 +298,10 @@
 
         <receiver
             android:name=".data.notification.NotificationReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="mihon.feature.airingschedule.notification.ScheduleAlarmReceiver"
             android:exported="false" />
 
         <receiver

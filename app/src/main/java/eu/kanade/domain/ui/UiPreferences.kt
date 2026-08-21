@@ -51,7 +51,8 @@ class UiPreferences(
 
     fun startScreen() = preferenceStore.getEnum("start_screen", StartScreen.LIBRARY)
 
-    fun navStyle() = preferenceStore.getEnum("bottom_rail_nav_style", NavStyle.SHOW_ALL)
+    // Keep the default bottom bar compact while making the schedule available from More.
+    fun navStyle() = preferenceStore.getEnum("bottom_rail_nav_style", NavStyle.MOVE_SCHEDULE_TO_MORE)
 
     fun bottomNavTabs() = preferenceStore.getObject(
         "bottom_nav_tabs_v2",
@@ -149,6 +150,9 @@ class UiPreferences(
                 NavStyle.MOVE_HISTORY_TO_MORE -> {
                     hidden.add(NavItem.HISTORY.id)
                     visible.addAll(listOf(NavItem.UPDATES.id, NavItem.BROWSE.id))
+                }
+                NavStyle.MOVE_SCHEDULE_TO_MORE -> {
+                    visible.addAll(listOf(NavItem.UPDATES.id, NavItem.HISTORY.id, NavItem.BROWSE.id))
                 }
                 NavStyle.MOVE_BROWSE_TO_MORE -> {
                     hidden.add(NavItem.BROWSE.id)

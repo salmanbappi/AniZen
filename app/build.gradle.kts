@@ -50,8 +50,8 @@ android {
     defaultConfig {
         applicationId = "app.anizen"
 
-        versionCode = 702
-        versionName = "0.5.202"
+        versionCode = 705
+        versionName = "0.5.205"
 
         manifestPlaceholders["author"] = "@salmanbappi"
 
@@ -73,6 +73,11 @@ android {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-${getCommitCount()}"
             isPseudoLocalesEnabled = true
+            isMinifyEnabled = providers.gradleProperty("enable-r8-debug")
+                .map(String::toBoolean)
+                .getOrElse(true)
+            isShrinkResources = true
+            proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
         }
         val release by getting {
             isMinifyEnabled = Config.enableCodeShrink
@@ -135,7 +140,9 @@ android {
     splits {
         abi {
             isEnable = true
-            isUniversalApk = true
+            // Universal APKs bundle every native player ABI and are unnecessarily large.
+            // Release each ABI separately; the build command selects the target ABI.
+            isUniversalApk = false
             reset()
             val abis = (project.findProperty("abiList") as? String)?.split(",") ?: listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             include(*abis.toTypedArray())
@@ -424,4 +431,4 @@ buildscript {
     dependencies {
         classpath(kotlinx.gradle)
     }
-}// Trigger build Sun Mar 29 21:15:36 +06 2026
+} // Trigger build Sun Mar 29 21:15:36 +06 2026

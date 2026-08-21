@@ -100,7 +100,6 @@ import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
 import tachiyomi.presentation.core.i18n.stringResource
-
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -405,6 +404,18 @@ object HomeScreen : Screen() {
             NavigationBarItem(
                 selected = selected,
                 onClick = onClick,
+                modifier = if (
+                    behavior.onLongClick != NavAction.Default ||
+                    behavior.onDoubleTap != NavAction.Default
+                ) {
+                    Modifier.combinedClickable(
+                        onLongClick = onLongClick,
+                        onDoubleClick = onDoubleClick,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
                 icon = { NavigationIconItem(navItem, adaptiveDecision, updatesCount, extensionUpdatesCount) },
                 label = label,
                 alwaysShowLabel = navLabelVisibility == NavLabelVisibility.ALWAYS,
@@ -446,6 +457,36 @@ object HomeScreen : Screen() {
             }
         }
 
+        val onLongClick: () -> Unit = remember(behavior, navItem.id, haptic, executor) {
+            {
+                if (behavior.onLongClick != NavAction.Default) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    executor.execute(behavior.onLongClick, navItem.id)
+                }
+            }
+        }
+
+        val onDoubleClick: () -> Unit = remember(behavior, navItem.id, haptic, executor) {
+            {
+                if (behavior.onDoubleTap != NavAction.Default) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    executor.execute(behavior.onDoubleTap, navItem.id)
+                }
+            }
+        }
+
+        val combinedClick: () -> Unit = remember(selected, navItem.id, tabNavigator, tab, scope, navigator, executor) {
+            {
+                if (!selected) {
+                    executor.logClick(navItem.id)
+                    tabNavigator.current = tab
+                } else {
+                    scope.launch { tab.onReselect(navigator) }
+                }
+                Unit
+            }
+        }
+
         val label: @Composable (() -> Unit)? = remember(navLabelVisibility, title) {
             if (navLabelVisibility != NavLabelVisibility.NEVER) {
                 {
@@ -462,6 +503,18 @@ object HomeScreen : Screen() {
         NavigationRailItem(
             selected = selected,
             onClick = onClick,
+            modifier = if (
+                behavior.onLongClick != NavAction.Default ||
+                    behavior.onDoubleTap != NavAction.Default
+            ) {
+                Modifier.combinedClickable(
+                    onLongClick = onLongClick,
+                    onDoubleClick = onDoubleClick,
+                    onClick = combinedClick,
+                )
+            } else {
+                Modifier
+            },
             icon = { NavigationIconItem(navItem, adaptiveDecision, updatesCount, extensionUpdatesCount) },
             label = label,
             alwaysShowLabel = navLabelVisibility == NavLabelVisibility.ALWAYS,
