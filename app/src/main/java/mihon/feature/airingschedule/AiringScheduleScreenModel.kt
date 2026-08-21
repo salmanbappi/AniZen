@@ -20,14 +20,14 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 
-class AiringScheduleScreenModel : StateScreenModel<AiringScheduleScreenModel.State>(State()) {
-
-    private val repository = AiringScheduleRepository()
-    private val schedulePrefs: SchedulePreferences = Injekt.get()
-    private val sourcePreferences: SourcePreferences = Injekt.get()
-    private val uploadDelayTracker: UploadDelayTracker = Injekt.get()
-    private val application: Application = Injekt.get()
-    private val getLibraryAnime: GetLibraryAnime = Injekt.get()
+class AiringScheduleScreenModel(
+    private val repository: AiringScheduleRepository = AiringScheduleRepository(),
+    private val schedulePrefs: SchedulePreferences = Injekt.get(),
+    private val sourcePreferences: SourcePreferences = Injekt.get(),
+    private val uploadDelayTracker: UploadDelayTracker = Injekt.get(),
+    private val application: Application = Injekt.get(),
+    private val getLibraryAnime: GetLibraryAnime = Injekt.get(),
+) : StateScreenModel<AiringScheduleScreenModel.State>(State()) {
 
     private var allEntries: List<AiringScheduleEntry> = emptyList()
     private var hasLoaded = false
@@ -178,8 +178,8 @@ class AiringScheduleScreenModel : StateScreenModel<AiringScheduleScreenModel.Sta
     }
 
     /**
-     * The largest learned delay from the selected favourite sources is applied globally. This
-     * prevents a fast source's delay from hiding a slower source's upload time.
+     * Resolves the learned upload delay according to pinned sources priority order,
+     * falling back to favorite sources or the largest learned delay.
      */
     private fun priorityDelayFor(
         matchedSources: Set<String>,
@@ -190,9 +190,38 @@ class AiringScheduleScreenModel : StateScreenModel<AiringScheduleScreenModel.Sta
     ): Long? {
         manualDelayMinutes?.let { return it }
         if (delays.isEmpty()) return null
-        return favoriteIds.asSequence()
-            .mapNotNull { delays[it] }
-            .maxOrNull()
+
+        // 1. If this anime is matched to specific sources in library, check pinned then favorite in order
+        if (matchedSources.isNotEmpty()) {
+            for (pinned in pinnedSources) {
+                if (pinned in matchedSources && delays.containsKey(pinned)) {
+                    return delays[pinned]
+                }
+            }
+            for (fav in favoriteIds) {
+                if (fav in matchedSources && delays.containsKey(fav)) {
+                    return delays[fav]
+                }
+            }
+            val firstMatched = matchedSources.firstNotNullOfOrNull { delays[it] }
+            if (firstMatched != null) return firstMatched
+        }
+
+        // 2. Otherwise check pinned sources in priority order
+        for (pinned in pinnedSources) {
+            if (delays.containsKey(pinned)) {
+                return delays[pinned]
+            }
+        }
+
+        // 3. Fallback to favorite IDs
+        for (fav in favoriteIds) {
+            if (delays.containsKey(fav)) {
+                return delays[fav]
+            }
+        }
+
+        return delays.values.maxOrNull()
     }
 
     private fun filterEntries(

@@ -75,8 +75,10 @@ android {
             isPseudoLocalesEnabled = true
             isMinifyEnabled = providers.gradleProperty("enable-r8-debug")
                 .map(String::toBoolean)
-                .getOrElse(true)
-            isShrinkResources = true
+                .getOrElse(false)
+            isShrinkResources = providers.gradleProperty("enable-r8-debug")
+                .map(String::toBoolean)
+                .getOrElse(false)
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
         }
         val release by getting {

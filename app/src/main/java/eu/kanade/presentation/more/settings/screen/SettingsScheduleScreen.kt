@@ -194,7 +194,7 @@ object SettingsScheduleScreen : SearchableSettings {
                         title = if (exactAlarmsAllowed) {
                             "Exact alarm permission is granted — the notification bell will fire at the precise air time, even in the background with battery optimization enabled."
                         } else {
-                            "Exact alarm permission is not granted. On Android 13+, the notification bell may fire late without it. Tap Settings → Apps → Anikku Modified → Alarms & reminders to allow it, or tap below."
+                            "Exact alarm permission is not granted. On Android 13+, the notification bell may fire late without it. Tap Settings → Apps → AniZen → Alarms & reminders to allow it, or tap below."
                         },
                     ),
                     Preference.PreferenceItem.TextPreference(
@@ -217,14 +217,14 @@ object SettingsScheduleScreen : SearchableSettings {
                         pref = schedulePreferences.showAdultContent(),
                         title = "Show 18+ anime",
                         subtitle = "Include adult-only anime in the airing schedule",
+                        ),
                     ),
-                ),
             ),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_schedule_about_title),
                 preferenceItems = persistentListOf(
                     Preference.PreferenceItem.InfoPreference(
-                        title = "The airing schedule is powered by AniList. Upload delay tracking monitors when episodes appear on your pinned sources vs the official air time — uses priority order (1st pinned source takes precedence). Tap the play or search icon on any anime to find it in All sources. Tap the bookmark icon to add it to your library — enable 'Auto-add via pinned sources' to search only in your pinned sources.",
+                        title = "The airing schedule is powered by AniList. Upload delay tracking monitors when episodes appear on your pinned sources vs the official air time — uses priority order (1st pinned source takes precedence). Tap the search or bookmark icon on any anime to find it in your sources.",
                     ),
                 ),
             ),

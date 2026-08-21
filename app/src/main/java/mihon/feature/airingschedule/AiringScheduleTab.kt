@@ -47,7 +47,6 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.more.settings.screen.SettingsScheduleScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
-import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SourceFilter
 import kotlinx.coroutines.launch
 import mihon.feature.airingschedule.components.BellNotifyState
 import mihon.feature.airingschedule.components.ScheduleAnimeCard
@@ -172,26 +171,15 @@ data object AiringScheduleTab : Tab {
                                 navigator.push(
                                     GlobalSearchScreen(
                                         searchQuery = title,
-                                        initialSourceFilter = SourceFilter.All,
                                     ),
                                 )
                             },
                             onAddToLibraryClick = { title ->
-                                if (state.autoAddFromPinnedSources && state.pinnedSourceIds.isNotEmpty()) {
-                                    navigator.push(
-                                        GlobalSearchScreen(
-                                            searchQuery = title,
-                                            initialSourceFilter = SourceFilter.PinnedOnly,
-                                        ),
-                                    )
-                                } else {
-                                    navigator.push(
-                                        GlobalSearchScreen(
-                                            searchQuery = title,
-                                            initialSourceFilter = SourceFilter.All,
-                                        ),
-                                    )
-                                }
+                                navigator.push(
+                                    GlobalSearchScreen(
+                                        searchQuery = title,
+                                    ),
+                                )
                             },
                             notifyOnceMediaIds = state.notifyOnceMediaIds,
                             notifySeriesMediaIds = state.notifySeriesMediaIds,

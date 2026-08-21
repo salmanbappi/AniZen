@@ -13,6 +13,8 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.system.notify
+import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.i18n.MR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,7 +85,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val contentText = context.getString(R.string.notification_episode_aired, episode)
+        val contentText = context.stringResource(MR.strings.notification_episode_aired, episode)
 
         // Use bitmasking instead of kotlin.math.abs to safely strip the sign bit.
         // abs(Int.MIN_VALUE) overflows back to Int.MIN_VALUE, so bitmask is the safe approach.

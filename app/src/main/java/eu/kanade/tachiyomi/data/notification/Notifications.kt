@@ -86,6 +86,12 @@ object Notifications {
     // <-- AM (DISCORD)
 
     /**
+     * Notification channel and ids used for Airing Schedule.
+     */
+    const val CHANNEL_AIRING_SCHEDULE = "airing_schedule_channel"
+    const val ID_AIRING_SCHEDULE_BASE = 500000
+
+    /**
      * Notification channel and ids used for app and extension updates.
      */
     private const val GROUP_APK_UPDATES = "group_apk_updates"
@@ -203,6 +209,9 @@ object Notifications {
                 buildNotificationChannel(CHANNEL_EXTENSIONS_UPDATE, IMPORTANCE_DEFAULT) {
                     setGroup(GROUP_APK_UPDATES)
                     setName(context.stringResource(MR.strings.channel_ext_updates))
+                },
+                buildNotificationChannel(CHANNEL_AIRING_SCHEDULE, IMPORTANCE_HIGH) {
+                    setName(context.stringResource(MR.strings.label_airing_schedule))
                 },
             ),
         )

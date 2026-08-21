@@ -325,6 +325,7 @@ private val playerSettingScreens = listOf(
 private val settingScreens = listOf(
     SettingsAppearanceScreen,
     SettingsLibraryScreen,
+    SettingsScheduleScreen,
     SettingsDownloadScreen,
     SettingsTrackingScreen,
     // AM (CONNECTIONS) -->

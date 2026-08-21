@@ -112,7 +112,11 @@ class ScheduleRefreshWorker(
             }
             if (latestAnimeResult.isSuccess) sourcesChecked++
 
-            for (anime in latestAnime) {
+            val matchingAnime = latestAnime.filter { anime ->
+                airedEntries.any { titlesMatch(it, anime.title) }
+            }.take(MAX_MATCHING_ANIME_PER_SOURCE)
+
+            for (anime in matchingAnime) {
                 val episodes = runCatching { source.getEpisodeList(anime) }.getOrNull().orEmpty()
                 for (episode in episodes) {
                     if (episode.date_upload <= 0L) continue
@@ -141,13 +145,16 @@ class ScheduleRefreshWorker(
 
     private fun titlesMatch(entry: AiringScheduleEntry, sourceTitle: String): Boolean {
         val source = normalizeTitle(sourceTitle)
+        if (source.length < 3) return false
         return listOfNotNull(
             entry.titleUserPreferred,
             entry.titleEnglish,
             entry.titleRomaji,
             entry.titleNative,
         ).map(::normalizeTitle).any { candidate ->
-            candidate == source || candidate.contains(source) || source.contains(candidate)
+            if (candidate.length < 3) return@any false
+            candidate == source ||
+                (candidate.length >= 6 && source.length >= 6 && (candidate.contains(source) || source.contains(candidate)))
         }
     }
 
@@ -164,6 +171,7 @@ class ScheduleRefreshWorker(
         private const val WORK_NAME = "ScheduleRefreshWorker"
         private const val MAX_SOURCE_CALLS_PER_RUN = 12
         private const val MAX_LATEST_ANIME_PER_SOURCE = 50
+        private const val MAX_MATCHING_ANIME_PER_SOURCE = 5
         private const val MIN_DELAY_MINUTES = -60L
         private const val MAX_DELAY_MINUTES = 24L * 60L
 

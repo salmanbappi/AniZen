@@ -7,9 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.runBlocking
 import mihon.feature.airingschedule.AiringScheduleEntry
 import mihon.feature.airingschedule.SchedulePreferences
 import uy.kohesive.injekt.Injekt
@@ -26,10 +23,10 @@ object ScheduleNotifications {
     // The persisted "scheduled alarm keys" set is read-modified-written from multiple
     // independent callers (UI toggle taps, the weekly refresh worker, and the alarm receiver
     // itself when an alarm fires) which can race and lose updates if not serialized. All
-    // mutating access goes through this mutex.
-    private val keysMutex = Mutex()
+    // mutating access is synchronized on keysLock.
+    private val keysLock = Any()
 
-    private inline fun <T> withKeysLock(crossinline block: () -> T): T = runBlocking { keysMutex.withLock { block() } }
+    private inline fun <T> withKeysLock(crossinline block: () -> T): T = synchronized(keysLock) { block() }
 
     fun alarmKey(mediaId: Int, episode: Int): String = "$mediaId:$episode"
 

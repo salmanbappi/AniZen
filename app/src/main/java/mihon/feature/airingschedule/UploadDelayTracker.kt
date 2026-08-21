@@ -1,6 +1,7 @@
 package mihon.feature.airingschedule
 
-import android.util.Log
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -51,7 +52,7 @@ class UploadDelayTracker {
         }
         delays[sourceId] = updated
         saveDelays(delays)
-        Log.d("UploadDelayTracker", "Source $sourceId delay updated to ${updated}min")
+        logcat(LogPriority.DEBUG) { "UploadDelayTracker: Source $sourceId delay updated to ${updated}min" }
     }
 
     /**

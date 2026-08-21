@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.CallToAction
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CollectionsBookmark
+import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.GetApp
 import androidx.compose.material.icons.outlined.Info
@@ -101,6 +102,12 @@ object SettingsMainScreen : Screen() {
                     ),
                 ),
                 "Core Features" to listOf(
+                    Item(
+                        titleRes = MR.strings.pref_category_schedule,
+                        subtitleRes = MR.strings.pref_category_schedule_summary,
+                        icon = Icons.Outlined.DateRange,
+                        screen = SettingsScheduleScreen,
+                    ),
                     Item(
                         titleRes = MR.strings.pref_category_downloads,
                         subtitleRes = MR.strings.pref_downloads_summary,

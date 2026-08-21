@@ -86,6 +86,8 @@ fun ScheduleAnimeCard(
     val adjustedAiringAt = effectiveDelay?.let { UploadDelayTracker.adjustedAirTime(entry.airingAt, it) }
         ?: entry.airingAt
 
+    val isAdjustedAired = adjustedAiringAt <= Instant.now().epochSecond
+
     val expectedUploadTime: String? = effectiveDelay?.let {
         Instant.ofEpochSecond(adjustedAiringAt).atZone(zone).format(timeFormatter12h)
     }
@@ -123,7 +125,7 @@ fun ScheduleAnimeCard(
             ScheduleAnimeInfo(
                 modifier = Modifier.weight(1f),
                 title = displayTitle,
-                hasAired = hasAired,
+                hasAired = isAdjustedAired,
                 officialAirTime = officialAirTime,
                 countdown = countdown,
                 expectedUploadTime = expectedUploadTime,
