@@ -304,6 +304,10 @@ class PlayerActivity : BaseActivity() {
                 viewModel.showPanel(Panels.None)
                 return@addCallback
             }
+            if (viewModel.controlsShown.value) {
+                viewModel.hideControls()
+                return@addCallback
+            }
             finish()
         }
 
@@ -1071,12 +1075,11 @@ class PlayerActivity : BaseActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        val controlsAreVisible = viewModel.controlsShown.value ||
-            viewModel.sheetShown.value != Sheets.None ||
+        val hasOverlayPopup = viewModel.sheetShown.value != Sheets.None ||
             viewModel.panelShown.value != Panels.None ||
             viewModel.dialogShown.value != Dialogs.None
 
-        if (controlsAreVisible) {
+        if (hasOverlayPopup) {
             when (keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> {
                     viewModel.changeVolumeBy(1)
@@ -1104,8 +1107,7 @@ class PlayerActivity : BaseActivity() {
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_NUMPAD_ENTER,
                 KeyEvent.KEYCODE_TAB -> {
-                    // Let Compose UI handle directional focus traversal and button clicks
-                    // Do NOT forward D-Pad keys to MPV, which would trigger unintended seek -60/60 actions
+                    // Let Compose UI handle directional focus traversal and selections in dialogs/sheets
                     return super.onKeyDown(keyCode, event)
                 }
                 else -> {
@@ -1119,38 +1121,57 @@ class PlayerActivity : BaseActivity() {
             KeyEvent.KEYCODE_VOLUME_UP -> {
                 viewModel.changeVolumeBy(1)
                 viewModel.displayVolumeSlider()
+                return true
             }
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 viewModel.changeVolumeBy(-1)
                 viewModel.displayVolumeSlider()
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                finishAndRemoveTask()
+                return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_MEDIA_REWIND -> viewModel.handleLeftDoubleTap()
-
+            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                viewModel.handleLeftDoubleTap()
+                return true
+            }
             KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> viewModel.handleRightDoubleTap()
-
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_NUMPAD_ENTER,
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                viewModel.handleRightDoubleTap()
+                return true
+            }
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_MENU -> {
-                viewModel.showControls()
+                if (viewModel.controlsShown.value) {
+                    return super.onKeyDown(keyCode, event)
+                } else {
+                    viewModel.showControls()
+                    return true
+                }
             }
-
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER,
             KeyEvent.KEYCODE_SPACE,
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> viewModel.pauseUnpause()
-
-            KeyEvent.KEYCODE_MEDIA_STOP -> finishAndRemoveTask()
-
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                viewModel.pauseUnpause()
+                if (viewModel.paused.value) {
+                    viewModel.showControls()
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_TAB -> {
+                return super.onKeyDown(keyCode, event)
+            }
             // other keys should be bound by the user in input.conf ig
             else -> {
                 event?.let { player.onKey(it) }
                 return super.onKeyDown(keyCode, event)
             }
         }
-        return true
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
