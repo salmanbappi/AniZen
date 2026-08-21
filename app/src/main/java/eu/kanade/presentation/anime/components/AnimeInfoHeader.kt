@@ -463,7 +463,13 @@ private fun AnimeAndSourceTitlesLarge(
     ) {
         val (entry, ratio) = AnimeCover.getEntry(anime.id)
         entry(
-            modifier = Modifier.width(if (entry == AnimeCover.Panorama) 200.dp else 160.dp),
+            modifier = Modifier
+                .width(if (entry == AnimeCover.Panorama) 200.dp else 160.dp)
+                .tvFocusHighlight(
+                    shape = MaterialTheme.shapes.medium,
+                    borderWidth = 2.5.dp,
+                    focusedScale = 1.03f,
+                ),
             data = anime.asAnimeCover(),
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
@@ -512,7 +518,13 @@ private fun AnimeAndSourceTitlesSmall(
     ) {
         val (entry, ratio) = AnimeCover.getEntry(anime.id)
         entry(
-            modifier = Modifier.width(if (entry == AnimeCover.Panorama) 140.dp else 100.dp),
+            modifier = Modifier
+                .width(if (entry == AnimeCover.Panorama) 140.dp else 100.dp)
+                .tvFocusHighlight(
+                    shape = MaterialTheme.shapes.medium,
+                    borderWidth = 2.5.dp,
+                    focusedScale = 1.03f,
+                ),
             data = anime.asAnimeCover(),
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
