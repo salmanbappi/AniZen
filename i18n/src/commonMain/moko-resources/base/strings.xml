@@ -1390,6 +1390,11 @@
     <string name="action_order_by_episode_number">By episode number</string>
     <string name="action_start_download_externally">Use external downloader</string>
     <string name="action_start_download_internally">Use internal downloader</string>
+    <string name="action_subtitles_only">Subtitles only</string>
+    <string name="action_download_all_subtitles">Download all subtitles</string>
+    <string name="subtitles_downloaded">Subtitles downloaded: %1$s</string>
+    <string name="subtitles_download_failed">Failed to download subtitles: %1$s</string>
+    <string name="no_subtitles_available">No subtitles available</string>
     <string name="pref_bottom_nav_style">Bottom navigation style</string>
     <string name="pref_default_home_tab_library">Set start screen to Manga Tab</string>
     <string name="pref_update_only_completely_read">Skip entries with unseen episode(s)</string>
