@@ -404,7 +404,7 @@ class EpisodeOptionsDialogScreenModel(
         _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.DOWNLOADING) }
 
         screenModelScope.launchIO {
-            val result = SubtitleDownloader.downloadSubtitleTrack(anime, episode, track, video)
+            val result = SubtitleDownloader.downloadSubtitleTrack(anime, episode, _source.value, track, video)
             if (result.isSuccess) {
                 _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.SUCCESS) }
                 launchUI {
@@ -433,7 +433,7 @@ class EpisodeOptionsDialogScreenModel(
         screenModelScope.launchIO {
             var successCount = 0
             tracks.forEach { track ->
-                val result = SubtitleDownloader.downloadSubtitleTrack(anime, episode, track, video)
+                val result = SubtitleDownloader.downloadSubtitleTrack(anime, episode, _source.value, track, video)
                 if (result.isSuccess) {
                     successCount++
                     _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.SUCCESS) }

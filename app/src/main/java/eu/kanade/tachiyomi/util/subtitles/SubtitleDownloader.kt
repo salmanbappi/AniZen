@@ -1,7 +1,8 @@
 package eu.kanade.tachiyomi.util.subtitles
 
-import android.content.Context
 import android.os.Environment
+import com.hippo.unifile.UniFile
+import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -14,15 +15,16 @@ import okhttp3.Request
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.domain.storage.service.StorageManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 
 object SubtitleDownloader {
 
     private val networkHelper by lazy { Injekt.get<NetworkHelper>() }
+    private val storageManager by lazy { Injekt.get<StorageManager>() }
 
     fun getCleanExtension(url: String): String {
         val cleanUrl = url.substringBefore("?")
@@ -46,38 +48,56 @@ object SubtitleDownloader {
         return builder.build()
     }
 
+    private fun getDestinationDir(sourceName: String, animeTitle: String): UniFile {
+        val safeSource = DiskUtil.buildValidFilename(sourceName.ifBlank { "Unknown" })
+        val safeAnime = DiskUtil.buildValidFilename(animeTitle)
+
+        val baseDownloads = storageManager.getDownloadsDirectory()
+        if (baseDownloads != null && baseDownloads.exists()) {
+            val subDir = baseDownloads.createDirectory("subtitles") ?: baseDownloads
+            val sourceDir = subDir.createDirectory(safeSource) ?: subDir
+            val animeDir = sourceDir.createDirectory(safeAnime) ?: sourceDir
+            return animeDir
+        }
+
+        // Fallback to public device downloads directory
+        val fallback = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "AniZen/subtitles/$safeSource/$safeAnime",
+        )
+        if (!fallback.exists()) {
+            fallback.mkdirs()
+        }
+        return UniFile.fromFile(fallback) ?: throw IOException("Cannot create destination directory")
+    }
+
     suspend fun downloadSubtitleTrack(
         anime: Anime,
         episode: Episode,
+        source: AnimeSource?,
         track: Track,
         video: Video?,
-    ): Result<File> = withContext(Dispatchers.IO) {
+    ): Result<UniFile> = withContext(Dispatchers.IO) {
         try {
             val headers = getHeaders(video)
             val resolvedTracks = StremioSubtitleResolver.resolve(track, headers)
             val actualTrack = resolvedTracks.firstOrNull() ?: track
 
             val ext = getCleanExtension(actualTrack.url)
-            val safeAnimeTitle = DiskUtil.buildValidFilename(anime.title)
             val safeEpisodeName = DiskUtil.buildValidFilename(episode.name)
             val safeLang = DiskUtil.buildValidFilename(actualTrack.lang.ifBlank { "sub" })
             val filename = "${safeEpisodeName}.${safeLang}.$ext"
 
-            val publicDir = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "AniZen/Subtitles/$safeAnimeTitle",
-            )
-            if (!publicDir.exists()) {
-                publicDir.mkdirs()
-            }
-
-            val targetFile = File(publicDir, filename)
+            val sourceName = source?.name ?: "Unknown"
+            val destDir = getDestinationDir(sourceName, anime.title)
+            val targetFile = destDir.createFile(filename)
+                ?: throw IOException("Cannot create subtitle file: $filename")
 
             if (actualTrack.url.startsWith("file://")) {
                 val sourceFile = File(actualTrack.url.removePrefix("file://"))
                 if (sourceFile.exists()) {
                     sourceFile.inputStream().use { input ->
-                        FileOutputStream(targetFile).use { output ->
+                        targetFile.openOutputStream().use { output ->
                             input.copyTo(output)
                         }
                     }
@@ -91,7 +111,7 @@ object SubtitleDownloader {
                 if (!res.isSuccessful) throw IOException("HTTP ${res.code}")
                 val body = res.body ?: throw IOException("Empty response body")
                 body.byteStream().use { input ->
-                    FileOutputStream(targetFile).use { output ->
+                    targetFile.openOutputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
