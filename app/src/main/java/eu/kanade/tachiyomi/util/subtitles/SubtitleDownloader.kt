@@ -71,6 +71,30 @@ object SubtitleDownloader {
         return UniFile.fromFile(fallback) ?: throw IOException("Cannot create destination directory")
     }
 
+    fun getSubtitleFilename(episode: Episode, track: Track): String {
+        val ext = getCleanExtension(track.url)
+        val safeEpisodeName = DiskUtil.buildValidFilename(episode.name)
+        val safeLang = DiskUtil.buildValidFilename(track.lang.ifBlank { "sub" })
+        return "${safeEpisodeName}.${safeLang}.$ext"
+    }
+
+    fun isSubtitleDownloaded(
+        anime: Anime,
+        episode: Episode,
+        source: AnimeSource?,
+        track: Track,
+    ): Boolean {
+        return try {
+            val sourceName = source?.name ?: "Unknown"
+            val destDir = getDestinationDir(sourceName, anime.title)
+            val filename = getSubtitleFilename(episode, track)
+            val file = destDir.findFile(filename)
+            file != null && file.exists() && file.length() > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun downloadSubtitleTrack(
         anime: Anime,
         episode: Episode,
@@ -83,11 +107,7 @@ object SubtitleDownloader {
             val resolvedTracks = StremioSubtitleResolver.resolve(track, headers)
             val actualTrack = resolvedTracks.firstOrNull() ?: track
 
-            val ext = getCleanExtension(actualTrack.url)
-            val safeEpisodeName = DiskUtil.buildValidFilename(episode.name)
-            val safeLang = DiskUtil.buildValidFilename(actualTrack.lang.ifBlank { "sub" })
-            val filename = "${safeEpisodeName}.${safeLang}.$ext"
-
+            val filename = getSubtitleFilename(episode, actualTrack)
             val sourceName = source?.name ?: "Unknown"
             val destDir = getDestinationDir(sourceName, anime.title)
             val targetFile = destDir.createFile(filename)

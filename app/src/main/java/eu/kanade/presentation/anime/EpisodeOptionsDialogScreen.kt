@@ -372,6 +372,7 @@ class EpisodeOptionsDialogScreenModel(
             selectedHosterState.getChangedAt(videoIndex, resolvedVideo, Video.State.READY),
         )
         _currentVideo.update { _ -> resolvedVideo }
+        refreshSubtitleStatuses(resolvedVideo)
 
         return true
     }
@@ -394,6 +395,33 @@ class EpisodeOptionsDialogScreenModel(
 
     fun onShowSubtitles(value: Boolean) {
         _showSubtitles.update { _ -> value }
+        if (value) {
+            refreshSubtitleStatuses()
+        }
+    }
+
+    fun refreshSubtitleStatuses(video: Video? = _currentVideo.value) {
+        val anime = _anime.value ?: return
+        val episode = _episode.value ?: return
+        val source = _source.value
+        val tracks = video?.subtitleTracks.orEmpty()
+        if (tracks.isEmpty()) return
+
+        screenModelScope.launchIO {
+            val updated = tracks.associate { track ->
+                val isDownloaded = SubtitleDownloader.isSubtitleDownloaded(anime, episode, source, track)
+                track.url to if (isDownloaded) SubtitleDownloadStatus.SUCCESS else SubtitleDownloadStatus.IDLE
+            }
+            _subtitleStatuses.update { current ->
+                val newStatuses = current.toMutableMap()
+                updated.forEach { (url, status) ->
+                    if (newStatuses[url] != SubtitleDownloadStatus.DOWNLOADING) {
+                        newStatuses[url] = status
+                    }
+                }
+                newStatuses
+            }
+        }
     }
 
     fun downloadSubtitle(context: Context, track: Track) {
