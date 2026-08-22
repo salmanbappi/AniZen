@@ -1711,6 +1711,9 @@
     <string name="schedule_error_title">Unable to load schedule</string>
     <string name="notification_episode_aired">Episode %1$s has aired!</string>
     <string name="cd_schedule_filter_library">Filter by anime in library</string>
+    <string name="action_filter_schedule">Filter schedule</string>
+    <string name="pref_schedule_filter_hide_aired">Hide already aired</string>
+    <string name="pref_schedule_filter_formats">Formats</string>
 </resources>
 
 

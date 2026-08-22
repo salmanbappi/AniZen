@@ -252,19 +252,21 @@ class AiringScheduleScreenModel(
         }
 
         return delays.values.maxOrNull()
-    }
-
-    private fun filterEntries(
+       private fun filterEntries(
         entries: List<AiringScheduleEntry>,
         showAdult: Boolean,
         showOnlyFavorites: Boolean,
         onlyLibrary: Boolean,
+        hideAired: Boolean,
+        selectedFormats: Set<String>,
         configuredSources: Set<String>,
         librarySourcesByTitle: Map<String, Set<String>>,
         libraryTitles: Set<String>,
     ): List<AiringScheduleEntry> = entries.filter { entry ->
         // Re-apply adult-content filter in case the preference changed since last fetch.
         if (!showAdult && entry.isAdult) return@filter false
+        if (hideAired && entry.hasAired()) return@filter false
+        if (selectedFormats.isNotEmpty() && (entry.format == null || entry.format !in selectedFormats)) return@filter false
         if (onlyLibrary) {
             val titleMatches = listOfNotNull(
                 entry.titleUserPreferred,
@@ -318,6 +320,8 @@ class AiringScheduleScreenModel(
         val librarySourcesByTitle = mutableState.value.librarySourcesByTitle
         val libraryTitles = mutableState.value.libraryAnimeTitles
         val onlyLibrary = mutableState.value.onlyLibrary
+        val hideAired = mutableState.value.hideAired
+        val selectedFormats = mutableState.value.selectedFormats
         val manualDelayMinutes = computeManualDelayMinutes()
         // Source filters should apply for either favourite or pinned sources — a user who
         // only pins sources from Browse (without also marking them "favourite" here) still
@@ -329,6 +333,8 @@ class AiringScheduleScreenModel(
             showAdult = showAdult,
             showOnlyFavorites = showOnlyFavorites,
             onlyLibrary = onlyLibrary,
+            hideAired = hideAired,
+            selectedFormats = selectedFormats,
             configuredSources = configuredSources,
             librarySourcesByTitle = librarySourcesByTitle,
             libraryTitles = libraryTitles,
@@ -355,14 +361,52 @@ class AiringScheduleScreenModel(
                 manualDelayMinutes = manualDelayMinutes,
                 favoriteSourceIds = favoriteIds,
                 pinnedSourceIds = pinnedSources,
+                onlyFavorites = showOnlyFavorites,
+                showAdult = showAdult,
                 notifyOnceMediaIds = schedulePrefs.notifyOnceMediaIds().get(),
                 notifySeriesMediaIds = schedulePrefs.notifySeriesMediaIds().get(),
             )
         }
     }
 
-    fun toggleLibraryOnly() {
-        mutableState.update { it.copy(onlyLibrary = !it.onlyLibrary) }
+    fun setFilterOnlyLibrary(value: Boolean) {
+        mutableState.update { it.copy(onlyLibrary = value) }
+        applyFilters()
+    }
+
+    fun setFilterOnlyFavorites(value: Boolean) {
+        schedulePrefs.showOnlyFavoriteSources().set(value)
+    }
+
+    fun setFilterHideAired(value: Boolean) {
+        mutableState.update { it.copy(hideAired = value) }
+        applyFilters()
+    }
+
+    fun setFilterShowAdult(value: Boolean) {
+        schedulePrefs.showAdultContent().set(value)
+    }
+
+    fun toggleFilterFormat(format: String) {
+        mutableState.update {
+            val next = if (format in it.selectedFormats) it.selectedFormats - format else it.selectedFormats + format
+            it.copy(selectedFormats = next)
+        }
+        applyFilters()
+    }
+
+    fun resetFilters() {
+        schedulePrefs.showOnlyFavoriteSources().set(false)
+        schedulePrefs.showAdultContent().set(false)
+        mutableState.update {
+            it.copy(
+                onlyLibrary = false,
+                onlyFavorites = false,
+                hideAired = false,
+                showAdult = false,
+                selectedFormats = emptySet(),
+            )
+        }
         applyFilters()
     }
 
@@ -447,5 +491,12 @@ class AiringScheduleScreenModel(
         val librarySourcesByTitle: Map<String, Set<String>> = emptyMap(),
         val libraryAnimeIdByTitle: Map<String, Long> = emptyMap(),
         val onlyLibrary: Boolean = false,
-    )
+        val onlyFavorites: Boolean = false,
+        val hideAired: Boolean = false,
+        val showAdult: Boolean = false,
+        val selectedFormats: Set<String> = emptySet(),
+    ) {
+        val hasActiveFilters: Boolean
+            get() = onlyLibrary || onlyFavorites || hideAired || showAdult || selectedFormats.isNotEmpty()
+    }
 }

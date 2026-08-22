@@ -54,6 +54,7 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.coroutines.launch
 import mihon.feature.airingschedule.components.BellNotifyState
 import mihon.feature.airingschedule.components.ScheduleAnimeCard
+import mihon.feature.airingschedule.components.ScheduleFilterSheet
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -97,6 +98,7 @@ data object AiringScheduleTab : Tab {
         val screenModel = rememberScreenModel { AiringScheduleScreenModel() }
         val state by screenModel.state.collectAsState()
         val scope = rememberCoroutineScope()
+        var showFilterSheet by remember { mutableStateOf(false) }
 
         val todayIndex = orderedDays.indexOf(state.selectedDay).coerceAtLeast(0)
         val pagerState = rememberPagerState(initialPage = todayIndex) { orderedDays.size }
@@ -122,16 +124,16 @@ data object AiringScheduleTab : Tab {
                                     text = weekRange,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                    )
                             }
                         }
                     },
                     actions = {
-                        IconButton(onClick = { screenModel.toggleLibraryOnly() }) {
+                        IconButton(onClick = { showFilterSheet = true }) {
                             Icon(
                                 imageVector = Icons.Outlined.FilterList,
-                                contentDescription = stringResource(MR.strings.cd_schedule_filter_library),
-                                tint = if (state.onlyLibrary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                contentDescription = stringResource(MR.strings.action_filter_schedule),
+                                tint = if (state.hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             )
                         }
                         IconButton(onClick = { screenModel.loadSchedule(forceRefresh = true) }) {
@@ -196,6 +198,23 @@ data object AiringScheduleTab : Tab {
                     }
                 }
             }
+        }
+
+        if (showFilterSheet) {
+            ScheduleFilterSheet(
+                onDismissRequest = { showFilterSheet = false },
+                onlyLibrary = state.onlyLibrary,
+                onToggleOnlyLibrary = screenModel::setFilterOnlyLibrary,
+                onlyFavorites = state.onlyFavorites,
+                onToggleOnlyFavorites = screenModel::setFilterOnlyFavorites,
+                hideAired = state.hideAired,
+                onToggleHideAired = screenModel::setFilterHideAired,
+                showAdult = state.showAdult,
+                onToggleShowAdult = screenModel::setFilterShowAdult,
+                selectedFormats = state.selectedFormats,
+                onToggleFormat = screenModel::toggleFilterFormat,
+                onResetFilters = screenModel::resetFilters,
+            )
         }
     }
 }
