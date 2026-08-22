@@ -91,7 +91,7 @@ class AiringScheduleScreenModel(
             // 1. Try reading disk cache first (Instant Offline Display, no blank screen)
             val cache = ScheduleDataRefreshWorker.readCache(application)
             val cachedEntries = if (cache != null && cache.weekStartEpoch == currentWeekStart) {
-                cache.entries.map { it.toEntry() }
+                cache.entries
             } else null
 
             if (cachedEntries != null && !forceRefresh) {
@@ -148,7 +148,7 @@ class AiringScheduleScreenModel(
                 if (allEntries.isEmpty()) {
                     val fallback = cache?.takeIf { it.weekStartEpoch == currentWeekStart }
                     if (fallback != null) {
-                        allEntries = fallback.entries.map { it.toEntry() }
+                        allEntries = fallback.entries
                         hasLoaded = true
                         applyFilters(
                             entries = allEntries,

@@ -152,7 +152,7 @@ class ScheduleDataRefreshWorker(
                     val cacheData = ScheduleCacheData(
                         fetchedAt = System.currentTimeMillis(),
                         weekStartEpoch = weekStartEpoch,
-                        entries = entries.map { it.toCached() },
+                        entries = entries,
                     )
                     val file = context.cacheFile()
                     file.parentFile?.mkdirs()
@@ -180,64 +180,9 @@ class ScheduleDataRefreshWorker(
     }
 }
 
-private fun AiringScheduleEntry.toCached() = CachedAiringEntry(
-    scheduleId = scheduleId,
-    airingAt = airingAt,
-    episode = episode,
-    mediaId = mediaId,
-    titleUserPreferred = titleUserPreferred,
-    titleEnglish = titleEnglish,
-    titleRomaji = titleRomaji,
-    titleNative = titleNative,
-    coverImageUrl = coverImageUrl,
-    totalEpisodes = totalEpisodes,
-    averageScore = averageScore,
-    format = format,
-    status = status,
-    isAdult = isAdult,
-    genres = genres,
-)
-
-fun CachedAiringEntry.toEntry() = AiringScheduleEntry(
-    scheduleId = scheduleId,
-    airingAt = airingAt,
-    episode = episode,
-    mediaId = mediaId,
-    titleUserPreferred = titleUserPreferred,
-    titleEnglish = titleEnglish,
-    titleRomaji = titleRomaji,
-    titleNative = titleNative,
-    coverImageUrl = coverImageUrl,
-    totalEpisodes = totalEpisodes,
-    averageScore = averageScore,
-    format = format,
-    status = status,
-    isAdult = isAdult,
-    genres = genres,
-)
-
 @Serializable
 data class ScheduleCacheData(
     val fetchedAt: Long,
     val weekStartEpoch: Long,
-    val entries: List<CachedAiringEntry>,
-)
-
-@Serializable
-data class CachedAiringEntry(
-    val scheduleId: Int,
-    val airingAt: Long,
-    val episode: Int,
-    val mediaId: Int,
-    val titleUserPreferred: String,
-    val titleEnglish: String? = null,
-    val titleRomaji: String? = null,
-    val titleNative: String? = null,
-    val coverImageUrl: String,
-    val totalEpisodes: Int? = null,
-    val averageScore: Int? = null,
-    val format: String? = null,
-    val status: String? = null,
-    val isAdult: Boolean = false,
-    val genres: List<String> = emptyList(),
+    val entries: List<AiringScheduleEntry>,
 )

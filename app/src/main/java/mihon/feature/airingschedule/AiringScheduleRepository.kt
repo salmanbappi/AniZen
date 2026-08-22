@@ -99,41 +99,8 @@ class AiringScheduleRepository {
         page: Int,
         includeAdult: Boolean,
     ): PageResult {
-        val query = """
-        |query AiringSchedule(${'$'}weekStart: Int, ${'$'}weekEnd: Int, ${'$'}page: Int) {
-            |Page(page: ${'$'}page, perPage: 50) {
-                |pageInfo {
-                    |hasNextPage
-                |}
-                |airingSchedules(airingAt_greater: ${'$'}weekStart, airingAt_lesser: ${'$'}weekEnd, sort: TIME) {
-                    |id
-                    |airingAt
-                    |episode
-                    |media {
-                        |id
-                        |title {
-                            |userPreferred
-                            |english
-                            |romaji
-                            |native
-                        |}
-                        |coverImage {
-                            |large
-                        |}
-                        |episodes
-                        |status
-                        |averageScore
-                        |format
-                        |isAdult
-                        |genres
-                    |}
-                |}
-            |}
-        |}
-        """.trimMargin()
-
         val payload = buildJsonObject {
-            put("query", query)
+            put("query", AIRING_SCHEDULE_QUERY)
             putJsonObject("variables") {
                 put("weekStart", weekStart.toInt())
                 put("weekEnd", weekEnd.toInt())
@@ -179,6 +146,8 @@ class AiringScheduleRepository {
 
     companion object {
         private const val API_URL = "https://graphql.anilist.co/"
+        private const val AIRING_SCHEDULE_QUERY =
+            "query AiringSchedule(\$weekStart:Int,\$weekEnd:Int,\$page:Int){Page(page:\$page,perPage:50){pageInfo{hasNextPage}airingSchedules(airingAt_greater:\$weekStart,airingAt_lesser:\$weekEnd,sort:TIME){id airingAt episode media{id title{userPreferred english romaji native}coverImage{large}episodes status averageScore format isAdult genres}}}}"
 
         // Transient errors worth retrying: 429 (rate limited), 502/503/504 (upstream hiccups).
         // 403 is intentionally excluded - AniList returns that for genuinely bad requests, and

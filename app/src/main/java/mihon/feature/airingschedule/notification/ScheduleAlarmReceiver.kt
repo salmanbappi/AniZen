@@ -9,6 +9,7 @@ import androidx.core.graphics.drawable.toBitmap
 import coil3.asDrawable
 import coil3.imageLoader
 import coil3.request.ImageRequest
+import coil3.request.Precision
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -60,7 +61,13 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
     }
 
     private suspend fun loadCoverBitmap(context: Context, url: String): Bitmap? = runCatching {
-        val request = ImageRequest.Builder(context).data(url).build()
+        val density = context.resources.displayMetrics.density
+        val targetPx = (64 * density).toInt()
+        val request = ImageRequest.Builder(context)
+            .data(url)
+            .size(targetPx, targetPx)
+            .precision(Precision.INEXACT)
+            .build()
         context.imageLoader.execute(request).image
             ?.asDrawable(context.resources)
             ?.toBitmap()
