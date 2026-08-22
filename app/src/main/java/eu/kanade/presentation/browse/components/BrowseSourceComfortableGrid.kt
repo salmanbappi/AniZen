@@ -110,7 +110,7 @@ internal fun BrowseSourceComfortableGridItem(
     modifier: Modifier = Modifier,
 ) {
     eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceComfortableGridItem")
-    val badgeStart: @Composable () -> Unit = remember(isFavorite) {
+    val badgeStart: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(isFavorite) {
         { InLibraryBadge(enabled = isFavorite) }
     }
     AnimeComfortableGridItem(

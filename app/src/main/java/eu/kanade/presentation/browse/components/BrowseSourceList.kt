@@ -109,7 +109,7 @@ internal fun BrowseSourceListItem(
     modifier: Modifier = Modifier,
 ) {
     eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceListItem")
-    val badge: @Composable () -> Unit = remember(isFavorite) {
+    val badge: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(isFavorite) {
         { InLibraryBadge(enabled = isFavorite) }
     }
     AnimeListItem(
