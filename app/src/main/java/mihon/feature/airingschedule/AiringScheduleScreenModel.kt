@@ -252,30 +252,19 @@ class AiringScheduleScreenModel(
         }
 
         return delays.values.maxOrNull()
-       private fun filterEntries(
+    private fun filterEntries(
         entries: List<AiringScheduleEntry>,
         showAdult: Boolean,
         showOnlyFavorites: Boolean,
-        onlyLibrary: Boolean,
         hideAired: Boolean,
         selectedFormats: Set<String>,
         configuredSources: Set<String>,
         librarySourcesByTitle: Map<String, Set<String>>,
-        libraryTitles: Set<String>,
     ): List<AiringScheduleEntry> = entries.filter { entry ->
         // Re-apply adult-content filter in case the preference changed since last fetch.
         if (!showAdult && entry.isAdult) return@filter false
         if (hideAired && entry.hasAired()) return@filter false
         if (selectedFormats.isNotEmpty() && (entry.format == null || entry.format !in selectedFormats)) return@filter false
-        if (onlyLibrary) {
-            val titleMatches = listOfNotNull(
-                entry.titleUserPreferred,
-                entry.titleEnglish,
-                entry.titleRomaji,
-                entry.titleNative,
-            ).any { it.trim().lowercase() in libraryTitles }
-            if (!titleMatches) return@filter false
-        }
         // Source filters only apply when the user has configured favourite/pinned sources.
         if (configuredSources.isNotEmpty() && showOnlyFavorites) {
             val matchedSources = matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
@@ -318,8 +307,6 @@ class AiringScheduleScreenModel(
         val titleLang = schedulePrefs.titleLanguage().get()
         val pinnedSources = sourcePreferences.pinnedSources().get()
         val librarySourcesByTitle = mutableState.value.librarySourcesByTitle
-        val libraryTitles = mutableState.value.libraryAnimeTitles
-        val onlyLibrary = mutableState.value.onlyLibrary
         val hideAired = mutableState.value.hideAired
         val selectedFormats = mutableState.value.selectedFormats
         val manualDelayMinutes = computeManualDelayMinutes()
@@ -332,12 +319,10 @@ class AiringScheduleScreenModel(
             entries = entries,
             showAdult = showAdult,
             showOnlyFavorites = showOnlyFavorites,
-            onlyLibrary = onlyLibrary,
             hideAired = hideAired,
             selectedFormats = selectedFormats,
             configuredSources = configuredSources,
             librarySourcesByTitle = librarySourcesByTitle,
-            libraryTitles = libraryTitles,
         )
         val grouped = groupByDelayAdjustedDay(
             entries = filtered,
@@ -369,11 +354,6 @@ class AiringScheduleScreenModel(
         }
     }
 
-    fun setFilterOnlyLibrary(value: Boolean) {
-        mutableState.update { it.copy(onlyLibrary = value) }
-        applyFilters()
-    }
-
     fun setFilterOnlyFavorites(value: Boolean) {
         schedulePrefs.showOnlyFavoriteSources().set(value)
     }
@@ -400,7 +380,6 @@ class AiringScheduleScreenModel(
         schedulePrefs.showAdultContent().set(false)
         mutableState.update {
             it.copy(
-                onlyLibrary = false,
                 onlyFavorites = false,
                 hideAired = false,
                 showAdult = false,
@@ -490,13 +469,12 @@ class AiringScheduleScreenModel(
         val libraryAnimeTitles: Set<String> = emptySet(),
         val librarySourcesByTitle: Map<String, Set<String>> = emptyMap(),
         val libraryAnimeIdByTitle: Map<String, Long> = emptyMap(),
-        val onlyLibrary: Boolean = false,
         val onlyFavorites: Boolean = false,
         val hideAired: Boolean = false,
         val showAdult: Boolean = false,
         val selectedFormats: Set<String> = emptySet(),
     ) {
         val hasActiveFilters: Boolean
-            get() = onlyLibrary || onlyFavorites || hideAired || showAdult || selectedFormats.isNotEmpty()
+            get() = onlyFavorites || hideAired || showAdult || selectedFormats.isNotEmpty()
     }
 }

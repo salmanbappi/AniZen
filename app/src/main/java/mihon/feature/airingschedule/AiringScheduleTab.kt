@@ -203,8 +203,6 @@ data object AiringScheduleTab : Tab {
         if (showFilterSheet) {
             ScheduleFilterSheet(
                 onDismissRequest = { showFilterSheet = false },
-                onlyLibrary = state.onlyLibrary,
-                onToggleOnlyLibrary = screenModel::setFilterOnlyLibrary,
                 onlyFavorites = state.onlyFavorites,
                 onToggleOnlyFavorites = screenModel::setFilterOnlyFavorites,
                 hideAired = state.hideAired,

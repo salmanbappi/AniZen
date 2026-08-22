@@ -42,8 +42,6 @@ private fun formatLabel(raw: String): String = when (raw) {
 @Composable
 fun ScheduleFilterSheet(
     onDismissRequest: () -> Unit,
-    onlyLibrary: Boolean,
-    onToggleOnlyLibrary: (Boolean) -> Unit,
     onlyFavorites: Boolean,
     onToggleOnlyFavorites: (Boolean) -> Unit,
     hideAired: Boolean,
@@ -78,16 +76,6 @@ fun ScheduleFilterSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Library filter
-            FilterSwitchRow(
-                title = stringResource(MR.strings.cd_schedule_filter_library),
-                subtitle = "Show only anime in your personal library",
-                checked = onlyLibrary,
-                onCheckedChange = onToggleOnlyLibrary,
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
             // Favorite sources filter
             FilterSwitchRow(
