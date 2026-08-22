@@ -107,6 +107,7 @@ internal fun BrowseSourceListItem(
     usePanorama: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceListItem")
     AnimeListItem(
         modifier = modifier,
         title = anime.title,

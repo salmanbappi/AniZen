@@ -111,6 +111,7 @@ internal fun BrowseSourceCompactGridItem(
     usePanorama: Boolean? = null,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceCompactGridItem")
     AnimeCompactGridItem(
         modifier = modifier,
         title = anime.title.takeIf { showTitle },

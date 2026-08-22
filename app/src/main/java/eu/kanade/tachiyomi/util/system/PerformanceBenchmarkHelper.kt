@@ -193,6 +193,11 @@ object PerformanceBenchmarkHelper {
         val p95 = if (sortedDurations.isNotEmpty()) sortedDurations[(sortedDurations.size * 0.95).toInt()] else 0
         val p99 = if (sortedDurations.isNotEmpty()) sortedDurations[(sortedDurations.size * 0.99).toInt()] else 0
 
+        val framesUnder16ms = records.count { it.totalMs <= 16 }
+        val framesUnder33ms = records.count { it.totalMs <= 33 }
+        val pct60fps = if (totalFrames > 0) (framesUnder16ms.toDouble() / totalFrames * 100) else 0.0
+        val pct30fps = if (totalFrames > 0) (framesUnder33ms.toDouble() / totalFrames * 100) else 0.0
+
         val jankPercentage = if (totalFrames > 0) (jankRecords.size.toDouble() / totalFrames * 100) else 0.0
 
         // Group stats per screen
@@ -207,6 +212,7 @@ object PerformanceBenchmarkHelper {
             appendLine("=== AniZen Performance Audit (30s Detailed) ===")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}, ${Runtime.getRuntime().availableProcessors()} Cores)")
             appendLine("Stats: $totalFrames frames | Jank: ${jankRecords.size} (${"%.1f".format(jankPercentage)}%) | Severe Freezes (>50ms): ${severeJanks.size}")
+            appendLine("Stability: ${"%.1f".format(pct60fps)}% @ 60fps target | ${"%.1f".format(pct30fps)}% @ 30fps target")
             appendLine("Frame Time: Avg ${"%.2f".format(avgTotal)}ms | P90: ${p90}ms | P95: ${p95}ms | P99: ${p99}ms")
             appendLine("Memory: ${initialMemory}MB -> ${maxMemory}MB (Peak, +${maxMemory - initialMemory}MB)")
             appendLine("Benchmark Overhead: 0.00ms (Dispatched on background HandlerThread)")

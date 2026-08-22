@@ -449,6 +449,27 @@ data class BrowseSourceScreen(
                 }
             }
 
+            val onAnimeClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, screenModel, navigator) {
+                { anime, index ->
+                    if (state.selectionMode) {
+                        screenModel.toggleSelection(anime, index)
+                    } else {
+                        navigator.push((AnimeScreen(anime.id, true)))
+                    }
+                }
+            }
+            val onAnimeLongClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, state.lastSelectedIndex, screenModel, animeList) {
+                { anime, index ->
+                    val lastIndex = state.lastSelectedIndex
+                    if (state.selectionMode && lastIndex != null) {
+                        val items = animeList.itemSnapshotList.items.mapNotNull { it?.value }
+                        screenModel.selectRange(items, lastIndex, index)
+                    } else {
+                        screenModel.toggleSelection(anime, index)
+                    }
+                }
+            }
+
             BrowseSourceContent(
                 source = screenModel.source,
                 animeList = animeList,
@@ -460,22 +481,8 @@ data class BrowseSourceScreen(
                 onWebViewClick = onWebViewClick,
                 onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
                 onLocalSourceHelpClick = onHelpClick,
-                onAnimeClick = { anime, index ->
-                    if (state.selectionMode) {
-                        screenModel.toggleSelection(anime, index)
-                    } else {
-                        navigator.push((AnimeScreen(anime.id, true)))
-                    }
-                },
-                onAnimeLongClick = { anime, index ->
-                    val lastIndex = state.lastSelectedIndex
-                    if (state.selectionMode && lastIndex != null) {
-                        val items = animeList.itemSnapshotList.items.mapNotNull { it?.value }
-                        screenModel.selectRange(items, lastIndex, index)
-                    } else {
-                        screenModel.toggleSelection(anime, index)
-                    }
-                },
+                onAnimeClick = onAnimeClickMemoized,
+                onAnimeLongClick = onAnimeLongClickMemoized,
                 selection = state.selection.toImmutableList(),
                 favoriteIds = state.favoriteIds,
                 onBatchIncrement = { /* Manual increment only via Select All button */ },
