@@ -15,11 +15,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -50,7 +48,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
-import eu.kanade.presentation.more.settings.screen.SettingsScheduleScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
@@ -132,16 +129,13 @@ data object AiringScheduleTab : Tab {
                     actions = {
                         IconButton(onClick = { screenModel.toggleLibraryOnly() }) {
                             Icon(
-                                imageVector = if (state.onlyLibrary) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                imageVector = Icons.Outlined.FilterList,
                                 contentDescription = stringResource(MR.strings.cd_schedule_filter_library),
                                 tint = if (state.onlyLibrary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             )
                         }
                         IconButton(onClick = { screenModel.loadSchedule(forceRefresh = true) }) {
                             Icon(Icons.Outlined.Refresh, contentDescription = stringResource(MR.strings.cd_refresh_schedule))
-                        }
-                        IconButton(onClick = { navigator.push(SettingsScheduleScreen) }) {
-                            Icon(Icons.Outlined.Settings, contentDescription = stringResource(MR.strings.cd_schedule_settings))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
