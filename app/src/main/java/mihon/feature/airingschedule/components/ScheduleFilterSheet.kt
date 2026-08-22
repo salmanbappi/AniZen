@@ -42,6 +42,8 @@ private fun formatLabel(raw: String): String = when (raw) {
 @Composable
 fun ScheduleFilterSheet(
     onDismissRequest: () -> Unit,
+    viewMode: mihon.feature.airingschedule.SchedulePreferences.ViewMode = mihon.feature.airingschedule.SchedulePreferences.ViewMode.WEEKLY,
+    onToggleViewMode: (mihon.feature.airingschedule.SchedulePreferences.ViewMode) -> Unit = {},
     onlyFavorites: Boolean,
     onToggleOnlyFavorites: (Boolean) -> Unit,
     hideAired: Boolean,
@@ -76,6 +78,31 @@ fun ScheduleFilterSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // View Mode selection
+            Text(
+                text = "View Mode",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                FilterChip(
+                    selected = viewMode == mihon.feature.airingschedule.SchedulePreferences.ViewMode.WEEKLY,
+                    onClick = { onToggleViewMode(mihon.feature.airingschedule.SchedulePreferences.ViewMode.WEEKLY) },
+                    label = { Text("Weekly (7-Day)") },
+                )
+                FilterChip(
+                    selected = viewMode == mihon.feature.airingschedule.SchedulePreferences.ViewMode.MONTHLY,
+                    onClick = { onToggleViewMode(mihon.feature.airingschedule.SchedulePreferences.ViewMode.MONTHLY) },
+                    label = { Text("Monthly (Calendar)") },
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
             // Favorite sources filter
             FilterSwitchRow(

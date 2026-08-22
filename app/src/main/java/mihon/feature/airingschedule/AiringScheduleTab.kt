@@ -15,9 +15,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.ViewWeek
+import mihon.feature.airingschedule.components.calendar.ScheduleMonthView
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -154,6 +157,21 @@ data object AiringScheduleTab : Tab {
                         }
                     },
                     actions = {
+                        IconButton(onClick = { screenModel.toggleViewMode() }) {
+                            Icon(
+                                imageVector = if (state.viewMode == mihon.feature.airingschedule.SchedulePreferences.ViewMode.WEEKLY) {
+                                    Icons.Outlined.CalendarMonth
+                                } else {
+                                    Icons.Outlined.ViewWeek
+                                },
+                                contentDescription = if (state.viewMode == mihon.feature.airingschedule.SchedulePreferences.ViewMode.WEEKLY) {
+                                    "Switch to monthly calendar view"
+                                } else {
+                                    "Switch to weekly schedule view"
+                                },
+                                tint = if (state.viewMode == mihon.feature.airingschedule.SchedulePreferences.ViewMode.MONTHLY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                         IconButton(onClick = { showFilterSheet = true }) {
                             Icon(
                                 imageVector = Icons.Outlined.FilterList,
@@ -172,12 +190,32 @@ data object AiringScheduleTab : Tab {
             },
         ) { paddingValues ->
             when {
-                state.isLoading && state.scheduleByDay.isEmpty() -> LoadingScreen(modifier = Modifier.padding(paddingValues))
-                state.error != null && state.scheduleByDay.isEmpty() -> ScheduleErrorContent(
+                state.isLoading && state.scheduleByDay.isEmpty() && state.allFilteredEntries.isEmpty() -> LoadingScreen(modifier = Modifier.padding(paddingValues))
+                state.error != null && state.scheduleByDay.isEmpty() && state.allFilteredEntries.isEmpty() -> ScheduleErrorContent(
                     error = state.error!!,
                     onRetry = { screenModel.loadSchedule(forceRefresh = true) },
                     modifier = Modifier.padding(paddingValues),
                 )
+                state.viewMode == mihon.feature.airingschedule.SchedulePreferences.ViewMode.MONTHLY -> {
+                    ScheduleMonthView(
+                        entries = state.allFilteredEntries,
+                        titleLanguage = state.titleLanguage,
+                        sourceDelays = state.sourceDelays,
+                        manualDelayMinutes = state.manualDelayMinutes,
+                        favoriteSourceIds = state.favoriteSourceIds,
+                        libraryAnimeTitles = state.libraryAnimeTitles,
+                        libraryAnimeIdByTitle = state.libraryAnimeIdByTitle,
+                        librarySourcesByTitle = state.librarySourcesByTitle,
+                        pinnedSources = state.pinnedSourceIds,
+                        onceMediaIds = state.notifyOnceMediaIds,
+                        seriesMediaIds = state.notifySeriesMediaIds,
+                        onToggleAlert = { entry -> screenModel.toggleNotifyOnce(entry) },
+                        onLongClickAlert = { entry -> screenModel.toggleNotifySeries(entry) },
+                        onOpenAnime = { animeId -> navigator.push(AnimeScreen(animeId)) },
+                        onSearchAnime = { title -> navigator.push(GlobalSearchScreen(searchQuery = title)) },
+                        modifier = Modifier.padding(paddingValues),
+                    )
+                }
                 else -> Column(modifier = Modifier.padding(paddingValues)) {
                     ScheduleDayTabRow(
                         pagerState = pagerState,
@@ -228,6 +266,8 @@ data object AiringScheduleTab : Tab {
         if (showFilterSheet) {
             ScheduleFilterSheet(
                 onDismissRequest = { showFilterSheet = false },
+                viewMode = state.viewMode,
+                onToggleViewMode = screenModel::setViewMode,
                 onlyFavorites = state.onlyFavorites,
                 onToggleOnlyFavorites = screenModel::setFilterOnlyFavorites,
                 hideAired = state.hideAired,

@@ -17,6 +17,12 @@ class SchedulePreferences(
         NEVER(0),
     }
     enum class AutoRefreshFrequency { EVERY_1_DAY, EVERY_2_DAYS, EVERY_3_DAYS, EVERY_4_DAYS, EVERY_5_DAYS, EVERY_6_DAYS, EVERY_7_DAYS }
+    enum class ViewMode { WEEKLY, MONTHLY }
+
+    fun viewMode() = preferenceStore.getEnum(
+        "schedule_view_mode",
+        ViewMode.WEEKLY,
+    )
 
     fun favoriteSourceIds() = preferenceStore.getStringSet(
         "schedule_favorite_source_ids",

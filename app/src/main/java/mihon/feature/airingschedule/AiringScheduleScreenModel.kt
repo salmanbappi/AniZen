@@ -86,6 +86,7 @@ class AiringScheduleScreenModel(
                 schedulePrefs.uploadDelayRefreshInterval().changes(),
                 schedulePrefs.customUploadDelayMinutes().changes(),
                 schedulePrefs.sourceUploadDelays().changes(),
+                schedulePrefs.viewMode().changes(),
             ) { _ -> Unit }.collectLatest {
                 if (allEntries.isNotEmpty()) {
                     applyFilters()
@@ -348,6 +349,8 @@ class AiringScheduleScreenModel(
             it.copy(
                 isLoading = false,
                 scheduleByDay = grouped,
+                allFilteredEntries = filtered,
+                viewMode = schedulePrefs.viewMode().get(),
                 weekStartDate = weekStart,
                 weekEndDate = weekEnd,
                 titleLanguage = titleLang,
@@ -461,9 +464,27 @@ class AiringScheduleScreenModel(
         applyFilters(delays = emptyMap())
     }
 
+    fun toggleViewMode() {
+        val current = schedulePrefs.viewMode().get()
+        val next = if (current == SchedulePreferences.ViewMode.WEEKLY) {
+            SchedulePreferences.ViewMode.MONTHLY
+        } else {
+            SchedulePreferences.ViewMode.WEEKLY
+        }
+        schedulePrefs.viewMode().set(next)
+        mutableState.update { it.copy(viewMode = next) }
+    }
+
+    fun setViewMode(mode: SchedulePreferences.ViewMode) {
+        schedulePrefs.viewMode().set(mode)
+        mutableState.update { it.copy(viewMode = mode) }
+    }
+
     data class State(
         val isLoading: Boolean = true,
         val scheduleByDay: Map<DayOfWeek, List<AiringScheduleEntry>> = emptyMap(),
+        val allFilteredEntries: List<AiringScheduleEntry> = emptyList(),
+        val viewMode: SchedulePreferences.ViewMode = SchedulePreferences.ViewMode.WEEKLY,
         val selectedDay: DayOfWeek = ZonedDateTime.now().dayOfWeek,
         val weekStartDate: LocalDate? = null,
         val weekEndDate: LocalDate? = null,
