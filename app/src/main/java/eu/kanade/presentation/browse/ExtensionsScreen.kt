@@ -197,143 +197,125 @@ private fun ExtensionContent(
             }
         }
 
-        state.items.forEach { (header, items) ->
-            item(
-                contentType = "header",
-                key = "extensionHeader-${header.hashCode()}",
-            ) {
-                when (header) {
-                    is ExtensionUiModel.Header.Resource -> {
-                        val action: @Composable RowScope.() -> Unit =
-                            if (header.textRes == MR.strings.ext_updates_pending) {
-                                {
-                                    Button(onClick = { onClickUpdateAll() }) {
-                                        Text(
-                                            text = stringResource(MR.strings.ext_update_all),
-                                            style = LocalTextStyle.current.copy(
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                            ),
-                                        )
-                                    }
-                                }
-                            } else {
-                                {}
-                            }
-                        ExtensionHeader(
-                            textRes = header.textRes,
-                            modifier = Modifier,
-                            action = action,
-                        )
-                    }
-                    is ExtensionUiModel.Header.Text -> {
-                        ExtensionHeader(
-                            text = header.text,
-                            modifier = Modifier,
-                        )
-                    }
+    val handleItemClick: (Extension) -> Unit = remember(onInstallExtension, onOpenExtension) {
+        { ext ->
+            when (ext) {
+                is Extension.Available -> onInstallExtension(ext)
+                is Extension.Installed -> onOpenExtension(ext)
+                is Extension.Untrusted -> {
+                    trustState = ext
                 }
             }
-
-            items(
-                items = items,
-                key = { "extension-${it.extension.pkgName}-${it.repoName}" },
-                contentType = { "extension_item" },
-            ) { item ->
-                if (useContainer) {
-                    val isFirst = items.first() == item
-                    val isLast = items.last() == item
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        shape = RoundedCornerShape(
-                            topStart = if (isFirst) 16.dp else 0.dp,
-                            topEnd = if (isFirst) 16.dp else 0.dp,
-                            bottomStart = if (isLast) 16.dp else 0.dp,
-                            bottomEnd = if (isLast) 16.dp else 0.dp,
-                        ),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        tonalElevation = 2.dp
-                    ) {
-                        ExtensionItem(
-                            modifier = Modifier,
-                            item = item,
-                            onClickItem = {
-                                when (it) {
-                                    is Extension.Available -> onInstallExtension(it)
-                                    is Extension.Installed -> onOpenExtension(it)
-                                    is Extension.Untrusted -> {
-                                        trustState = it
-                                    }
-                                }
-                            },
-                            onLongClickItem = onLongClickItem,
-                            onClickItemSecondaryAction = {
-                                when (it) {
-                                    is Extension.Available -> onOpenWebView(it)
-                                    is Extension.Installed -> onOpenExtension(it)
-                                    else -> {}
-                                }
-                            },
-                            onClickItemCancel = onClickItemCancel,
-                            onClickItemAction = {
-                                when (it) {
-                                    is Extension.Available -> onInstallExtension(it)
-                                    is Extension.Installed -> {
-                                        if (it.hasUpdate) {
-                                            onUpdateExtension(it)
-                                        } else {
-                                            onOpenExtension(it)
-                                        }
-                                    }
-                                    is Extension.Untrusted -> {
-                                        trustState = it
-                                    }
-                                }
-                            },
-                        )
+        }
+    }
+    val handleItemSecondaryAction: (Extension) -> Unit = remember(onOpenWebView, onOpenExtension) {
+        { ext ->
+            when (ext) {
+                is Extension.Available -> onOpenWebView(ext)
+                is Extension.Installed -> onOpenExtension(ext)
+                else -> {}
+            }
+        }
+    }
+    val handleItemAction: (Extension) -> Unit = remember(onInstallExtension, onUpdateExtension, onOpenExtension) {
+        { ext ->
+            when (ext) {
+                is Extension.Available -> onInstallExtension(ext)
+                is Extension.Installed -> {
+                    if (ext.hasUpdate) {
+                        onUpdateExtension(ext)
+                    } else {
+                        onOpenExtension(ext)
                     }
-                } else {
-                    ExtensionItem(
+                }
+                is Extension.Untrusted -> {
+                    trustState = ext
+                }
+            }
+        }
+    }
+
+    state.items.forEach { (header, items) ->
+        item(
+            contentType = "header",
+            key = "extensionHeader-${header.hashCode()}",
+        ) {
+            when (header) {
+                is ExtensionUiModel.Header.Resource -> {
+                    val action: @Composable RowScope.() -> Unit =
+                        if (header.textRes == MR.strings.ext_updates_pending) {
+                            {
+                                Button(onClick = { onClickUpdateAll() }) {
+                                    Text(
+                                        text = stringResource(MR.strings.ext_update_all),
+                                        style = LocalTextStyle.current.copy(
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                        ),
+                                    )
+                                }
+                            }
+                        } else {
+                            {}
+                        }
+                    ExtensionHeader(
+                        textRes = header.textRes,
                         modifier = Modifier,
-                        item = item,
-                        onClickItem = {
-                            when (it) {
-                                is Extension.Available -> onInstallExtension(it)
-                                is Extension.Installed -> onOpenExtension(it)
-                                is Extension.Untrusted -> {
-                                    trustState = it
-                                }
-                            }
-                        },
-                        onLongClickItem = onLongClickItem,
-                        onClickItemSecondaryAction = {
-                            when (it) {
-                                is Extension.Available -> onOpenWebView(it)
-                                is Extension.Installed -> onOpenExtension(it)
-                                else -> {}
-                            }
-                        },
-                        onClickItemCancel = onClickItemCancel,
-                        onClickItemAction = {
-                            when (it) {
-                                is Extension.Available -> onInstallExtension(it)
-                                is Extension.Installed -> {
-                                    if (it.hasUpdate) {
-                                        onUpdateExtension(it)
-                                    } else {
-                                        onOpenExtension(it)
-                                    }
-                                }
-                                is Extension.Untrusted -> {
-                                    trustState = it
-                                }
-                            }
-                        },
+                        action = action,
+                    )
+                }
+                is ExtensionUiModel.Header.Text -> {
+                    ExtensionHeader(
+                        text = header.text,
+                        modifier = Modifier,
                     )
                 }
             }
         }
+
+        items(
+            items = items,
+            key = { "extension-${it.extension.pkgName}-${it.repoName}" },
+            contentType = { "extension_item" },
+        ) { item ->
+            if (useContainer) {
+                val isFirst = items.first() == item
+                val isLast = items.last() == item
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    shape = RoundedCornerShape(
+                        topStart = if (isFirst) 16.dp else 0.dp,
+                        topEnd = if (isFirst) 16.dp else 0.dp,
+                        bottomStart = if (isLast) 16.dp else 0.dp,
+                        bottomEnd = if (isLast) 16.dp else 0.dp,
+                    ),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 2.dp
+                ) {
+                    ExtensionItem(
+                        modifier = Modifier,
+                        item = item,
+                        onClickItem = handleItemClick,
+                        onLongClickItem = onLongClickItem,
+                        onClickItemSecondaryAction = handleItemSecondaryAction,
+                        onClickItemCancel = onClickItemCancel,
+                        onClickItemAction = handleItemAction,
+                    )
+                }
+            } else {
+                ExtensionItem(
+                    modifier = Modifier,
+                    item = item,
+                    onClickItem = handleItemClick,
+                    onLongClickItem = onLongClickItem,
+                    onClickItemSecondaryAction = handleItemSecondaryAction,
+                    onClickItemCancel = onClickItemCancel,
+                    onClickItemAction = handleItemAction,
+                )
+            }
+        }
+    }
     }
     if (trustState != null) {
         ExtensionTrustDialog(

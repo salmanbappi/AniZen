@@ -170,6 +170,9 @@ object HomeScreen : Screen() {
             }
         }
 
+        val behaviorMap by uiPreferences.bottomNavBehaviors().collectAsStatePref()
+        val executor = remember(context, scope, navigator) { NavActionExecutor(context, scope, navigator) }
+
         TabNavigator(
             tab = defaultTab,
             key = TAB_NAVIGATOR_KEY,
@@ -193,7 +196,7 @@ object HomeScreen : Screen() {
                             ) {
                                 for (navItem in visibleNavItems) {
                                     key(navItem.id) {
-                                        HomeNavigationRailItem(tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount)
+                                        HomeNavigationRailItem(tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
                                     }
                                 }
                             }
@@ -215,7 +218,7 @@ object HomeScreen : Screen() {
                                 ) {
                                     for (navItem in visibleNavItems) {
                                         key(navItem.id) {
-                                            HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount)
+                                            HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
                                         }
                                     }
                                 }
@@ -345,17 +348,16 @@ object HomeScreen : Screen() {
         adaptiveDecision: AdaptiveDecision?,
         updatesCount: Int,
         extensionUpdatesCount: Int,
+        behaviorMap: Map<String, NavBehavior>,
+        executor: NavActionExecutor,
     ) {
         val tab = navItem.tab
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val context = LocalContext.current
-        val behaviorMap by uiPreferences.bottomNavBehaviors().collectAsStatePref()
         val behavior = remember(behaviorMap, navItem.id) { behaviorMap[navItem.id] ?: NavBehavior() }
 
         val selected = tabNavigator.current.key == tab.key
         val haptic = LocalHapticFeedback.current
-        val executor = remember(context, scope, navigator) { NavActionExecutor(context, scope, navigator) }
         
         val title = stringResource(navItem.titleRes)
 
@@ -433,18 +435,16 @@ object HomeScreen : Screen() {
         adaptiveDecision: AdaptiveDecision?,
         updatesCount: Int,
         extensionUpdatesCount: Int,
+        behaviorMap: Map<String, NavBehavior>,
+        executor: NavActionExecutor,
     ) {
         val tab = navItem.tab
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val context = LocalContext.current
-        
-        val behaviorMap by uiPreferences.bottomNavBehaviors().collectAsStatePref()
         val behavior = remember(behaviorMap, navItem.id) { behaviorMap[navItem.id] ?: NavBehavior() }
 
         val selected = tabNavigator.current.key == tab.key
         val haptic = LocalHapticFeedback.current
-        val executor = remember(context, scope, navigator) { NavActionExecutor(context, scope, navigator) }
 
         val title = stringResource(navItem.titleRes)
 

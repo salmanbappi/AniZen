@@ -257,11 +257,14 @@ class ExtensionsScreenModel(
 
 typealias ItemGroups = MutableMap<ExtensionUiModel.Header, List<ExtensionUiModel.Item>>
 
+@androidx.compose.runtime.Immutable
 object ExtensionUiModel {
+    @androidx.compose.runtime.Immutable
     sealed interface Header {
         data class Resource(val textRes: StringResource) : Header
         data class Text(val text: String) : Header
     }
+    @androidx.compose.runtime.Immutable
     data class Item(
         val extension: Extension,
         val installStep: InstallStep,
