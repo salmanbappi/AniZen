@@ -252,6 +252,8 @@ class AiringScheduleScreenModel(
         }
 
         return delays.values.maxOrNull()
+    }
+
     private fun filterEntries(
         entries: List<AiringScheduleEntry>,
         showAdult: Boolean,
