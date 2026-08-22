@@ -66,7 +66,6 @@ fun UpdateScreen(
     onClickCover: (UpdatesItem) -> Unit,
     onSelectAll: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
-    onCalendarClicked: () -> Unit,
     onUpdateLibrary: () -> Boolean,
     onToggleExpand: (String) -> Unit,
     onDownloadEpisode: (List<UpdatesItem>, EpisodeDownloadAction) -> Unit,
@@ -91,7 +90,6 @@ fun UpdateScreen(
     Scaffold(
         topBar = { scrollBehavior ->
             UpdatesAppBar(
-                onCalendarClicked = { onCalendarClicked() },
                 onUpdateLibrary = { onUpdateLibrary() },
                 actionModeCounter = state.selected.size,
                 onSelectAll = { onSelectAll(true) },
@@ -192,7 +190,6 @@ fun UpdateScreen(
 
 @Composable
 private fun UpdatesAppBar(
-    onCalendarClicked: () -> Unit,
     onUpdateLibrary: () -> Unit,
     // For action mode
     actionModeCounter: Int,
@@ -217,11 +214,6 @@ private fun UpdatesAppBar(
             )
             AppBarActions(
                 persistentListOf(
-                    AppBar.Action(
-                        title = stringResource(MR.strings.action_view_upcoming),
-                        icon = Icons.Outlined.CalendarMonth,
-                        onClick = onCalendarClicked,
-                    ),
                     AppBar.Action(
                         title = stringResource(MR.strings.action_update_library),
                         icon = Icons.Outlined.Refresh,

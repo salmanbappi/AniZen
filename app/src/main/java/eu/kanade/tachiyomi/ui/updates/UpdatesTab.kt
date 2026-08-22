@@ -98,7 +98,6 @@ data object UpdatesTab : Tab {
             onClickCover = { navigator.push(AnimeScreen(it.update.animeId)) },
             onSelectAll = screenModel::toggleAllSelection,
             onInvertSelection = screenModel::invertSelection,
-            onCalendarClicked = { scope.launch { HomeScreen.openTab(HomeScreen.HomeTab.Schedule) } },
             onUpdateLibrary = screenModel::updateLibrary,
             onToggleExpand = screenModel::toggleExpandedState,
             onDownloadEpisode = screenModel::downloadEpisodes,
