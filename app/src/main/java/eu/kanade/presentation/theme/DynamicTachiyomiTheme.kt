@@ -75,15 +75,21 @@ private fun rememberDynamicColorScheme(
     return colorScheme
 }
 
+private val dynamicColorSchemeCache = androidx.collection.LruCache<Long, ColorScheme>(64)
+
 @SuppressLint("RestrictedApi")
 private fun generateColorSchemeFromSeed(seed: Int, dark: Boolean, contrast: Double): ColorScheme {
+    val cacheKey = (seed.toLong() and 0xFFFFFFFFL) or (if (dark) 1L else 0L shl 32) or (contrast.toRawBits() shl 33)
+    val cached = dynamicColorSchemeCache.get(cacheKey)
+    if (cached != null) return cached
+
     val scheme = SchemeContent(
         Hct.fromInt(seed),
         dark,
         contrast,
     )
     val dynamicColors = MaterialDynamicColors()
-    return ColorScheme(
+    val result = ColorScheme(
         primary = Color(dynamicColors.primary().getArgb(scheme)),
         onPrimary = Color(dynamicColors.onPrimary().getArgb(scheme)),
         primaryContainer = Color(dynamicColors.primaryContainer().getArgb(scheme)),
@@ -121,4 +127,6 @@ private fun generateColorSchemeFromSeed(seed: Int, dark: Boolean, contrast: Doub
         surfaceContainerLow = Color(dynamicColors.surfaceContainerLow().getArgb(scheme)),
         surfaceContainerLowest = Color(dynamicColors.surfaceContainerLowest().getArgb(scheme)),
     )
+    dynamicColorSchemeCache.put(cacheKey, result)
+    return result
 }
