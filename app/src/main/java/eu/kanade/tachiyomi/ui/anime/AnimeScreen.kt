@@ -164,7 +164,12 @@ class AnimeScreen(
         val vibrantColors by CoverColorObserver.vibrantColors.collectAsState()
         val vibrantColor = vibrantColors[successState.anime.id] ?: successState.anime.asAnimeCover().vibrantCoverColor
 
-        val onBackClicked = remember(navigator) { { navigator.pop() } }
+        val onBackClicked = remember(navigator) {
+            {
+                navigator.pop()
+                Unit
+            }
+        }
         val onEpisodeClicked = remember(scope, context, successState.source, screenModel) {
             { episode: Episode, alt: Boolean ->
                 scope.launchIO {
@@ -176,6 +181,7 @@ class AnimeScreen(
                     val extPlayer = screenModel.alwaysUseExternalPlayer != alt
                     openEpisode(context, episode, extPlayer)
                 }
+                Unit
             }
         }
         val onAddToLibraryClicked = remember(screenModel) { { screenModel.toggleFavorite() } }
@@ -195,7 +201,10 @@ class AnimeScreen(
             }
         }
         val onTagSearch = remember(scope, navigator, screenModel) {
-            { tag: String -> scope.launch { performGenreSearch(navigator, tag, screenModel.source!!) } }
+            { tag: String ->
+                scope.launch { performGenreSearch(navigator, tag, screenModel.source!!) }
+                Unit
+            }
         }
         val onContinueWatching = remember(scope, context, screenModel) {
             { season: tachiyomi.domain.anime.model.SeasonAnime? ->
@@ -208,10 +217,14 @@ class AnimeScreen(
                     }
                     continueWatching(context, episode, extPlayer)
                 }
+                Unit
             }
         }
         val onSearch = remember(scope, navigator) {
-            { query: String, global: Boolean -> scope.launch { performSearch(navigator, query, global) } }
+            { query: String, global: Boolean ->
+                scope.launch { performSearch(navigator, query, global) }
+                Unit
+            }
         }
         val onShareClicked = remember(context, screenModel) {
             { shareAnime(context, screenModel.anime, screenModel.source) }
@@ -547,7 +560,6 @@ class AnimeScreen(
                 }
             }
         }
-    }
 
     private suspend fun continueWatching(
         context: Context,
