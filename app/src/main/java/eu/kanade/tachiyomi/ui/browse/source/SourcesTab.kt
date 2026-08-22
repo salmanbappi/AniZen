@@ -62,12 +62,15 @@ fun Screen.sourcesTab(): TabContent {
             ),
             content = { contentPadding, snackbarHostState ->
                 val state by screenModel.state.collectAsStateWithLifecycle()
+                val onClickItem: (eu.kanade.tachiyomi.source.CatalogueSource, eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreenModel.Listing) -> Unit = remember(navigator) {
+                    { source, listing ->
+                        navigator.push(BrowseSourceScreen(source.id, listing.query))
+                    }
+                }
                 SourcesScreen(
                     state = state,
                     contentPadding = contentPadding,
-                    onClickItem = { source, listing ->
-                        navigator.push(BrowseSourceScreen(source.id, listing.query))
-                    },
+                    onClickItem = onClickItem,
                     onClickPin = screenModel::togglePin,
                     onLongClickItem = screenModel::showSourceDialog,
                     onChangeSearchQuery = screenModel::search,

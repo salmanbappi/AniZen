@@ -247,7 +247,7 @@ object HomeScreen : Screen() {
                             contentKey = { it.key },
                         ) {
                             key(it.key) {
-                                tabNavigator.saveableState(key = "currentTab", it) {
+                                tabNavigator.saveableState(key = "tab-${it.key}", it) {
                                     it.Content()
                                 }
                             }
