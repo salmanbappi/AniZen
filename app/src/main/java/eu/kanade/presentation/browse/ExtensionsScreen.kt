@@ -352,7 +352,7 @@ private fun ExtensionItem(
     val onItemClick = remember(onClickItem, extension.pkgName) { { onClickItem(extension) } }
     val onItemLongClick = remember(onLongClickItem, extension.pkgName) { { onLongClickItem(extension) } }
 
-    val iconContent: @Composable () -> Unit = remember(extension.pkgName, extension.iconUrl, installStep) {
+    val iconContent: @Composable RowScope.() -> Unit = remember(extension.pkgName, installStep) {
         {
             Box(
                 modifier = Modifier.size(40.dp),
@@ -377,7 +377,7 @@ private fun ExtensionItem(
         }
     }
 
-    val actionContent: @Composable () -> Unit = remember(extension, installStep, onClickItemCancel, onClickItemAction, onClickItemSecondaryAction) {
+    val actionContent: @Composable RowScope.() -> Unit = remember(extension, installStep, onClickItemCancel, onClickItemAction, onClickItemSecondaryAction) {
         {
             ExtensionItemActions(
                 extension = extension,
@@ -389,7 +389,7 @@ private fun ExtensionItem(
         }
     }
 
-    val contentBlock: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(extension, installStep, item.repoName) {
+    val contentBlock: @Composable RowScope.() -> Unit = remember(extension, installStep, item.repoName) {
         {
             ExtensionItemContent(
                 extension = extension,
