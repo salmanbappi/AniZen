@@ -96,6 +96,7 @@ class ScheduleDataRefreshWorker(
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .setRequiresBatteryNotLow(true)
                         .build(),
                 )
                 // If a refresh attempt fails (e.g. transient network/rate-limit issue), WorkManager

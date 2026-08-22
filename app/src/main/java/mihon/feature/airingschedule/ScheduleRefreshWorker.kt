@@ -198,6 +198,7 @@ class ScheduleRefreshWorker(
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .setRequiresBatteryNotLow(true)
                         .build(),
                 )
                 .build()

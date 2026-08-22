@@ -66,15 +66,18 @@ fun ScheduleAnimeCard(
     onAddToLibraryClick: (String) -> Unit,
     onToggleNotifyOnce: () -> Unit,
     onToggleNotifySeries: () -> Unit,
+    currentTimeEpochSecond: Long = Instant.now().epochSecond,
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
-    val displayTitle = entry.displayTitle(titleLanguage)
+    val displayTitle = remember(entry, titleLanguage) { entry.displayTitle(titleLanguage) }
     val hasAired = entry.hasAired()
 
-    val officialAirTime = Instant.ofEpochSecond(entry.airingAt)
-        .atZone(zone)
-        .format(timeFormatter12h)
+    val officialAirTime = remember(entry.airingAt, zone) {
+        Instant.ofEpochSecond(entry.airingAt)
+            .atZone(zone)
+            .format(timeFormatter12h)
+    }
 
     // A user-supplied custom delay (Refresh interval → Custom) overrides the auto-learned
     // per-source delay when computing the expected upload time and countdown.
@@ -86,19 +89,16 @@ fun ScheduleAnimeCard(
     val adjustedAiringAt = effectiveDelay?.let { UploadDelayTracker.adjustedAirTime(entry.airingAt, it) }
         ?: entry.airingAt
 
-    val isAdjustedAired = adjustedAiringAt <= Instant.now().epochSecond
+    val isAdjustedAired = adjustedAiringAt <= currentTimeEpochSecond
 
     val expectedUploadTime: String? = effectiveDelay?.let {
-        Instant.ofEpochSecond(adjustedAiringAt).atZone(zone).format(timeFormatter12h)
+        remember(adjustedAiringAt, zone) {
+            Instant.ofEpochSecond(adjustedAiringAt).atZone(zone).format(timeFormatter12h)
+        }
     }
 
-    var countdown by remember(adjustedAiringAt) { mutableStateOf(formatCountdown(adjustedAiringAt)) }
-    LaunchedEffect(adjustedAiringAt) {
-        while (formatCountdown(adjustedAiringAt) != null) {
-            countdown = formatCountdown(adjustedAiringAt)
-            delay(60_000L)
-        }
-        countdown = null
+    val countdown = remember(adjustedAiringAt, currentTimeEpochSecond) {
+        formatCountdown(adjustedAiringAt, currentTimeEpochSecond)
     }
 
     Surface(
@@ -373,8 +373,7 @@ private fun ScheduleAnimeActions(
     }
 }
 
-private fun formatCountdown(airingAtEpochSeconds: Long): String? {
-    val nowSeconds = System.currentTimeMillis() / 1000L
+private fun formatCountdown(airingAtEpochSeconds: Long, nowSeconds: Long = System.currentTimeMillis() / 1000L): String? {
     val diff = airingAtEpochSeconds - nowSeconds
     if (diff <= 0) return null
     val hours = diff / 3600

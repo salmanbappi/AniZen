@@ -32,13 +32,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
@@ -56,6 +60,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -276,6 +281,15 @@ private fun ScheduleDayContent(
         EmptyScreen(stringRes = tachiyomi.i18n.MR.strings.information_no_airing_today)
         return
     }
+
+    var currentEpochSecond by remember { mutableStateOf(Instant.now().epochSecond) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            currentEpochSecond = Instant.now().epochSecond
+        }
+    }
+
     val listState = rememberLazyListState()
     LazyColumn(
         state = listState,
@@ -289,10 +303,12 @@ private fun ScheduleDayContent(
                 mediaKey in notifyOnceMediaIds -> BellNotifyState.ONCE
                 else -> BellNotifyState.NONE
             }
-            val isInLibrary = entry.titleUserPreferred.trim().lowercase() in libraryAnimeTitles ||
-                entry.titleEnglish?.trim()?.lowercase() in libraryAnimeTitles ||
-                entry.titleRomaji?.trim()?.lowercase() in libraryAnimeTitles ||
-                entry.titleNative?.trim()?.lowercase() in libraryAnimeTitles
+            val isInLibrary = remember(entry.scheduleId, libraryAnimeTitles) {
+                entry.titleUserPreferred.trim().lowercase() in libraryAnimeTitles ||
+                    entry.titleEnglish?.trim()?.lowercase() in libraryAnimeTitles ||
+                    entry.titleRomaji?.trim()?.lowercase() in libraryAnimeTitles ||
+                    entry.titleNative?.trim()?.lowercase() in libraryAnimeTitles
+            }
             ScheduleAnimeCard(
                 entry = entry,
                 titleLanguage = titleLanguage,
@@ -303,6 +319,7 @@ private fun ScheduleDayContent(
                 autoAddFromPinnedSources = autoAddFromPinnedSources,
                 isInLibrary = isInLibrary,
                 notifyState = notifyState,
+                currentTimeEpochSecond = currentEpochSecond,
                 onSearchClick = onSearchClick,
                 onAddToLibraryClick = onAddToLibraryClick,
                 onToggleNotifyOnce = { onToggleNotifyOnce(entry) },
