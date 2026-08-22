@@ -53,13 +53,14 @@ fun BrowseSourceList(
             key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
             contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
         ) { index ->
-            val anime by animeList[index]?.collectAsState() ?: return@items
+            val animeFlow = animeList[index] ?: return@items
+            val anime = animeFlow.value
             onBatchIncrement(index)
 
-            val currentOnAnimeClick = remember(onAnimeClick, anime, index) { 
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
                 { onAnimeClick(anime, index) } 
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime, index) { 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
                 { onAnimeLongClick(anime, index) } 
             }
 
@@ -81,7 +82,7 @@ fun BrowseSourceList(
                 onClick = currentOnAnimeClick,
                 onLongClick = currentOnAnimeLongClick,
                 entries = entries,
-                containerHeight = 0,
+                containerHeight = 96,
                 usePanorama = usePanorama,
                 modifier = itemModifier,
             )
@@ -108,6 +109,9 @@ internal fun BrowseSourceListItem(
     modifier: Modifier = Modifier,
 ) {
     eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceListItem")
+    val badge: @Composable () -> Unit = remember(isFavorite) {
+        { InLibraryBadge(enabled = isFavorite) }
+    }
     AnimeListItem(
         modifier = modifier,
         title = anime.title,
@@ -122,9 +126,7 @@ internal fun BrowseSourceListItem(
             )
         },
         coverAlpha = if (isFavorite) CommonAnimeItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-        badge = {
-            InLibraryBadge(enabled = isFavorite)
-        },
+        badge = badge,
         onLongClick = onLongClick,
         onClick = onClick,
         entries = entries,

@@ -57,13 +57,14 @@ fun BrowseSourceComfortableGrid(
             key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
             contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
         ) { index ->
-            val anime by animeList[index]?.collectAsState() ?: return@items
+            val animeFlow = animeList[index] ?: return@items
+            val anime = animeFlow.value
             onBatchIncrement(index)
             
-            val currentOnAnimeClick = remember(onAnimeClick, anime, index) { 
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
                 { onAnimeClick(anime, index) } 
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime, index) { 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
                 { onAnimeLongClick(anime, index) } 
             }
 
@@ -109,6 +110,9 @@ internal fun BrowseSourceComfortableGridItem(
     modifier: Modifier = Modifier,
 ) {
     eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceComfortableGridItem")
+    val badgeStart: @Composable () -> Unit = remember(isFavorite) {
+        { InLibraryBadge(enabled = isFavorite) }
+    }
     AnimeComfortableGridItem(
         modifier = modifier,
         title = anime.title,
@@ -116,9 +120,7 @@ internal fun BrowseSourceComfortableGridItem(
             anime.asAnimeCover().copy(isAnimeFavorite = isFavorite)
         },
         coverAlpha = if (isFavorite) CommonAnimeItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-        coverBadgeStart = {
-            InLibraryBadge(enabled = isFavorite)
-        },
+        coverBadgeStart = badgeStart,
         onLongClick = onLongClick,
         onClick = onClick,
         isSelected = isSelected,
