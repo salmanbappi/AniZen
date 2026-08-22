@@ -122,7 +122,7 @@ data object AiringScheduleTab : Tab {
                         }
                     },
                     actions = {
-                        IconButton(onClick = { screenModel.loadSchedule() }) {
+                        IconButton(onClick = { screenModel.loadSchedule(forceRefresh = true) }) {
                             Icon(Icons.Outlined.Refresh, contentDescription = stringResource(MR.strings.cd_refresh_schedule))
                         }
                         IconButton(onClick = { navigator.push(SettingsScheduleScreen) }) {
@@ -136,10 +136,10 @@ data object AiringScheduleTab : Tab {
             },
         ) { paddingValues ->
             when {
-                state.isLoading -> LoadingScreen(modifier = Modifier.padding(paddingValues))
-                state.error != null -> ScheduleErrorContent(
+                state.isLoading && state.scheduleByDay.isEmpty() -> LoadingScreen(modifier = Modifier.padding(paddingValues))
+                state.error != null && state.scheduleByDay.isEmpty() -> ScheduleErrorContent(
                     error = state.error!!,
-                    onRetry = { screenModel.loadSchedule() },
+                    onRetry = { screenModel.loadSchedule(forceRefresh = true) },
                     modifier = Modifier.padding(paddingValues),
                 )
                 else -> Column(modifier = Modifier.padding(paddingValues)) {

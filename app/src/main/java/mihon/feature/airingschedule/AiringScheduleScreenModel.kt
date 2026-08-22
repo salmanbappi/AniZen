@@ -19,6 +19,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
+import java.util.concurrent.TimeUnit
 
 class AiringScheduleScreenModel(
     private val repository: AiringScheduleRepository = AiringScheduleRepository(),
@@ -52,7 +53,9 @@ class AiringScheduleScreenModel(
                     .groupBy({ it.anime.title.trim().lowercase() }, { it.anime.source.toString() })
                     .mapValues { it.value.toSet() }
                 mutableState.update { it.copy(libraryAnimeTitles = titles, librarySourcesByTitle = sourcesByTitle) }
-                applyFilters()
+                if (allEntries.isNotEmpty()) {
+                    applyFilters()
+                }
             }
         }
     }
@@ -69,14 +72,15 @@ class AiringScheduleScreenModel(
                 schedulePrefs.customUploadDelayMinutes().changes(),
                 schedulePrefs.sourceUploadDelays().changes(),
             ) { _ -> Unit }.collectLatest {
-                if (hasLoaded) applyFilters()
+                if (allEntries.isNotEmpty()) {
+                    applyFilters()
+                }
             }
         }
     }
 
-    fun loadSchedule() {
+    fun loadSchedule(forceRefresh: Boolean = false) {
         screenModelScope.launch {
-            mutableState.update { it.copy(isLoading = true, error = null) }
             val zone = ZoneId.systemDefault()
             val now = ZonedDateTime.now(zone)
             val weekStart = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -84,43 +88,46 @@ class AiringScheduleScreenModel(
             val weekEnd = weekStart.plusDays(7).minusSeconds(1)
             val currentWeekStart = weekStart.toEpochSecond()
 
-            try {
-                val autoRefreshEnabled = schedulePrefs.scheduleAutoRefreshEnabled().get()
-                val cache = ScheduleDataRefreshWorker.readCache(application)
-                val entries: List<AiringScheduleEntry> = if (autoRefreshEnabled &&
-                    cache != null &&
-                    cache.weekStartEpoch == currentWeekStart &&
-                    ScheduleDataRefreshWorker.isCacheFresh(cache, schedulePrefs.scheduleAutoRefreshFrequency().get())
-                ) {
-                    cache.entries.map { it.toEntry() }
-                } else {
-                    val includeAdult = schedulePrefs.showAdultContent().get()
-                    try {
-                        val fetched = repository.getWeeklySchedule(
-                            weekStart.toEpochSecond(),
-                            weekEnd.toEpochSecond(),
-                            includeAdult = includeAdult,
-                        )
-                        // Persist every successful live fetch, regardless of the auto-refresh
-                        // setting, so a subsequent failure (network hiccup, app process death,
-                        // etc.) always has fresh data to fall back on for this week.
-                        ScheduleDataRefreshWorker.writeCache(application, currentWeekStart, fetched)
-                        fetched
-                    } catch (fetchError: Exception) {
-                        // The live fetch failed. Rather than showing a hard error and leaving the
-                        // schedule blank, fall back to whatever we have cached for this exact
-                        // week - even if it's stale - so the user still sees a schedule. Only
-                        // surface the error if there's truly nothing to show.
-                        val fallback = cache?.takeIf { it.weekStartEpoch == currentWeekStart }
-                        if (fallback != null) {
-                            fallback.entries.map { it.toEntry() }
-                        } else {
-                            throw fetchError
-                        }
-                    }
-                }
+            // 1. Try reading disk cache first (Instant Offline Display, no blank screen)
+            val cache = ScheduleDataRefreshWorker.readCache(application)
+            val cachedEntries = if (cache != null && cache.weekStartEpoch == currentWeekStart) {
+                cache.entries.map { it.toEntry() }
+            } else null
 
-                allEntries = entries
+            if (cachedEntries != null && !forceRefresh) {
+                allEntries = cachedEntries
+                hasLoaded = true
+                applyFilters(
+                    entries = allEntries,
+                    delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
+                    weekStart = weekStart.toLocalDate(),
+                    weekEnd = weekEnd.toLocalDate(),
+                )
+                // If cache was fetched within the last 12 hours, skip network fetch
+                val cacheAge = System.currentTimeMillis() - cache.fetchedAt
+                if (cacheAge < TimeUnit.HOURS.toMillis(12)) {
+                    rescheduleSeriesAlarms()
+                    return@launch
+                }
+            }
+
+            // 2. Fetch live data from AniList
+            if (allEntries.isEmpty()) {
+                mutableState.update { it.copy(isLoading = true, error = null) }
+            }
+
+            try {
+                val includeAdult = schedulePrefs.showAdultContent().get()
+                val fetched = repository.getWeeklySchedule(
+                    weekStart.toEpochSecond(),
+                    weekEnd.toEpochSecond(),
+                    includeAdult = includeAdult,
+                )
+
+                // Persist live fetch to disk cache
+                ScheduleDataRefreshWorker.writeCache(application, currentWeekStart, fetched)
+
+                allEntries = fetched
                 hasLoaded = true
 
                 val delays = if (schedulePrefs.uploadDelayEnabled().get()) {
@@ -138,7 +145,23 @@ class AiringScheduleScreenModel(
                     weekEnd = weekEnd.toLocalDate(),
                 )
             } catch (e: Exception) {
-                mutableState.update { it.copy(isLoading = false, error = e.message) }
+                if (allEntries.isEmpty()) {
+                    val fallback = cache?.takeIf { it.weekStartEpoch == currentWeekStart }
+                    if (fallback != null) {
+                        allEntries = fallback.entries.map { it.toEntry() }
+                        hasLoaded = true
+                        applyFilters(
+                            entries = allEntries,
+                            delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
+                            weekStart = weekStart.toLocalDate(),
+                            weekEnd = weekEnd.toLocalDate(),
+                        )
+                    } else {
+                        mutableState.update { it.copy(isLoading = false, error = e.message) }
+                    }
+                } else {
+                    mutableState.update { it.copy(isLoading = false) }
+                }
             }
         }
     }
