@@ -144,10 +144,11 @@ class ScheduleDataRefreshWorker(
         /**
          * Persists a successfully fetched schedule to disk so it survives app process death and
          * can be used as a fallback if a later refresh attempt fails. Safe to call regardless of
-         * whether auto-refresh is enabled.
+         * whether auto-refresh is enabled. Also syncs upcoming exact air times to matched library anime.
          */
         suspend fun writeCache(context: Context, weekStartEpoch: Long, entries: List<AiringScheduleEntry>) =
             withContext(Dispatchers.IO) {
+                if (entries.isEmpty()) return@withContext
                 try {
                     val cacheData = ScheduleCacheData(
                         fetchedAt = System.currentTimeMillis(),
@@ -157,10 +158,72 @@ class ScheduleDataRefreshWorker(
                     val file = context.cacheFile()
                     file.parentFile?.mkdirs()
                     file.writeText(cacheJson.encodeToString(ScheduleCacheData.serializer(), cacheData))
+                    syncLibraryNextUpdate(entries)
                 } catch (_: Exception) {
                     // Best-effort cache write; failing to persist shouldn't break the current load.
                 }
             }
+
+        suspend fun syncLibraryNextUpdate(entries: List<AiringScheduleEntry>) = withContext(Dispatchers.IO) {
+            if (entries.isEmpty()) return@withContext
+            runCatching {
+                val getLibraryAnime = Injekt.get<tachiyomi.domain.anime.interactor.GetLibraryAnime>()
+                val animeRepository = Injekt.get<tachiyomi.domain.anime.repository.AnimeRepository>()
+                val libraryAnime = getLibraryAnime.await()
+                if (libraryAnime.isEmpty()) return@withContext
+
+                val nowEpoch = System.currentTimeMillis() / 1000L
+                val upcomingEntries = entries.filter { it.airingAt >= nowEpoch }
+
+                val updates = mutableListOf<tachiyomi.domain.anime.model.AnimeUpdate>()
+                for (item in libraryAnime) {
+                    val animeTitle = item.anime.title
+                    if (item.anime.status == eu.kanade.tachiyomi.animesource.model.SAnime.COMPLETED.toLong()) {
+                        if (item.anime.nextUpdate > 0L) {
+                            updates.add(
+                                tachiyomi.domain.anime.model.AnimeUpdate(
+                                    id = item.anime.id,
+                                    nextUpdate = 0L,
+                                ),
+                            )
+                        }
+                        continue
+                    }
+
+                    val matchedEntry = upcomingEntries
+                        .filter { entry ->
+                            mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(
+                                animeTitle,
+                                mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry),
+                            )
+                        }
+                        .minByOrNull { it.airingAt }
+
+                    if (matchedEntry != null) {
+                        val nextUpdateMillis = matchedEntry.airingAt * 1000L
+                        if (item.anime.nextUpdate != nextUpdateMillis) {
+                            updates.add(
+                                tachiyomi.domain.anime.model.AnimeUpdate(
+                                    id = item.anime.id,
+                                    nextUpdate = nextUpdateMillis,
+                                ),
+                            )
+                        }
+                    } else if (item.anime.nextUpdate in 1 until ((nowEpoch - 86400L * 7) * 1000L)) {
+                        updates.add(
+                            tachiyomi.domain.anime.model.AnimeUpdate(
+                                id = item.anime.id,
+                                nextUpdate = 0L,
+                            ),
+                        )
+                    }
+                }
+
+                if (updates.isNotEmpty()) {
+                    animeRepository.updateAll(updates)
+                }
+            }
+        }
 
         fun isCacheFresh(cacheData: ScheduleCacheData, frequency: SchedulePreferences.AutoRefreshFrequency): Boolean {
             val maxAge = frequency.toDays() * 24L * 60L * 60L * 1000L

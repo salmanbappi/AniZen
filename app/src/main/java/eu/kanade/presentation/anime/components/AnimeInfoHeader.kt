@@ -243,6 +243,28 @@ fun AnimeActionRow(
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
 
+    val nextUpdateCountdown = remember(nextUpdate) {
+        if (nextUpdate == null) return@remember null
+        val now = Instant.now()
+        val diffSeconds = now.until(nextUpdate, ChronoUnit.SECONDS)
+        if (diffSeconds <= 0) {
+            null
+        } else {
+            val hours = diffSeconds / 3600
+            val minutes = (diffSeconds % 3600) / 60
+            when {
+                hours >= 48 -> null
+                hours >= 24 -> {
+                    val days = (hours / 24).toInt()
+                    val remHours = (hours % 24).toInt()
+                    if (remHours > 0) "${days}d ${remHours}h" else "${days}d"
+                }
+                hours > 0 -> "${hours}h ${minutes}m"
+                else -> "${minutes}m"
+            }
+        }
+    }
+
     val nextUpdateDays = remember(nextUpdate) {
         return@remember if (nextUpdate != null) {
             val now = Instant.now()
@@ -277,7 +299,7 @@ fun AnimeActionRow(
                     } else if (fetchInterval == tachiyomi.domain.anime.interactor.FetchInterval.MANUAL_DISABLE) {
                         stringResource(MR.strings.disabled)
                     } else {
-                        when (nextUpdateDays) {
+                        nextUpdateCountdown ?: when (nextUpdateDays) {
                             null -> stringResource(MR.strings.not_applicable)
                             0 -> stringResource(MR.strings.manga_interval_expected_update_soon)
                             else -> pluralStringResource(

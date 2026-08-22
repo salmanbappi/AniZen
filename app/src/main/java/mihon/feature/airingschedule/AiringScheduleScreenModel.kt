@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import mihon.feature.airingschedule.components.BellNotifyState
 import mihon.feature.airingschedule.notification.ScheduleNotifications
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.anime.interactor.GetLibraryAnime
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -42,18 +43,25 @@ class AiringScheduleScreenModel(
     private fun observeLibrary() {
         screenModelScope.launch {
             getLibraryAnime.subscribe().collectLatest { libraryAnime ->
-                val titles = libraryAnime.map { lib ->
-                    lib.anime.title.trim().lowercase()
-                }.toSet()
-                // Maps a lowercased title to the set of source ids that carry it in the
-                // user's library. This is what lets "filter by favorite source" and "filter
-                // by source availability" check a *specific* matched source for a *specific*
-                // anime, instead of a global proxy applied to every entry.
-                val sourcesByTitle = libraryAnime
-                    .groupBy({ it.anime.title.trim().lowercase() }, { it.anime.source.toString() })
-                    .mapValues { it.value.toSet() }
-                val idByTitle = libraryAnime
-                    .associate { it.anime.title.trim().lowercase() to it.anime.id }
+                val (titles, sourcesByTitle, idByTitle) = withIOContext {
+                    val titles = mutableSetOf<String>()
+                    val sourcesByTitle = mutableMapOf<String, Set<String>>()
+                    val idByTitle = mutableMapOf<String, Long>()
+
+                    for (lib in libraryAnime) {
+                        val animeTitle = lib.anime.title
+                        val keys = mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(animeTitle)
+                        titles.addAll(keys)
+                        val sourceStr = lib.anime.source.toString()
+                        for (k in keys) {
+                            val existingSources = sourcesByTitle[k].orEmpty()
+                            sourcesByTitle[k] = existingSources + sourceStr
+                            idByTitle[k] = lib.anime.id
+                        }
+                    }
+                    Triple(titles, sourcesByTitle, idByTitle)
+                }
+
                 mutableState.update {
                     it.copy(
                         libraryAnimeTitles = titles,
@@ -97,9 +105,11 @@ class AiringScheduleScreenModel(
 
             // 1. Try reading disk cache first (Instant Offline Display, no blank screen)
             val cache = ScheduleDataRefreshWorker.readCache(application)
-            val cachedEntries = if (cache != null && cache.weekStartEpoch == currentWeekStart) {
+            val cachedEntries = if (cache != null && cache.entries.isNotEmpty()) {
                 cache.entries
             } else null
+
+            val isCacheForCurrentWeek = cache != null && cache.weekStartEpoch == currentWeekStart
 
             if (cachedEntries != null && !forceRefresh) {
                 allEntries = cachedEntries
@@ -110,9 +120,9 @@ class AiringScheduleScreenModel(
                     weekStart = weekStart.toLocalDate(),
                     weekEnd = weekEnd.toLocalDate(),
                 )
-                // If cache was fetched within the last 12 hours, skip network fetch
-                val cacheAge = System.currentTimeMillis() - (cache?.fetchedAt ?: 0L)
-                if (cacheAge < TimeUnit.HOURS.toMillis(12)) {
+                // If cache is for the current week and was fetched within the last 12 hours, skip network fetch
+                val cacheAge = System.currentTimeMillis() - (cache.fetchedAt)
+                if (isCacheForCurrentWeek && cacheAge < TimeUnit.HOURS.toMillis(12)) {
                     rescheduleSeriesAlarms()
                     return@launch
                 }
@@ -154,6 +164,7 @@ class AiringScheduleScreenModel(
             } catch (e: Exception) {
                 if (allEntries.isEmpty()) {
                     val fallback = cache?.takeIf { it.weekStartEpoch == currentWeekStart }
+                        ?: cache?.takeIf { it.entries.isNotEmpty() }
                     if (fallback != null) {
                         allEntries = fallback.entries
                         hasLoaded = true
@@ -197,13 +208,9 @@ class AiringScheduleScreenModel(
         configuredSources: Set<String>,
         librarySourcesByTitle: Map<String, Set<String>>,
     ): Set<String> {
-        val titleCandidates = listOfNotNull(
-            entry.titleUserPreferred,
-            entry.titleEnglish,
-            entry.titleRomaji,
-            entry.titleNative,
-        ).map { it.trim().lowercase() }
-        val candidateSources = titleCandidates.flatMap { librarySourcesByTitle[it].orEmpty() }.toSet()
+        val titleCandidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+        val candidateKeys = titleCandidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
+        val candidateSources = candidateKeys.flatMap { librarySourcesByTitle[it].orEmpty() }.toSet()
         return candidateSources.intersect(configuredSources)
     }
 

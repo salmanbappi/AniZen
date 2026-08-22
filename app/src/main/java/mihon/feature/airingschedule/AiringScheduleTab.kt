@@ -103,16 +103,22 @@ data object AiringScheduleTab : Tab {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val tabNavigator = LocalTabNavigator.current
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val bottomNavTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
-        val isTabInBottomBar = remember(bottomNavTabs) {
-            val visibleNavItems = bottomNavTabs.mapNotNull { id -> NavItem.fromId(id) }.filter { it.tab.isEnabled() }
-            visibleNavItems.any { it.tab::class == AiringScheduleTab::class }
+        val scope = rememberCoroutineScope()
+        val fromMore = isTabFromMore(NavItem.SCHEDULE.id)
+        val navigateUp: (() -> Unit)? = if (fromMore) {
+            {
+                if (navigator.lastItem == HomeScreen) {
+                    scope.launch { HomeScreen.openTab(HomeScreen.HomeTab.AnimeLib()) }
+                } else {
+                    navigator.pop()
+                }
+            }
+        } else {
+            null
         }
+
         val screenModel = rememberScreenModel { AiringScheduleScreenModel() }
         val state by screenModel.state.collectAsState()
-        val scope = rememberCoroutineScope()
         var showFilterSheet by remember { mutableStateOf(false) }
 
         val todayIndex = orderedDays.indexOf(state.selectedDay).coerceAtLeast(0)
@@ -127,8 +133,8 @@ data object AiringScheduleTab : Tab {
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        if (!isTabInBottomBar) {
-                            IconButton(onClick = { tabNavigator.current = MoreTab }) {
+                        if (fromMore) {
+                            IconButton(onClick = { navigateUp?.invoke() }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                                     contentDescription = stringResource(MR.strings.action_bar_up_description),
@@ -352,18 +358,14 @@ private fun ScheduleDayContent(
                 else -> BellNotifyState.NONE
             }
             val matchedAnimeId = remember(entry.scheduleId, libraryAnimeIdByTitle) {
-                listOfNotNull(
-                    entry.titleUserPreferred,
-                    entry.titleEnglish,
-                    entry.titleRomaji,
-                    entry.titleNative,
-                ).firstNotNullOfOrNull { libraryAnimeIdByTitle[it.trim().lowercase()] }
+                val candidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+                val candidateKeys = candidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
+                candidateKeys.firstNotNullOfOrNull { libraryAnimeIdByTitle[it] }
             }
             val isInLibrary = matchedAnimeId != null || remember(entry.scheduleId, libraryAnimeTitles) {
-                entry.titleUserPreferred.trim().lowercase() in libraryAnimeTitles ||
-                    entry.titleEnglish?.trim()?.lowercase() in libraryAnimeTitles ||
-                    entry.titleRomaji?.trim()?.lowercase() in libraryAnimeTitles ||
-                    entry.titleNative?.trim()?.lowercase() in libraryAnimeTitles
+                val candidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+                val candidateKeys = candidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
+                candidateKeys.any { it in libraryAnimeTitles }
             }
             ScheduleAnimeCard(
                 entry = entry,

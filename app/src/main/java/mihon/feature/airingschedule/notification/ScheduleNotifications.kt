@@ -75,6 +75,9 @@ object ScheduleNotifications {
             putExtra(ScheduleAlarmReceiver.EXTRA_MEDIA_ID, entry.mediaId)
             putExtra(ScheduleAlarmReceiver.EXTRA_EPISODE, entry.episode)
             putExtra(ScheduleAlarmReceiver.EXTRA_TITLE, entry.titleUserPreferred)
+            putExtra(ScheduleAlarmReceiver.EXTRA_TITLE_ENGLISH, entry.titleEnglish)
+            putExtra(ScheduleAlarmReceiver.EXTRA_TITLE_ROMAJI, entry.titleRomaji)
+            putExtra(ScheduleAlarmReceiver.EXTRA_TITLE_NATIVE, entry.titleNative)
             putExtra(ScheduleAlarmReceiver.EXTRA_COVER_URL, entry.coverImageUrl)
         }
         val pendingIntent = PendingIntent.getBroadcast(
@@ -110,15 +113,16 @@ object ScheduleNotifications {
     fun cancel(context: Context, entry: AiringScheduleEntry) = withKeysLock {
         val key = alarmKey(entry.mediaId, entry.episode)
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            ?: return@withKeysLock
-        val intent = Intent(context, ScheduleAlarmReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            requestCode(entry.mediaId, entry.episode),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        alarmManager.cancel(pendingIntent)
+        if (alarmManager != null) {
+            val intent = Intent(context, ScheduleAlarmReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode(entry.mediaId, entry.episode),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            runCatching { alarmManager.cancel(pendingIntent) }
+        }
         schedulePreferences.scheduledAlarmKeys().set(schedulePreferences.scheduledAlarmKeys().get() - key)
     }
 
@@ -131,5 +135,18 @@ object ScheduleNotifications {
     fun removeAlarmKey(mediaId: Int, episode: Int) = withKeysLock {
         val key = alarmKey(mediaId, episode)
         schedulePreferences.scheduledAlarmKeys().set(schedulePreferences.scheduledAlarmKeys().get() - key)
+    }
+
+    /** Returns the unique Android notification ID for a schedule alert. */
+    fun notificationId(mediaId: Int, episode: Int): Int {
+        return eu.kanade.tachiyomi.data.notification.Notifications.ID_AIRING_SCHEDULE_BASE -
+            ((requestCode(mediaId, episode) and Int.MAX_VALUE) % 10000)
+    }
+
+    /** Dismisses a posted airing schedule notification if active. */
+    fun dismissNotification(context: Context, mediaId: Int, episode: Int) {
+        val notifId = notificationId(mediaId, episode)
+        val notificationManager = androidx.core.app.NotificationManagerCompat.from(context)
+        notificationManager.cancel(notifId)
     }
 }

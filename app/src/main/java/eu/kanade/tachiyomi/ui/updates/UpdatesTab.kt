@@ -32,7 +32,7 @@ import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import mihon.feature.upcoming.UpcomingScreen
+import mihon.feature.airingschedule.AiringScheduleTab
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import tachiyomi.i18n.MR
@@ -89,6 +89,8 @@ data object UpdatesTab : Tab {
             MainActivity.startPlayerActivity(context, animeId, episodeId, extPlayer)
         }
 
+        val tabNavigator = LocalTabNavigator.current
+
         UpdateScreen(
             state = state,
             snackbarHostState = screenModel.snackbarHostState,
@@ -96,7 +98,7 @@ data object UpdatesTab : Tab {
             onClickCover = { navigator.push(AnimeScreen(it.update.animeId)) },
             onSelectAll = screenModel::toggleAllSelection,
             onInvertSelection = screenModel::invertSelection,
-            onCalendarClicked = { navigator.push(UpcomingScreen()) },
+            onCalendarClicked = { scope.launch { HomeScreen.openTab(HomeScreen.HomeTab.Schedule) } },
             onUpdateLibrary = screenModel::updateLibrary,
             onToggleExpand = screenModel::toggleExpandedState,
             onDownloadEpisode = screenModel::downloadEpisodes,

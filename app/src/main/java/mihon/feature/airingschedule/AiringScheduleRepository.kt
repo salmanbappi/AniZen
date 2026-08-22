@@ -73,18 +73,37 @@ class AiringScheduleRepository {
         while (attempt < MAX_RETRIES) {
             try {
                 return fetchPage(weekStart, weekEnd, page, includeAdult)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 lastError = e
                 if (e.code !in RETRYABLE_HTTP_CODES) throw e
+                attempt++
+                if (attempt < MAX_RETRIES) {
+                    val delayMs = getRetryDelay(e, attempt)
+                    delay(delayMs)
+                }
             } catch (e: IOException) {
                 lastError = e
-            }
-            attempt++
-            if (attempt < MAX_RETRIES) {
-                delay(backoffDelayMs(attempt))
+                attempt++
+                if (attempt < MAX_RETRIES) {
+                    delay(backoffDelayMs(attempt))
+                }
+            } catch (e: Exception) {
+                lastError = e
+                break
             }
         }
         throw lastError ?: IOException("Failed to fetch airing schedule")
+    }
+
+    private fun getRetryDelay(e: HttpException, attempt: Int): Long {
+        val retryAfterHeader = e.response.header("Retry-After")
+        val retryAfterSeconds = retryAfterHeader?.toLongOrNull()
+        if (retryAfterSeconds != null && retryAfterSeconds > 0) {
+            return min(retryAfterSeconds * 1000L, MAX_DELAY_MS)
+        }
+        return backoffDelayMs(attempt)
     }
 
     private fun backoffDelayMs(attempt: Int): Long {
@@ -113,9 +132,16 @@ class AiringScheduleRepository {
                 POST(API_URL, body = payload.toString().toRequestBody(jsonMime)),
             ).awaitSuccess().parseAs<ALScheduleResponse>()
 
+            if (!result.errors.isNullOrEmpty()) {
+                val errorMsg = result.errors.mapNotNull { it.message }.joinToString("; ")
+                throw IOException("AniList GraphQL error: $errorMsg")
+            }
+
+            val pageData = result.data?.page ?: throw IOException("AniList response missing Page data")
+
             return PageResult(
-                entries = result.data.page.airingSchedules.mapNotNull { it.toEntry(includeAdult) },
-                hasNextPage = result.data.page.pageInfo.hasNextPage,
+                entries = pageData.airingSchedules.mapNotNull { it.toEntry(includeAdult) },
+                hasNextPage = pageData.pageInfo?.hasNextPage ?: false,
             )
         }
     }
@@ -123,16 +149,17 @@ class AiringScheduleRepository {
     private fun ALAiringSchedule.toEntry(includeAdult: Boolean): AiringScheduleEntry? {
         val m = media ?: return null
         if (!includeAdult && m.isAdult == true) return null
+        val title = m.title
         return AiringScheduleEntry(
             scheduleId = id,
             airingAt = airingAt.toLong(),
             episode = episode,
             mediaId = m.id,
-            titleUserPreferred = m.title.userPreferred.orEmpty(),
-            titleEnglish = m.title.english,
-            titleRomaji = m.title.romaji,
-            titleNative = m.title.native,
-            coverImageUrl = m.coverImage.large.orEmpty(),
+            titleUserPreferred = title?.userPreferred.orEmpty(),
+            titleEnglish = title?.english,
+            titleRomaji = title?.romaji,
+            titleNative = title?.native,
+            coverImageUrl = m.coverImage?.large.orEmpty(),
             totalEpisodes = m.episodes,
             averageScore = m.averageScore,
             format = m.format,
@@ -149,10 +176,8 @@ class AiringScheduleRepository {
         private const val AIRING_SCHEDULE_QUERY =
             "query AiringSchedule(\$weekStart:Int,\$weekEnd:Int,\$page:Int){Page(page:\$page,perPage:50){pageInfo{hasNextPage}airingSchedules(airingAt_greater:\$weekStart,airingAt_lesser:\$weekEnd,sort:TIME){id airingAt episode media{id title{userPreferred english romaji native}coverImage{large}episodes status averageScore format isAdult genres}}}}"
 
-        // Transient errors worth retrying: 429 (rate limited), 502/503/504 (upstream hiccups).
-        // 403 is intentionally excluded - AniList returns that for genuinely bad requests, and
-        // retrying it would just waste time.
-        private val RETRYABLE_HTTP_CODES = setOf(429, 502, 503, 504)
+        // Transient errors worth retrying: 429 (rate limited), 500, 502/503/504, and Cloudflare 52x codes.
+        private val RETRYABLE_HTTP_CODES = setOf(429, 500, 502, 503, 504, 520, 521, 522, 524)
         private const val MAX_RETRIES = 5
         private const val BASE_DELAY_MS = 1000L
         private const val MAX_DELAY_MS = 20_000L
@@ -161,33 +186,39 @@ class AiringScheduleRepository {
 }
 
 @Serializable
-private data class ALScheduleResponse(val data: ALScheduleData)
-
-@Serializable
-private data class ALScheduleData(@SerialName("Page") val page: ALSchedulePage)
-
-@Serializable
-private data class ALSchedulePage(
-    val pageInfo: ALPageInfo,
-    val airingSchedules: List<ALAiringSchedule>,
+private data class ALScheduleResponse(
+    val data: ALScheduleData? = null,
+    val errors: List<ALGraphQLError>? = null,
 )
 
 @Serializable
-private data class ALPageInfo(val hasNextPage: Boolean)
+private data class ALGraphQLError(val message: String? = null)
+
+@Serializable
+private data class ALScheduleData(@SerialName("Page") val page: ALSchedulePage? = null)
+
+@Serializable
+private data class ALSchedulePage(
+    val pageInfo: ALPageInfo? = null,
+    val airingSchedules: List<ALAiringSchedule> = emptyList(),
+)
+
+@Serializable
+private data class ALPageInfo(val hasNextPage: Boolean = false)
 
 @Serializable
 private data class ALAiringSchedule(
-    val id: Int,
-    val airingAt: Int,
-    val episode: Int,
+    val id: Int = 0,
+    val airingAt: Int = 0,
+    val episode: Int = 0,
     val media: ALMedia? = null,
 )
 
 @Serializable
 private data class ALMedia(
     val id: Int,
-    val title: ALTitle,
-    val coverImage: ALCoverImage,
+    val title: ALTitle? = null,
+    val coverImage: ALCoverImage? = null,
     val episodes: Int? = null,
     val status: String? = null,
     val averageScore: Int? = null,

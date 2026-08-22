@@ -33,7 +33,6 @@ import mihon.domain.extensionrepo.interactor.ToggleExtensionRepoVisibility
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
 import mihon.domain.extensionrepo.service.ExtensionRepoService
-import mihon.domain.upcoming.interactor.GetUpcomingAnime
 import tachiyomi.data.anime.AnimeMergeRepositoryImpl
 import tachiyomi.data.anime.AnimeRepositoryImpl
 import tachiyomi.data.category.CategoryRepositoryImpl
@@ -154,7 +153,6 @@ class DomainModule : InjektModule {
         addFactory { GetAnimeByUrlAndSourceId(get()) }
         addFactory { GetAnime(get()) }
         addFactory { GetNextEpisodes(get(), get(), get(), get()) }
-        addFactory { GetUpcomingAnime(get()) }
         addFactory { ResetViewerFlags(get()) }
         addFactory { SetAnimeEpisodeFlags(get(), get()) }
         addFactory { SetAnimeSeasonFlags(get()) }

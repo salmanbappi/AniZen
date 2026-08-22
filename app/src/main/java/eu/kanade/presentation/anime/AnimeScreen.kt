@@ -757,7 +757,7 @@ private fun AnimeScreenSmallImpl(
                                     }
                                     if (state.airingTime > 0L) {
                                         item(key = "airing-time-small", contentType = AnimeScreenItem.AIRING_TIME) {
-                                            var timer by remember { mutableLongStateOf(state.airingTime) }
+                                            var timer by remember(state.airingTime) { mutableLongStateOf(state.airingTime) }
                                             LaunchedEffect(key1 = timer) {
                                                 if (timer > 0L) {
                                                     delay(1000L)
@@ -770,7 +770,7 @@ private fun AnimeScreenSmallImpl(
                                                         MR.strings.display_mode_episode,
                                                         formatEpisodeNumber(state.airingEpisodeNumber),
                                                     ),
-                                                    date = formatTime(state.airingTime, useDayFormat = true),
+                                                    date = formatTime(timer, useDayFormat = true),
                                                 )
                                             }
                                         }
@@ -1319,7 +1319,7 @@ fun AnimeScreenLargeImpl(
                                             }
                                             if (state.airingTime > 0L) {
                                                 item(key = "airing-time-large", contentType = AnimeScreenItem.AIRING_TIME) {
-                                                    var timer by remember { mutableLongStateOf(state.airingTime) }
+                                                    var timer by remember(state.airingTime) { mutableLongStateOf(state.airingTime) }
                                                     LaunchedEffect(key1 = timer) {
                                                         if (timer > 0L) {
                                                             delay(1000L)
@@ -1332,7 +1332,7 @@ fun AnimeScreenLargeImpl(
                                                                 MR.strings.display_mode_episode,
                                                                 formatEpisodeNumber(state.airingEpisodeNumber),
                                                             ),
-                                                            date = formatTime(state.airingTime, useDayFormat = true),
+                                                            date = formatTime(timer, useDayFormat = true),
                                                         )
                                                     }
                                                 }

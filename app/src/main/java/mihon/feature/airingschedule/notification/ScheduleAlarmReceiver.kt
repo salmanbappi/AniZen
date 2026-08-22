@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.system.notify
+import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import kotlinx.coroutines.CoroutineScope
@@ -47,12 +48,39 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         // without the cover — inside a try/finally so pendingResult.finish() is never skipped.
         val pendingResult = goAsync()
         val appContext = context.applicationContext
+        val titleEnglish = intent.getStringExtra(EXTRA_TITLE_ENGLISH)
+        val titleRomaji = intent.getStringExtra(EXTRA_TITLE_ROMAJI)
+        val titleNative = intent.getStringExtra(EXTRA_TITLE_NATIVE)
+        val titleCandidates = listOfNotNull(title, titleEnglish, titleRomaji, titleNative)
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val coverBitmap = coverUrl?.let {
-                    withTimeoutOrNull(COVER_LOAD_TIMEOUT_MS) { loadCoverBitmap(appContext, it) }
+                var matchedAnimeId: Long? = null
+                val shouldSkipNotification = runCatching {
+                    val getLibraryAnime = Injekt.get<tachiyomi.domain.anime.interactor.GetLibraryAnime>()
+                    val getEpisodesByAnimeId = Injekt.get<tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId>()
+                    val libraryAnime = getLibraryAnime.await()
+                    val matchedAnime = libraryAnime.firstOrNull { lib ->
+                        mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(lib.anime.title, titleCandidates)
+                    }
+                    if (matchedAnime != null) {
+                        matchedAnimeId = matchedAnime.anime.id
+                        val episodes = getEpisodesByAnimeId.await(matchedAnime.anime.id)
+                        episodes.any { ep ->
+                            ep.episodeNumber == episode.toFloat() &&
+                                (ep.seen || ep.dateFetch > 0L)
+                        }
+                    } else {
+                        false
+                    }
+                }.getOrDefault(false)
+
+                if (!shouldSkipNotification) {
+                    val coverBitmap = coverUrl?.let {
+                        withTimeoutOrNull(COVER_LOAD_TIMEOUT_MS) { loadCoverBitmap(appContext, it) }
+                    }
+                    postNotification(appContext, mediaId, episode, title, coverBitmap, matchedAnimeId)
                 }
-                postNotification(appContext, mediaId, episode, title, coverBitmap)
             } finally {
                 pendingResult.finish()
             }
@@ -77,11 +105,20 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         episode: Int,
         title: String,
         coverBitmap: Bitmap?,
+        matchedAnimeId: Long?,
     ) {
-        val contentIntent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            putExtra(MainActivity.INTENT_SEARCH_QUERY, title)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val contentIntent = if (matchedAnimeId != null) {
+            Intent(context, MainActivity::class.java).apply {
+                action = Constants.SHORTCUT_ANIME
+                putExtra(Constants.ANIME_EXTRA, matchedAnimeId)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+        } else {
+            Intent(context, MainActivity::class.java).apply {
+                action = MainActivity.INTENT_ANIMESEARCH
+                putExtra(MainActivity.INTENT_SEARCH_QUERY, title)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
         }
         val pendingContentIntent = android.app.PendingIntent.getActivity(
             context,
@@ -91,11 +128,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         )
 
         val contentText = context.stringResource(MR.strings.notification_episode_aired, episode)
-
-        // Use bitmasking instead of kotlin.math.abs to safely strip the sign bit.
-        // abs(Int.MIN_VALUE) overflows back to Int.MIN_VALUE, so bitmask is the safe approach.
-        val notificationId = Notifications.ID_AIRING_SCHEDULE_BASE -
-            ((ScheduleNotifications.requestCode(mediaId, episode) and Int.MAX_VALUE) % 10000)
+        val notificationId = ScheduleNotifications.notificationId(mediaId, episode)
 
         runCatching {
             context.notify(notificationId, Notifications.CHANNEL_AIRING_SCHEDULE) {
@@ -116,6 +149,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         const val EXTRA_MEDIA_ID = "media_id"
         const val EXTRA_EPISODE = "episode"
         const val EXTRA_TITLE = "title"
+        const val EXTRA_TITLE_ENGLISH = "title_english"
+        const val EXTRA_TITLE_ROMAJI = "title_romaji"
+        const val EXTRA_TITLE_NATIVE = "title_native"
         const val EXTRA_COVER_URL = "cover_url"
         private const val COVER_LOAD_TIMEOUT_MS = 6_000L
     }

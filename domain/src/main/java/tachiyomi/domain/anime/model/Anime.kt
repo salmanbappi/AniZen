@@ -84,10 +84,7 @@ data class Anime(
 
     val expectedNextUpdate: Instant?
         get() = nextUpdate
-            /* KMK -->
-            Always predict release date even for Completed entries
-            .takeIf { status != SAnime.COMPLETED.toLong() }
-             KMK <-- */
+            .takeIf { it > 0L && status != eu.kanade.tachiyomi.animesource.model.SAnime.COMPLETED.toLong() }
             ?.let { Instant.ofEpochMilli(it) }
 
     val sorting: Long
