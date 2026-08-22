@@ -48,6 +48,7 @@ import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
 import tachiyomi.presentation.core.util.isScrollingUp
 import tachiyomi.presentation.core.util.runOnEnterKeyPressed
 import tachiyomi.presentation.core.util.secondaryItemAlpha
+import tachiyomi.presentation.core.util.tvFocusHighlight
 
 @Composable
 fun AnimatedFloatingSearchBox(
@@ -114,6 +115,11 @@ fun SourcesSearchBox(
         modifier = modifier
             .onGloballyPositioned(onGloballyPositioned)
             .fillMaxWidth()
+            .tvFocusHighlight(
+                shape = RoundedCornerShape(24.dp),
+                borderWidth = 2.dp,
+                focusedBackgroundAlpha = 0.15f,
+            )
             .focusRequester(focusRequester)
             .onFocusChanged { isFocused = it.isFocused }
             .runOnEnterKeyPressed(action = searchAndClearFocus)

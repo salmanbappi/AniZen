@@ -1,4 +1,4 @@
-package mihon.feature.upcoming.components.calendar
+package mihon.feature.airingschedule.components.calendar
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -15,15 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
-import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import io.woong.compose.grid.SimpleGridCells
 import io.woong.compose.grid.VerticalGrid
-import kotlinx.collections.immutable.ImmutableMap
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import mihon.core.designsystem.utils.isExpandedWidthWindow
 import mihon.core.designsystem.utils.isMediumWidthWindow
@@ -35,13 +30,14 @@ import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
 
-private val FontSize = 16.sp
+private val FontSize = 14.sp
 private const val DAYS_OF_WEEK = 7
 
 @Composable
 fun Calendar(
     selectedYearMonth: YearMonth,
-    events: ImmutableMap<LocalDate, Int>,
+    events: Map<LocalDate, Int>,
+    selectedDate: LocalDate? = null,
     setSelectedYearMonth: (YearMonth) -> Unit,
     onClickDay: (day: LocalDate) -> Unit,
     modifier: Modifier = Modifier,
@@ -51,18 +47,19 @@ fun Calendar(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        CalenderHeader(
+        CalendarHeader(
             yearMonth = selectedYearMonth,
             onPreviousClick = { setSelectedYearMonth(selectedYearMonth.minusMonths(1L)) },
             onNextClick = { setSelectedYearMonth(selectedYearMonth.plusMonths(1L)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = MaterialTheme.padding.small)
-                .padding(start = MaterialTheme.padding.medium),
+                .padding(horizontal = MaterialTheme.padding.medium),
         )
         CalendarGrid(
             selectedYearMonth = selectedYearMonth,
             events = events,
+            selectedDate = selectedDate,
             onClickDay = onClickDay,
         )
     }
@@ -71,7 +68,8 @@ fun Calendar(
 @Composable
 private fun CalendarGrid(
     selectedYearMonth: YearMonth,
-    events: ImmutableMap<LocalDate, Int>,
+    events: Map<LocalDate, Int>,
+    selectedDate: LocalDate? = null,
     onClickDay: (day: LocalDate) -> Unit,
 ) {
     val localeFirstDayOfWeek = WeekFields.of(Locale.getDefault()).firstDayOfWeek.value
@@ -109,29 +107,9 @@ private fun CalendarGrid(
             CalendarDay(
                 date = localDate,
                 onDayClick = { onClickDay(localDate) },
+                isSelected = selectedDate == localDate,
                 events = events[localDate] ?: 0,
             )
         }
     }
 }
-
-// KMK -->
-@Preview
-@Composable
-fun CalendarDayPreview() {
-    TachiyomiPreviewTheme {
-        Surface {
-            Calendar(
-                selectedYearMonth = YearMonth.now(),
-                events = persistentMapOf(
-                    LocalDate.now() to 3,
-                    LocalDate.now().plusDays(1) to 1,
-                    LocalDate.now().minusDays(15) to 1,
-                ),
-                setSelectedYearMonth = {},
-                onClickDay = {},
-            )
-        }
-    }
-}
-// KMK <--

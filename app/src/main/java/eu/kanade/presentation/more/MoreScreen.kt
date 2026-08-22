@@ -241,9 +241,9 @@ fun MoreScreen(
                                         NavItem.FEED -> HomeScreen.HomeTab.Feed
                                         NavItem.UPDATES -> HomeScreen.HomeTab.Updates
                                         NavItem.HISTORY -> HomeScreen.HomeTab.History
+                                        NavItem.SCHEDULE -> HomeScreen.HomeTab.Schedule
                                         NavItem.BROWSE -> HomeScreen.HomeTab.Browse()
                                         NavItem.MORE -> HomeScreen.HomeTab.More(false)
-                                        else -> HomeScreen.HomeTab.More(false)
                                     }
                                     HomeScreen.openTab(homeTab)
                                 }

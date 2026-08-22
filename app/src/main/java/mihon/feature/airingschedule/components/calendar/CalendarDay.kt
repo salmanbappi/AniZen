@@ -1,4 +1,4 @@
-package mihon.feature.upcoming.components.calendar
+package mihon.feature.airingschedule.components.calendar
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -28,6 +28,7 @@ private const val MAX_EVENTS = 3
 fun CalendarDay(
     date: LocalDate,
     events: Int,
+    isSelected: Boolean = false,
     onDayClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -36,16 +37,22 @@ fun CalendarDay(
     Box(
         modifier = modifier
             .then(
-                if (today == date) {
-                    Modifier.border(
+                when {
+                    isSelected -> Modifier.border(
+                        border = BorderStroke(
+                            width = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        ),
+                        shape = CircleShape,
+                    )
+                    today == date -> Modifier.border(
                         border = BorderStroke(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.onBackground,
                         ),
                         shape = CircleShape,
                     )
-                } else {
-                    Modifier
+                    else -> Modifier
                 },
             )
             .clip(shape = CircleShape)
@@ -56,15 +63,14 @@ fun CalendarDay(
         Text(
             text = date.dayOfMonth.toString(),
             textAlign = TextAlign.Center,
-            fontSize = 16.sp,
-            color = if (date.isBefore(today)) {
-                MaterialTheme.colorScheme.onBackground.copy(alpha = DISABLED_ALPHA)
-            } else {
-                MaterialTheme.colorScheme.onBackground
+            fontSize = 15.sp,
+            color = when {
+                isSelected -> MaterialTheme.colorScheme.primary
+                date.isBefore(today) -> MaterialTheme.colorScheme.onBackground.copy(alpha = DISABLED_ALPHA)
+                else -> MaterialTheme.colorScheme.onBackground
             },
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = if (isSelected || today == date) FontWeight.Bold else FontWeight.SemiBold,
         )
-        // KMK -->
         if (events > 0) {
             Text(
                 text = events.toString(),
@@ -73,16 +79,15 @@ fun CalendarDay(
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Normal,
                 modifier = Modifier
-                    .offset(x = 12.dp, y = (-10).dp),
+                    .offset(x = 11.dp, y = (-9).dp),
             )
         }
-        // KMK <--
-        Row(Modifier.offset(y = 12.dp)) {
+        Row(Modifier.offset(y = 11.dp)) {
             val size = events.coerceAtMost(MAX_EVENTS)
             for (index in 0 until size) {
                 CalendarIndicator(
                     index = index,
-                    size = 56.dp,
+                    size = 48.dp,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }

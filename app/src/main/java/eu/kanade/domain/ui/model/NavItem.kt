@@ -3,6 +3,7 @@ package eu.kanade.domain.ui.model
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CallToAction
+import androidx.compose.material.icons.outlined.DateRange
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
@@ -13,6 +14,7 @@ import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
 import kotlinx.collections.immutable.*
+import mihon.feature.airingschedule.AiringScheduleTab
 import tachiyomi.i18n.MR
 
 sealed interface NavAction {
@@ -173,7 +175,15 @@ object NavMigrator {
 object NavConfigValidator {
     const val MAX_BOTTOM_TABS = 6
     val REQUIRED_TABS = setOf(NavItem.LIBRARY.id, NavItem.MORE.id)
-    private val ALL_STANDARD_TABS = setOf(NavItem.LIBRARY.id, NavItem.FEED.id, NavItem.UPDATES.id, NavItem.HISTORY.id, NavItem.BROWSE.id, NavItem.MORE.id)
+    private val ALL_STANDARD_TABS = setOf(
+        NavItem.LIBRARY.id,
+        NavItem.FEED.id,
+        NavItem.UPDATES.id,
+        NavItem.HISTORY.id,
+        NavItem.SCHEDULE.id,
+        NavItem.BROWSE.id,
+        NavItem.MORE.id,
+    )
 
     fun validate(config: NavConfig): NavConfig {
         var visible = config.visibleTabs.distinct().filter { NavItem.fromId(it) != null }.toMutableList()
@@ -222,7 +232,7 @@ object NavConfigValidator {
 object NavPresets {
     val DEFAULT = NavConfig(
         visibleTabs = persistentListOf(NavItem.LIBRARY.id, NavItem.UPDATES.id, NavItem.HISTORY.id, NavItem.BROWSE.id, NavItem.MORE.id),
-        hiddenTabs = persistentListOf(NavItem.FEED.id)
+        hiddenTabs = persistentListOf(NavItem.FEED.id, NavItem.SCHEDULE.id)
     )
 
     val MINIMAL = NavConfig(
@@ -249,6 +259,14 @@ enum class NavItem(
     FEED("feed", MR.strings.feed, FeedTab, R.drawable.ic_dynamic_feed_24dp, R.drawable.ic_dynamic_feed_24dp),
     UPDATES("updates", MR.strings.label_recent_updates, UpdatesTab, R.drawable.anim_updates_enter, R.drawable.ic_updates_outline_24dp),
     HISTORY("history", MR.strings.history, HistoryTab, R.drawable.anim_history_enter, R.drawable.ic_progress_clock_24dp),
+    SCHEDULE(
+        "schedule",
+        MR.strings.label_schedule_short,
+        AiringScheduleTab,
+        R.drawable.ic_progress_clock_24dp,
+        R.drawable.ic_progress_clock_24dp,
+        Icons.Outlined.DateRange,
+    ),
     BROWSE("browse", MR.strings.browse, BrowseTab, R.drawable.anim_browse_enter, R.drawable.ic_browse_filled_24dp),
     MORE("more", MR.strings.label_more, MoreTab, R.drawable.anim_more_enter, R.drawable.ic_overflow_24dp);
 

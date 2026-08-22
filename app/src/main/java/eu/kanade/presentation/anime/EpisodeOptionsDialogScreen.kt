@@ -24,13 +24,18 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Cast
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Input
 import androidx.compose.material.icons.outlined.NavigateNext
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.SystemUpdateAlt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,6 +52,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.rememberScreenModel
@@ -62,8 +68,11 @@ import com.google.android.gms.common.images.WebImage
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.util.subtitles.SubtitleDownloader
+import tachiyomi.presentation.core.components.material.IconButtonTokens
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.QualitySheetHosterContent
@@ -80,6 +89,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import tachiyomi.core.common.i18n.stringResource as stringResourceContext
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withIOContext
@@ -100,6 +110,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 
 private val playerPreferences = Injekt.get<PlayerPreferences>()
+
+enum class SubtitleDownloadStatus {
+    IDLE,
+    DOWNLOADING,
+    SUCCESS,
+    ERROR,
+}
 
 class EpisodeOptionsDialogScreen(
     private val useExternalDownloader: Boolean,
@@ -126,6 +143,8 @@ class EpisodeOptionsDialogScreen(
         val selectedHosterVideoIndex by sm.selectedHosterVideoIndex.collectAsState()
         val currentVideo by sm.currentVideo.collectAsState()
         val showAllQualities by sm.showAllQualities.collectAsState()
+        val showSubtitles by sm.showSubtitles.collectAsState()
+        val subtitleStatuses by sm.subtitleStatuses.collectAsState()
 
         EpisodeOptionsDialog(
             useExternalDownloader = useExternalDownloader,
@@ -133,11 +152,16 @@ class EpisodeOptionsDialogScreen(
             episode = episode,
             anime = anime,
             showAllQualities = showAllQualities,
+            showSubtitles = showSubtitles,
+            subtitleStatuses = subtitleStatuses,
             resultList = hosterState,
             expandedList = hosterExpandedList,
             currentVideo = currentVideo,
             selectedHosterVideoIndex = selectedHosterVideoIndex,
             onShowAllQualities = sm::onShowAllQualities,
+            onShowSubtitles = sm::onShowSubtitles,
+            onDownloadSubtitle = sm::downloadSubtitle,
+            onDownloadAllSubtitles = sm::downloadAllSubtitles,
             onClickHoster = sm::onClickHoster,
             onClickVideo = sm::onClickVideo,
             getHosterList = sm::getHosterList,
@@ -178,6 +202,12 @@ class EpisodeOptionsDialogScreenModel(
 
     private val _showAllQualities = MutableStateFlow(false)
     val showAllQualities = _showAllQualities.asStateFlow()
+
+    private val _showSubtitles = MutableStateFlow(false)
+    val showSubtitles = _showSubtitles.asStateFlow()
+
+    private val _subtitleStatuses = MutableStateFlow<Map<String, SubtitleDownloadStatus>>(emptyMap())
+    val subtitleStatuses = _subtitleStatuses.asStateFlow()
 
     init {
         val hasFoundPreferredVideo = AtomicBoolean(false)
@@ -342,6 +372,7 @@ class EpisodeOptionsDialogScreenModel(
             selectedHosterState.getChangedAt(videoIndex, resolvedVideo, Video.State.READY),
         )
         _currentVideo.update { _ -> resolvedVideo }
+        refreshSubtitleStatuses(resolvedVideo)
 
         return true
     }
@@ -360,6 +391,92 @@ class EpisodeOptionsDialogScreenModel(
 
     fun onShowAllQualities(value: Boolean) {
         _showAllQualities.update { _ -> value }
+    }
+
+    fun onShowSubtitles(value: Boolean) {
+        _showSubtitles.update { _ -> value }
+        if (value) {
+            refreshSubtitleStatuses()
+        }
+    }
+
+    fun refreshSubtitleStatuses(video: Video? = _currentVideo.value) {
+        val anime = _anime.value ?: return
+        val episode = _episode.value ?: return
+        val source = _source.value
+        val tracks = video?.subtitleTracks.orEmpty()
+        if (tracks.isEmpty()) return
+
+        screenModelScope.launchIO {
+            val updated = tracks.associate { track ->
+                val isDownloaded = SubtitleDownloader.isSubtitleDownloaded(anime, episode, source, track)
+                track.url to if (isDownloaded) SubtitleDownloadStatus.SUCCESS else SubtitleDownloadStatus.IDLE
+            }
+            _subtitleStatuses.update { current ->
+                val newStatuses = current.toMutableMap()
+                updated.forEach { (url, status) ->
+                    if (newStatuses[url] != SubtitleDownloadStatus.DOWNLOADING) {
+                        newStatuses[url] = status
+                    }
+                }
+                newStatuses
+            }
+        }
+    }
+
+    fun downloadSubtitle(context: Context, track: Track) {
+        val anime = _anime.value ?: return
+        val episode = _episode.value ?: return
+        val video = _currentVideo.value
+
+        _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.DOWNLOADING) }
+
+        screenModelScope.launchIO {
+            val result = SubtitleDownloader.downloadSubtitleTrack(anime, episode, _source.value, track, video)
+            if (result.isSuccess) {
+                _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.SUCCESS) }
+                launchUI {
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_downloaded, track.lang.ifBlank { "sub" }))
+                }
+            } else {
+                _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.ERROR) }
+                launchUI {
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_download_failed, track.lang.ifBlank { "sub" }))
+                }
+            }
+        }
+    }
+
+    fun downloadAllSubtitles(context: Context) {
+        val anime = _anime.value ?: return
+        val episode = _episode.value ?: return
+        val video = _currentVideo.value ?: return
+        val tracks = video.subtitleTracks
+        if (tracks.isEmpty()) return
+
+        tracks.forEach { track ->
+            _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.DOWNLOADING) }
+        }
+
+        screenModelScope.launchIO {
+            var successCount = 0
+            tracks.forEach { track ->
+                val result = SubtitleDownloader.downloadSubtitleTrack(anime, episode, _source.value, track, video)
+                if (result.isSuccess) {
+                    successCount++
+                    _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.SUCCESS) }
+                } else {
+                    _subtitleStatuses.update { it + (track.url to SubtitleDownloadStatus.ERROR) }
+                }
+            }
+            launchUI {
+                if (successCount > 0) {
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_downloaded, "$successCount tracks"))
+                } else {
+                    context.toast(context.stringResourceContext(MR.strings.subtitles_download_failed, "All"))
+                }
+            }
+        }
     }
 
     fun onClickHoster(hosterIndex: Int) {
@@ -399,6 +516,8 @@ class EpisodeOptionsDialogScreenModel(
             val success = loadVideo(_source.value!!, video, hosterIndex, videoIndex)
             if (success) {
                 _showAllQualities.update { _ -> false }
+                _showSubtitles.update { _ -> false }
+                _subtitleStatuses.update { emptyMap() }
                 val hoster = _hosterList.value.getOrNull(hosterIndex)
                 if (hoster != null) {
                     val store = eu.kanade.tachiyomi.ui.player.utils.DefaultStreamPreferenceStore(playerPreferences)
@@ -441,11 +560,16 @@ fun EpisodeOptionsDialog(
     episode: Episode?,
     anime: Anime?,
     showAllQualities: Boolean,
+    showSubtitles: Boolean,
+    subtitleStatuses: Map<String, SubtitleDownloadStatus>,
     resultList: Result<List<HosterState>>? = null,
     expandedList: List<Boolean>,
     currentVideo: Video?,
     selectedHosterVideoIndex: Pair<Int, Int>,
     onShowAllQualities: (Boolean) -> Unit,
+    onShowSubtitles: (Boolean) -> Unit,
+    onDownloadSubtitle: (Context, Track) -> Unit,
+    onDownloadAllSubtitles: (Context) -> Unit,
     onClickHoster: (Int) -> Unit,
     onClickVideo: (Int, Int) -> Unit,
     getHosterList: () -> List<Hoster>?,
@@ -496,11 +620,16 @@ fun EpisodeOptionsDialog(
                     episode = episode,
                     anime = anime,
                     showAllQualities = showAllQualities,
+                    showSubtitles = showSubtitles,
+                    subtitleStatuses = subtitleStatuses,
                     hosterStateList = hosterStateList,
                     expandedList = expandedList,
                     currentVideo = currentVideo,
                     selectedHosterVideoIndex = selectedHosterVideoIndex,
                     onShowAllQualities = onShowAllQualities,
+                    onShowSubtitles = onShowSubtitles,
+                    onDownloadSubtitle = onDownloadSubtitle,
+                    onDownloadAllSubtitles = onDownloadAllSubtitles,
                     onClickHoster = onClickHoster,
                     onClickVideo = onClickVideo,
                     getHosterList = getHosterList,
@@ -518,11 +647,16 @@ private fun VideoList(
     episode: Episode,
     anime: Anime,
     showAllQualities: Boolean,
+    showSubtitles: Boolean,
+    subtitleStatuses: Map<String, SubtitleDownloadStatus>,
     hosterStateList: List<HosterState>,
     expandedList: List<Boolean>,
     currentVideo: Video,
     selectedHosterVideoIndex: Pair<Int, Int>,
     onShowAllQualities: (Boolean) -> Unit,
+    onShowSubtitles: (Boolean) -> Unit,
+    onDownloadSubtitle: (Context, Track) -> Unit,
+    onDownloadAllSubtitles: (Context) -> Unit,
     onClickHoster: (Int) -> Unit,
     onClickVideo: (Int, Int) -> Unit,
     getHosterList: () -> List<Hoster>?,
@@ -534,18 +668,27 @@ private fun VideoList(
     val copiedString = stringResource(MR.strings.copied_video_link_to_clipboard)
 
     AnimatedVisibility(
-        visible = !showAllQualities,
+        visible = !showAllQualities && !showSubtitles,
         enter = slideInHorizontally(),
         exit = slideOutHorizontally(),
     ) {
         Column {
-            if (currentVideo.videoUrl.isNotEmpty() && !showAllQualities) {
+            if (currentVideo.videoUrl.isNotEmpty() && !showAllQualities && !showSubtitles) {
                 ClickableRow(
                     text = currentVideo.videoTitle,
                     icon = null,
                     onClick = { onShowAllQualities(true) },
                     showDropdownArrow = true,
                 )
+
+                if (currentVideo.subtitleTracks.isNotEmpty()) {
+                    ClickableRow(
+                        text = stringResource(MR.strings.action_subtitles_only),
+                        icon = Icons.Outlined.Subtitles,
+                        onClick = { onShowSubtitles(true) },
+                        showDropdownArrow = true,
+                    )
+                }
 
                 val downloadEpisode: (Boolean) -> Unit = {
                     downloadManager.downloadEpisodes(
@@ -644,6 +787,127 @@ private fun VideoList(
                         onClickVideo = onClickVideo,
                         displayHosters = Pair(false, false),
                     )
+                }
+            }
+        }
+    }
+
+    AnimatedVisibility(
+        visible = showSubtitles,
+        enter = slideInHorizontally(initialOffsetX = { it / 2 }),
+        exit = slideOutHorizontally(targetOffsetX = { it / 2 }),
+    ) {
+        if (showSubtitles) {
+            SubtitleListContent(
+                subtitleTracks = currentVideo.subtitleTracks,
+                subtitleStatuses = subtitleStatuses,
+                onBack = { onShowSubtitles(false) },
+                onDownloadTrack = { onDownloadSubtitle(context, it) },
+                onDownloadAll = { onDownloadAllSubtitles(context) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SubtitleListContent(
+    subtitleTracks: List<Track>,
+    subtitleStatuses: Map<String, SubtitleDownloadStatus>,
+    onBack: () -> Unit,
+    onDownloadTrack: (Track) -> Unit,
+    onDownloadAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        ClickableRow(
+            text = stringResource(MR.strings.action_subtitles_only),
+            icon = Icons.Outlined.ArrowBack,
+            onClick = onBack,
+        )
+
+        if (subtitleTracks.size > 1) {
+            ClickableRow(
+                text = stringResource(MR.strings.action_download_all_subtitles),
+                icon = Icons.Outlined.Download,
+                onClick = onDownloadAll,
+            )
+        }
+
+        subtitleTracks.forEachIndexed { index, track ->
+            val status = subtitleStatuses[track.url] ?: SubtitleDownloadStatus.IDLE
+            val langLabel = track.lang.ifBlank { "Track ${index + 1}" }
+            val ext = SubtitleDownloader.getCleanExtension(track.url)
+            val displayText = "$langLabel (.$ext)"
+
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = TabbedDialogPaddings.Horizontal)
+                    .clickable(
+                        role = Role.Button,
+                        enabled = status != SubtitleDownloadStatus.DOWNLOADING,
+                        onClick = { onDownloadTrack(track) },
+                    )
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = MaterialTheme.padding.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Subtitles,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.width(MaterialTheme.padding.small))
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier.size(IconButtonTokens.StateLayerSize),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (status) {
+                        SubtitleDownloadStatus.DOWNLOADING -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                        SubtitleDownloadStatus.SUCCESS -> {
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        SubtitleDownloadStatus.ERROR -> {
+                            Icon(
+                                imageVector = Icons.Outlined.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        SubtitleDownloadStatus.IDLE -> {
+                            Icon(
+                                imageVector = Icons.Outlined.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         }

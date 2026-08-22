@@ -182,7 +182,7 @@ class NavigationGalleryScreen : Screen() {
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     } else {
-                                        val icon = if (item == NavItem.FEED) {
+                                        val icon = if (item == NavItem.FEED || item == NavItem.SCHEDULE) {
                                             painterResource(item.staticIconRes)
                                         } else {
                                             rememberAnimatedVectorPainter(

@@ -78,7 +78,11 @@ android {
             isMinifyEnabled = Config.enableCodeShrink
             isShrinkResources = Config.enableCodeShrink
 
-            proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-android-optimize.txt",
+                "proguard-rules.pro",
+            )
 
             signingConfig = signingConfigs.getByName("release")
 
@@ -424,4 +428,4 @@ buildscript {
     dependencies {
         classpath(kotlinx.gradle)
     }
-}// Trigger build Sun Mar 29 21:15:36 +06 2026
+} // Trigger build Sun Mar 29 21:15:36 +06 2026

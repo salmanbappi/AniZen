@@ -92,7 +92,7 @@ fun SetIntervalDialog(
             when {
                 interval == FetchInterval.MANUAL_DISABLE -> 0
                 interval == 0 -> 1
-                interval < 0 -> interval.absoluteValue
+                interval < 0 -> interval.absoluteValue + 1
                 else -> 1
             },
         )
@@ -281,7 +281,7 @@ fun SetIntervalDialog(
                         when (selectedIntervalIndex) {
                             0 -> FetchInterval.MANUAL_DISABLE
                             1 -> 0
-                            else -> -selectedIntervalIndex
+                            else -> -(selectedIntervalIndex - 1)
                         }
                     } else {
                         // Map 0-6 (Sat-Fri) back to 1-7 (Mon-Sun)

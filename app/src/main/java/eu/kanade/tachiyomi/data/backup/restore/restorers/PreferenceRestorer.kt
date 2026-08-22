@@ -27,6 +27,14 @@ class PreferenceRestorer(
 
         LibraryUpdateJob.setupTask(context)
         BackupCreateJob.setupTask(context)
+
+        val schedulePreferences = Injekt.get<mihon.feature.airingschedule.SchedulePreferences>()
+        if (schedulePreferences.scheduleAutoRefreshEnabled().get()) {
+            mihon.feature.airingschedule.ScheduleDataRefreshWorker.schedule(context, schedulePreferences.scheduleAutoRefreshFrequency().get())
+        }
+        if (schedulePreferences.uploadDelayEnabled().get()) {
+            mihon.feature.airingschedule.ScheduleRefreshWorker.schedule(context, schedulePreferences.uploadDelayRefreshInterval().get())
+        }
     }
 
     fun restoreSource(preferences: List<BackupSourcePreferences>) {

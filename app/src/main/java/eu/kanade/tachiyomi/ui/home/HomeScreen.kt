@@ -99,9 +99,8 @@ import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
+import mihon.feature.airingschedule.AiringScheduleTab
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.tvFocusHighlight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -315,6 +314,7 @@ object HomeScreen : Screen() {
                             is HomeTab.Feed -> FeedTab
                             is HomeTab.Updates -> UpdatesTab
                             is HomeTab.History -> HistoryTab
+                            is HomeTab.Schedule -> AiringScheduleTab
                             is HomeTab.Browse -> {
                                 if (it.toExtensions) {
                                     BrowseTab.showExtension()
@@ -406,10 +406,18 @@ object HomeScreen : Screen() {
             NavigationBarItem(
                 selected = selected,
                 onClick = onClick,
-                modifier = Modifier.tvFocusHighlight(
-                    shape = RoundedCornerShape(16.dp),
-                    focusedScale = 1.05f,
-                ),
+                modifier = if (
+                    behavior.onLongClick != NavAction.Default ||
+                    behavior.onDoubleTap != NavAction.Default
+                ) {
+                    Modifier.combinedClickable(
+                        onLongClick = onLongClick,
+                        onDoubleClick = onDoubleClick,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
                 icon = { NavigationIconItem(navItem, adaptiveDecision, updatesCount, extensionUpdatesCount) },
                 label = label,
                 alwaysShowLabel = navLabelVisibility == NavLabelVisibility.ALWAYS,
@@ -451,6 +459,36 @@ object HomeScreen : Screen() {
             }
         }
 
+        val onLongClick: () -> Unit = remember(behavior, navItem.id, haptic, executor) {
+            {
+                if (behavior.onLongClick != NavAction.Default) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    executor.execute(behavior.onLongClick, navItem.id)
+                }
+            }
+        }
+
+        val onDoubleClick: () -> Unit = remember(behavior, navItem.id, haptic, executor) {
+            {
+                if (behavior.onDoubleTap != NavAction.Default) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    executor.execute(behavior.onDoubleTap, navItem.id)
+                }
+            }
+        }
+
+        val combinedClick: () -> Unit = remember(selected, navItem.id, tabNavigator, tab, scope, navigator, executor) {
+            {
+                if (!selected) {
+                    executor.logClick(navItem.id)
+                    tabNavigator.current = tab
+                } else {
+                    scope.launch { tab.onReselect(navigator) }
+                }
+                Unit
+            }
+        }
+
         val label: @Composable (() -> Unit)? = remember(navLabelVisibility, title) {
             if (navLabelVisibility != NavLabelVisibility.NEVER) {
                 {
@@ -467,10 +505,18 @@ object HomeScreen : Screen() {
         NavigationRailItem(
             selected = selected,
             onClick = onClick,
-            modifier = Modifier.tvFocusHighlight(
-                shape = RoundedCornerShape(16.dp),
-                focusedScale = 1.05f,
-            ),
+            modifier = if (
+                behavior.onLongClick != NavAction.Default ||
+                    behavior.onDoubleTap != NavAction.Default
+            ) {
+                Modifier.combinedClickable(
+                    onLongClick = onLongClick,
+                    onDoubleClick = onDoubleClick,
+                    onClick = combinedClick,
+                )
+            } else {
+                Modifier
+            },
             icon = { NavigationIconItem(navItem, adaptiveDecision, updatesCount, extensionUpdatesCount) },
             label = label,
             alwaysShowLabel = navLabelVisibility == NavLabelVisibility.ALWAYS,
@@ -573,6 +619,9 @@ object HomeScreen : Screen() {
                 FeedTab::class.isInstance(tab) -> {
                     painterResource(R.drawable.ic_dynamic_feed_24dp)
                 }
+                AiringScheduleTab::class.isInstance(tab) -> {
+                    painterResource(R.drawable.ic_progress_clock_24dp)
+                }
                 else -> painterResource(R.drawable.ic_browse_filled_24dp)
             }
 
@@ -609,6 +658,7 @@ object HomeScreen : Screen() {
         data object Feed : HomeTab
         data object Updates : HomeTab
         data object History : HomeTab
+        data object Schedule : HomeTab
         data class Browse(val toExtensions: Boolean = false, val anime: Boolean = false) : HomeTab
         data class More(val toDownloads: Boolean) : HomeTab
     }

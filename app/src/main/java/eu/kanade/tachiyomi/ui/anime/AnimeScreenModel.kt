@@ -588,11 +588,27 @@ class AnimeScreenModel(
                 TorrentServerUtils.setTrackersList()
             }
 
-            // Set initial state from database
+            // Set initial state from database and local schedule cache
+            val nowMillis = System.currentTimeMillis()
+            val initialWithSchedule = if (anime.nextUpdate <= 0L || anime.nextUpdate < nowMillis) {
+                val cachedAiringTime = resolveCachedScheduleAirTime(anime.title)
+                if (cachedAiringTime != null) {
+                    val nextMillis = cachedAiringTime * 1000L
+                    if (anime.favorite) {
+                        updateAnime.await(AnimeUpdate(id = anime.id, nextUpdate = nextMillis))
+                    }
+                    anime.copy(nextUpdate = nextMillis)
+                } else {
+                    anime
+                }
+            } else {
+                anime
+            }
+
             val savedSeason = libraryPreferences.lastSelectedSeason(animeId).get().takeIf { it.isNotEmpty() }
             mutableState.update {
                 State.Success.create(
-                    anime = anime,
+                    anime = initialWithSchedule,
                     source = animeSource,
                     isFromSource = isFromSource,
                     episodes = initialEpisodes,
@@ -665,10 +681,36 @@ class AnimeScreenModel(
                         screenModelScope.launch { fetchSeasonsFromSource() }
                     }
 
+                    val nowMs = System.currentTimeMillis()
+                    val effectiveNextUpdate = if (correctedAnime.nextUpdate > nowMs) {
+                        correctedAnime.nextUpdate
+                    } else {
+                        val currentNextUpdate = successState?.anime?.nextUpdate ?: 0L
+                        if (currentNextUpdate > nowMs) {
+                            currentNextUpdate
+                        } else {
+                            val cachedTime = resolveCachedScheduleAirTime(correctedAnime.title)
+                            if (cachedTime != null) {
+                                val millis = cachedTime * 1000L
+                                if (correctedAnime.favorite) {
+                                    updateAnime.await(AnimeUpdate(id = correctedAnime.id, nextUpdate = millis))
+                                }
+                                millis
+                            } else {
+                                correctedAnime.nextUpdate
+                            }
+                        }
+                    }
+                    val finalAnime = if (effectiveNextUpdate != correctedAnime.nextUpdate) {
+                        correctedAnime.copy(nextUpdate = effectiveNextUpdate)
+                    } else {
+                        correctedAnime
+                    }
+
                     updateSuccessState {
                         it.copySuccess(
-                            anime = correctedAnime,
-                            episodes = episodes.toEpisodeListItems(correctedAnime),
+                            anime = finalAnime,
+                            episodes = episodes.toEpisodeListItems(finalAnime),
                             seasons = seasons.toImmutableList(),
                             processedSeasonItems = seasonItems.toImmutableList(),
                             availableScanlators = availableScanlators.toImmutableList(),
@@ -2047,6 +2089,23 @@ class AnimeScreenModel(
     }
 
     private fun showQualitiesDialog(episode: Episode) = updateSuccessState { it.copySuccess(dialog = Dialog.ShowQualities(episode, it.anime, it.source)) }
+
+    private suspend fun resolveCachedScheduleAirTime(animeTitle: String): Long? = withIOContext {
+        runCatching {
+            val cache = mihon.feature.airingschedule.ScheduleDataRefreshWorker.readCache(context) ?: return@withIOContext null
+            val nowEpoch = System.currentTimeMillis() / 1000L
+            val matchedEntry = cache.entries
+                .filter { it.airingAt >= nowEpoch }
+                .filter { entry ->
+                    mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(
+                        animeTitle,
+                        mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry),
+                    )
+                }
+                .minByOrNull { it.airingAt }
+            matchedEntry?.airingAt
+        }.getOrNull()
+    }
 
     sealed interface State {
         @Immutable data object Loading : State

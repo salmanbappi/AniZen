@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import tachiyomi.domain.source.model.Pin
+import tachiyomi.presentation.core.util.tvFocusHighlight
 import tachiyomi.source.localanime.isLocal
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -234,7 +235,9 @@ fun SourcesScreen(
                         selectedBorderColor = MaterialTheme.colorScheme.error,
                         selectedBorderWidth = 2.dp,
                     ),
-                    modifier = Modifier.height(48.dp)
+                    modifier = Modifier
+                        .height(48.dp)
+                        .tvFocusHighlight(shape = filterChipShape, borderWidth = 2.dp)
                 )
             }
         }

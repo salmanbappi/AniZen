@@ -1,4 +1,4 @@
-package mihon.feature.upcoming.components.calendar
+package mihon.feature.airingschedule.components.calendar
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

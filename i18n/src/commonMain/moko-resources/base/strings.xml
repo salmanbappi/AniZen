@@ -1390,6 +1390,11 @@
     <string name="action_order_by_episode_number">By episode number</string>
     <string name="action_start_download_externally">Use external downloader</string>
     <string name="action_start_download_internally">Use internal downloader</string>
+    <string name="action_subtitles_only">Subtitles only</string>
+    <string name="action_download_all_subtitles">Download all subtitles</string>
+    <string name="subtitles_downloaded">Subtitles downloaded: %1$s</string>
+    <string name="subtitles_download_failed">Failed to download subtitles: %1$s</string>
+    <string name="no_subtitles_available">No subtitles available</string>
     <string name="pref_bottom_nav_style">Bottom navigation style</string>
     <string name="pref_default_home_tab_library">Set start screen to Manga Tab</string>
     <string name="pref_update_only_completely_read">Skip entries with unseen episode(s)</string>
@@ -1683,6 +1688,32 @@
     <string name="pref_import_from_trakt">Import from Trakt</string>
     <string name="pref_import_from_trakt_summary">Import tracked anime from your Trakt account</string>
     <string name="trakt_import_notice">This lists anime tracked on your Trakt account that are not in your library. Select the ones you want to import, then migrate them to video sources.</string>
+
+    <!-- Airing Schedule -->
+    <string name="information_no_airing_today">No anime airing today</string>
+    <string name="label_airing_schedule">Airing Schedule</string>
+    <string name="label_schedule_short">Schedule</string>
+    <string name="pref_category_schedule">Schedule</string>
+    <string name="pref_category_schedule_summary">Weekly airing schedule from AniList</string>
+    <string name="pref_schedule_sources_title">Favorite Sources</string>
+    <string name="pref_schedule_favorite_sources">Favorite sources</string>
+    <string name="pref_schedule_favorite_sources_summary">Select the sources used when searching anime from the schedule</string>
+    <string name="pref_schedule_show_only_favorites">Filter by favorite sources</string>
+    <string name="pref_schedule_show_only_favorites_summary">Show only schedule entries searchable in your selected favorite sources</string>
+    <string name="pref_schedule_about_title">About</string>
+    <string name="pref_schedule_about_info">The airing schedule is powered by AniList. Tap the search icon on any anime to find it in your installed sources.</string>
+    <string name="pref_bottom_nav_no_schedule">Move Schedule to the More tab</string>
+    <string name="pref_schedule_auto_refresh_group">Auto Refresh</string>
+    <string name="pref_schedule_upload_delay_group">Upload Delay Tracking</string>
+    <string name="pref_schedule_display_group">Display</string>
+    <string name="cd_refresh_schedule">Refresh schedule</string>
+    <string name="cd_schedule_settings">Schedule settings</string>
+    <string name="schedule_error_title">Unable to load schedule</string>
+    <string name="notification_episode_aired">Episode %1$s has aired!</string>
+    <string name="cd_schedule_filter_library">Filter by anime in library</string>
+    <string name="action_filter_schedule">Filter schedule</string>
+    <string name="pref_schedule_filter_hide_aired">Hide already aired</string>
+    <string name="pref_schedule_filter_formats">Formats</string>
 </resources>
 
 

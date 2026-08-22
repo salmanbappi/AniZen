@@ -241,6 +241,40 @@ class LibraryUpdateNotifier(
                 )
             }
         }
+
+        // Dismiss any redundant generic broadcast schedule notifications for these newly fetched episodes and cancel pending alarms
+        tachiyomi.core.common.util.lang.launchIO {
+            runCatching {
+                val cache = mihon.feature.airingschedule.ScheduleDataRefreshWorker.readCache(context)
+                if (cache != null) {
+                    updates.forEach { (anime, episodes) ->
+                        val animeTitle = anime.title
+                        val matchedEntries = cache.entries.filter { entry ->
+                            mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(
+                                animeTitle,
+                                mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry),
+                            )
+                        }
+
+                        matchedEntries.forEach { entry ->
+                            episodes.forEach { ep ->
+                                if (ep.episodeNumber == entry.episode.toDouble()) {
+                                    mihon.feature.airingschedule.notification.ScheduleNotifications.dismissNotification(
+                                        context,
+                                        entry.mediaId,
+                                        entry.episode,
+                                    )
+                                    mihon.feature.airingschedule.notification.ScheduleNotifications.cancel(
+                                        context,
+                                        entry,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun createNewEpisodesNotification(anime: Anime, episodes: Array<Episode>): Notification {
