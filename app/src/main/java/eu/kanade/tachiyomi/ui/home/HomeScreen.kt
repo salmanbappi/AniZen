@@ -584,46 +584,25 @@ object HomeScreen : Screen() {
                 }
             },
         ) {
-            val iconPainter = when {
-                navItem.iconVector != null -> null
-                LibraryTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_library_enter),
-                        selected
-                    )
-                }
-                UpdatesTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_updates_enter),
-                        selected
-                    )
-                }
-                HistoryTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_history_enter),
-                        selected
-                    )
-                }
-                BrowseTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_browse_enter),
-                        selected
-                    )
-                }
-                MoreTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_more_enter),
-                        selected
-                    )
-                }
-                FeedTab::class.isInstance(tab) -> {
-                    painterResource(R.drawable.ic_dynamic_feed_24dp)
-                }
-                AiringScheduleTab::class.isInstance(tab) -> {
-                    painterResource(R.drawable.ic_progress_clock_24dp)
-                }
-                else -> painterResource(R.drawable.ic_browse_filled_24dp)
+        val animResId = remember(tab::class) {
+            when {
+                LibraryTab::class.isInstance(tab) -> R.drawable.anim_library_enter
+                UpdatesTab::class.isInstance(tab) -> R.drawable.anim_updates_enter
+                HistoryTab::class.isInstance(tab) -> R.drawable.anim_history_enter
+                BrowseTab::class.isInstance(tab) -> R.drawable.anim_browse_enter
+                MoreTab::class.isInstance(tab) -> R.drawable.anim_more_enter
+                else -> null
             }
+        }
+        val animVector = animResId?.let { AnimatedImageVector.animatedVectorResource(it) }
+        val animatedPainter = animVector?.let { rememberAnimatedVectorPainter(it, selected) }
+        val iconPainter = when {
+            navItem.iconVector != null -> null
+            animatedPainter != null -> animatedPainter
+            FeedTab::class.isInstance(tab) -> painterResource(R.drawable.ic_dynamic_feed_24dp)
+            AiringScheduleTab::class.isInstance(tab) -> painterResource(R.drawable.ic_progress_clock_24dp)
+            else -> painterResource(R.drawable.ic_browse_filled_24dp)
+        }
 
             if (navItem.iconVector != null) {
                 Icon(

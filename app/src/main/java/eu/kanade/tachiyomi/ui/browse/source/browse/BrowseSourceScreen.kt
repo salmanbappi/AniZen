@@ -450,6 +450,7 @@ data class BrowseSourceScreen(
                 }
             }
 
+            val currentAnimeList by androidx.compose.runtime.rememberUpdatedState(animeList)
             val onAnimeClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, screenModel, navigator) {
                 { anime, index ->
                     if (state.selectionMode) {
@@ -459,17 +460,19 @@ data class BrowseSourceScreen(
                     }
                 }
             }
-            val onAnimeLongClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, state.lastSelectedIndex, screenModel, animeList) {
+            val onAnimeLongClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, state.lastSelectedIndex, screenModel) {
                 { anime, index ->
                     val lastIndex = state.lastSelectedIndex
                     if (state.selectionMode && lastIndex != null) {
-                        val items = animeList.itemSnapshotList.items.mapNotNull { it?.value }
+                        val items = currentAnimeList.itemSnapshotList.items.mapNotNull { it?.value }
                         screenModel.selectRange(items, lastIndex, index)
                     } else {
                         screenModel.toggleSelection(anime, index)
                     }
                 }
             }
+
+            val onGlobalHelpClick = remember(uriHandler) { { uriHandler.openUri(Constants.URL_HELP) } }
 
             BrowseSourceContent(
                 source = screenModel.source,
@@ -480,7 +483,7 @@ data class BrowseSourceScreen(
                 snackbarHostState = snackbarHostState,
                 contentPadding = paddingValues,
                 onWebViewClick = onWebViewClick,
-                onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
+                onHelpClick = onGlobalHelpClick,
                 onLocalSourceHelpClick = onHelpClick,
                 onAnimeClick = onAnimeClickMemoized,
                 onAnimeLongClick = onAnimeLongClickMemoized,
