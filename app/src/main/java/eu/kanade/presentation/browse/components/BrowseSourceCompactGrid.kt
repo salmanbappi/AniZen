@@ -55,7 +55,7 @@ fun BrowseSourceCompactGrid(
 
         items(
             count = animeList.itemCount,
-            key = { index -> "source-compact-grid-${animeList.peek(index)?.value?.id ?: "placeholder"}-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
             contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
         ) { index ->
             val anime by animeList[index]?.collectAsState() ?: return@items

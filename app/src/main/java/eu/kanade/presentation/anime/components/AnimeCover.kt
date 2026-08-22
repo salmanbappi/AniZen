@@ -94,6 +94,7 @@ enum class AnimeCover(val ratio: Float) {
 
         val scope = rememberCoroutineScope()
         LaunchedEffect(state, data, shouldExtractColor) {
+            if (!shouldExtractColor && onCoverLoaded == null) return@LaunchedEffect
             val currentState = state
             if (currentState is AsyncImagePainter.State.Success) {
                 val cover = when (data) {
@@ -101,7 +102,7 @@ enum class AnimeCover(val ratio: Float) {
                     is DomainMangaCover -> data
                     else -> null
                 }
-                if (cover != null) {
+                if (cover != null && shouldExtractColor) {
                     scope.launch {
                         eu.kanade.tachiyomi.util.system.CoverColorExtractor.extract(
                             cover = cover,

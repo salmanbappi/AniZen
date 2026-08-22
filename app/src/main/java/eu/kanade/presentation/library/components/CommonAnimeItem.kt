@@ -125,6 +125,7 @@ fun AnimeCompactGridItem(
                     data = coverData,
                     ratio = ratio,
                     shape = RectangleShape, // Optimization: Parent clips
+                    shouldExtractColor = false,
                 )
             },
             ratio = ratio,
@@ -240,6 +241,7 @@ fun AnimeComfortableGridItem(
                         data = coverData,
                         ratio = ratio,
                         shape = RectangleShape, // Optimization: Parent clips
+                        shouldExtractColor = false,
                     )
                 },
                 ratio = ratio,
@@ -344,12 +346,7 @@ internal fun GridItemSelectable(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val uiPreferences = remember { Injekt.get<UiPreferences>() }
-    val animatedTransitions by uiPreferences.animatedTransitions().collectAsStatePref()
-    val scale by animateFloatAsState(
-        if (isSelected && animatedTransitions) 0.95f else 1f,
-        label = "selection_scale",
-    )
+    val scale = if (isSelected) 0.95f else 1f
     val shape = MaterialTheme.shapes.medium
     val borderColor = MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surface
