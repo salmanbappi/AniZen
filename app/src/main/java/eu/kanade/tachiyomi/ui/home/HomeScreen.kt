@@ -99,6 +99,7 @@ import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
+import mihon.feature.airingschedule.AiringScheduleTab
 import tachiyomi.presentation.core.i18n.stringResource
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
@@ -313,6 +314,7 @@ object HomeScreen : Screen() {
                             is HomeTab.Feed -> FeedTab
                             is HomeTab.Updates -> UpdatesTab
                             is HomeTab.History -> HistoryTab
+                            is HomeTab.Schedule -> AiringScheduleTab
                             is HomeTab.Browse -> {
                                 if (it.toExtensions) {
                                     BrowseTab.showExtension()
@@ -617,6 +619,9 @@ object HomeScreen : Screen() {
                 FeedTab::class.isInstance(tab) -> {
                     painterResource(R.drawable.ic_dynamic_feed_24dp)
                 }
+                AiringScheduleTab::class.isInstance(tab) -> {
+                    painterResource(R.drawable.ic_progress_clock_24dp)
+                }
                 else -> painterResource(R.drawable.ic_browse_filled_24dp)
             }
 
@@ -653,6 +658,7 @@ object HomeScreen : Screen() {
         data object Feed : HomeTab
         data object Updates : HomeTab
         data object History : HomeTab
+        data object Schedule : HomeTab
         data class Browse(val toExtensions: Boolean = false, val anime: Boolean = false) : HomeTab
         data class More(val toDownloads: Boolean) : HomeTab
     }

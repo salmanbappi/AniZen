@@ -76,11 +76,8 @@ data object AiringScheduleTab : Tab {
     override val options: TabOptions
         @Composable
         get() {
-            val index = currentNavigationStyle().tabs().indexOf(AiringScheduleTab)
-                .coerceAtLeast(0)
-                .toUShort()
             return TabOptions(
-                index = index,
+                index = 5u,
                 title = stringResource(MR.strings.label_schedule_short),
                 icon = rememberVectorPainter(Icons.Outlined.DateRange),
             )

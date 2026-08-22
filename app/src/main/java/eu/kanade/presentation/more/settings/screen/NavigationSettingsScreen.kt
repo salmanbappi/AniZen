@@ -560,7 +560,7 @@ class NavigationSettingsScreen(
 
     @Composable
     private fun rememberTabIcon(item: NavItem): androidx.compose.ui.graphics.painter.Painter {
-        return if (item == NavItem.FEED) {
+        return if (item == NavItem.FEED || item == NavItem.SCHEDULE) {
             painterResource(item.staticIconRes)
         } else {
             rememberAnimatedVectorPainter(
