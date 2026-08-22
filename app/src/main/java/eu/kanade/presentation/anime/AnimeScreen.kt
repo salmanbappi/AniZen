@@ -1409,6 +1409,28 @@ private fun EpisodeItemWrapper(
                     item.fileSize = fileSizeAsync
                 }
             }
+            val onLongClickMemo = remember(item.id, item.selected, onEpisodeSelected) {
+                { onEpisodeSelected(item, !item.selected, true, true) }
+            }
+            val onClickMemo = remember(item.id, item.selected, isAnyEpisodeSelected, onEpisodeClicked, onEpisodeSelected) {
+                {
+                    onEpisodeItemClick(
+                        episodeItem = item,
+                        isAnyEpisodeSelected = isAnyEpisodeSelected,
+                        onToggleSelection = { onEpisodeSelected(item, !item.selected, true, false) },
+                        onEpisodeClicked = onEpisodeClicked,
+                    )
+                }
+            }
+            val onDownloadClickMemo = remember(item.id, onDownloadEpisode) {
+                if (onDownloadEpisode != null) {
+                    { action: EpisodeDownloadAction -> onDownloadEpisode(listOf(item), action) }
+                } else null
+            }
+            val onEpisodeSwipeMemo = remember(item.id, onEpisodeSwipe) {
+                { action: LibraryPreferences.EpisodeSwipeAction -> onEpisodeSwipe(item, action) }
+            }
+
             AnimeEpisodeListItem(
                 title = if (anime.displayMode == Anime.EPISODE_DISPLAY_NUMBER) {
                     stringResource(
@@ -1438,25 +1460,10 @@ private fun EpisodeItemWrapper(
                 downloadProgressProvider = { item.downloadProgress },
                 episodeSwipeStartAction = episodeSwipeStartAction,
                 episodeSwipeEndAction = episodeSwipeEndAction,
-                onLongClick = {
-                    onEpisodeSelected(item, !item.selected, true, true)
-                },
-                onClick = {
-                    onEpisodeItemClick(
-                        episodeItem = item,
-                        isAnyEpisodeSelected = isAnyEpisodeSelected,
-                        onToggleSelection = { onEpisodeSelected(item, !item.selected, true, false) },
-                        onEpisodeClicked = onEpisodeClicked,
-                    )
-                },
-                onDownloadClick = if (onDownloadEpisode != null) {
-                    { onDownloadEpisode(listOf(item), it) }
-                } else {
-                    null
-                },
-                onEpisodeSwipe = {
-                    onEpisodeSwipe(item, it)
-                },
+                onLongClick = onLongClickMemo,
+                onClick = onClickMemo,
+                onDownloadClick = onDownloadClickMemo,
+                onEpisodeSwipe = onEpisodeSwipeMemo,
                 fileSize = fileSizeAsync,
             )
         }
