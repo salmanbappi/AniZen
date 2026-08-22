@@ -1710,6 +1710,7 @@
     <string name="cd_schedule_settings">Schedule settings</string>
     <string name="schedule_error_title">Unable to load schedule</string>
     <string name="notification_episode_aired">Episode %1$s has aired!</string>
+    <string name="cd_schedule_filter_library">Filter by anime in library</string>
 </resources>
 
 

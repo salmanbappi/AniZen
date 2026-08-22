@@ -52,7 +52,15 @@ class AiringScheduleScreenModel(
                 val sourcesByTitle = libraryAnime
                     .groupBy({ it.anime.title.trim().lowercase() }, { it.anime.source.toString() })
                     .mapValues { it.value.toSet() }
-                mutableState.update { it.copy(libraryAnimeTitles = titles, librarySourcesByTitle = sourcesByTitle) }
+                val idByTitle = libraryAnime
+                    .associate { it.anime.title.trim().lowercase() to it.anime.id }
+                mutableState.update {
+                    it.copy(
+                        libraryAnimeTitles = titles,
+                        librarySourcesByTitle = sourcesByTitle,
+                        libraryAnimeIdByTitle = idByTitle,
+                    )
+                }
                 if (allEntries.isNotEmpty()) {
                     applyFilters()
                 }
@@ -251,11 +259,22 @@ class AiringScheduleScreenModel(
         entries: List<AiringScheduleEntry>,
         showAdult: Boolean,
         showOnlyFavorites: Boolean,
+        onlyLibrary: Boolean,
         configuredSources: Set<String>,
         librarySourcesByTitle: Map<String, Set<String>>,
+        libraryTitles: Set<String>,
     ): List<AiringScheduleEntry> = entries.filter { entry ->
         // Re-apply adult-content filter in case the preference changed since last fetch.
         if (!showAdult && entry.isAdult) return@filter false
+        if (onlyLibrary) {
+            val titleMatches = listOfNotNull(
+                entry.titleUserPreferred,
+                entry.titleEnglish,
+                entry.titleRomaji,
+                entry.titleNative,
+            ).any { it.trim().lowercase() in libraryTitles }
+            if (!titleMatches) return@filter false
+        }
         // Source filters only apply when the user has configured favourite/pinned sources.
         if (configuredSources.isNotEmpty() && showOnlyFavorites) {
             val matchedSources = matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
@@ -299,13 +318,23 @@ class AiringScheduleScreenModel(
         val autoAdd = schedulePrefs.autoAddFromPinnedSources().get()
         val pinnedSources = sourcePreferences.pinnedSources().get()
         val librarySourcesByTitle = mutableState.value.librarySourcesByTitle
+        val libraryTitles = mutableState.value.libraryAnimeTitles
+        val onlyLibrary = mutableState.value.onlyLibrary
         val manualDelayMinutes = computeManualDelayMinutes()
         // Source filters should apply for either favourite or pinned sources — a user who
         // only pins sources from Browse (without also marking them "favourite" here) still
         // expects "show only my sources" to work.
         val configuredSources = favoriteIds + pinnedSources
 
-        val filtered = filterEntries(entries, showAdult, showOnlyFavorites, configuredSources, librarySourcesByTitle)
+        val filtered = filterEntries(
+            entries = entries,
+            showAdult = showAdult,
+            showOnlyFavorites = showOnlyFavorites,
+            onlyLibrary = onlyLibrary,
+            configuredSources = configuredSources,
+            librarySourcesByTitle = librarySourcesByTitle,
+            libraryTitles = libraryTitles,
+        )
         val grouped = groupByDelayAdjustedDay(
             entries = filtered,
             configuredSources = configuredSources,
@@ -333,6 +362,11 @@ class AiringScheduleScreenModel(
                 notifySeriesMediaIds = schedulePrefs.notifySeriesMediaIds().get(),
             )
         }
+    }
+
+    fun toggleLibraryOnly() {
+        mutableState.update { it.copy(onlyLibrary = !it.onlyLibrary) }
+        applyFilters()
     }
 
     /** Determines the current bell state for a given schedule entry. */
@@ -415,5 +449,7 @@ class AiringScheduleScreenModel(
         val notifySeriesMediaIds: Set<String> = emptySet(),
         val libraryAnimeTitles: Set<String> = emptySet(),
         val librarySourcesByTitle: Map<String, Set<String>> = emptyMap(),
+        val libraryAnimeIdByTitle: Map<String, Long> = emptyMap(),
+        val onlyLibrary: Boolean = false,
     )
 }

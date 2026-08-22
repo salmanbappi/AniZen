@@ -15,6 +15,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
@@ -50,6 +52,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.more.settings.screen.SettingsScheduleScreen
 import eu.kanade.presentation.util.Tab
+import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.coroutines.launch
 import mihon.feature.airingschedule.components.BellNotifyState
@@ -127,6 +130,13 @@ data object AiringScheduleTab : Tab {
                         }
                     },
                     actions = {
+                        IconButton(onClick = { screenModel.toggleLibraryOnly() }) {
+                            Icon(
+                                imageVector = if (state.onlyLibrary) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = stringResource(MR.strings.cd_schedule_filter_library),
+                                tint = if (state.onlyLibrary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                         IconButton(onClick = { screenModel.loadSchedule(forceRefresh = true) }) {
                             Icon(Icons.Outlined.Refresh, contentDescription = stringResource(MR.strings.cd_refresh_schedule))
                         }
@@ -169,6 +179,8 @@ data object AiringScheduleTab : Tab {
                             pinnedSourceIds = state.pinnedSourceIds,
                             autoAddFromPinnedSources = state.autoAddFromPinnedSources,
                             libraryAnimeTitles = state.libraryAnimeTitles,
+                            libraryAnimeIdByTitle = state.libraryAnimeIdByTitle,
+                            onOpenAnime = { animeId -> navigator.push(AnimeScreen(animeId)) },
                             onSearchClick = { title ->
                                 navigator.push(
                                     GlobalSearchScreen(
@@ -270,6 +282,8 @@ private fun ScheduleDayContent(
     pinnedSourceIds: Set<String>,
     autoAddFromPinnedSources: Boolean,
     libraryAnimeTitles: Set<String>,
+    libraryAnimeIdByTitle: Map<String, Long>,
+    onOpenAnime: (Long) -> Unit,
     onSearchClick: (String) -> Unit,
     onAddToLibraryClick: (String) -> Unit,
     notifyOnceMediaIds: Set<String>,
@@ -303,7 +317,15 @@ private fun ScheduleDayContent(
                 mediaKey in notifyOnceMediaIds -> BellNotifyState.ONCE
                 else -> BellNotifyState.NONE
             }
-            val isInLibrary = remember(entry.scheduleId, libraryAnimeTitles) {
+            val matchedAnimeId = remember(entry.scheduleId, libraryAnimeIdByTitle) {
+                listOfNotNull(
+                    entry.titleUserPreferred,
+                    entry.titleEnglish,
+                    entry.titleRomaji,
+                    entry.titleNative,
+                ).firstNotNullOfOrNull { libraryAnimeIdByTitle[it.trim().lowercase()] }
+            }
+            val isInLibrary = matchedAnimeId != null || remember(entry.scheduleId, libraryAnimeTitles) {
                 entry.titleUserPreferred.trim().lowercase() in libraryAnimeTitles ||
                     entry.titleEnglish?.trim()?.lowercase() in libraryAnimeTitles ||
                     entry.titleRomaji?.trim()?.lowercase() in libraryAnimeTitles ||
@@ -320,8 +342,20 @@ private fun ScheduleDayContent(
                 isInLibrary = isInLibrary,
                 notifyState = notifyState,
                 currentTimeEpochSecond = currentEpochSecond,
-                onSearchClick = onSearchClick,
-                onAddToLibraryClick = onAddToLibraryClick,
+                onSearchClick = { title ->
+                    if (matchedAnimeId != null) {
+                        onOpenAnime(matchedAnimeId)
+                    } else {
+                        onSearchClick(title)
+                    }
+                },
+                onAddToLibraryClick = { title ->
+                    if (matchedAnimeId != null) {
+                        onOpenAnime(matchedAnimeId)
+                    } else {
+                        onAddToLibraryClick(title)
+                    }
+                },
                 onToggleNotifyOnce = { onToggleNotifyOnce(entry) },
                 onToggleNotifySeries = { onToggleNotifySeries(entry) },
             )
