@@ -362,6 +362,7 @@ private fun ExtensionItem(
     onClickItemSecondaryAction: (Extension) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("ExtensionItem")
     val (extension, installStep) = item
     BaseBrowseItem(
         modifier = modifier,
@@ -381,7 +382,7 @@ private fun ExtensionItem(
                     )
                 }
 
-                val padding by animateDpAsState(targetValue = if (idle) 0.dp else 8.dp)
+                val padding = if (idle) 0.dp else 8.dp
                 ExtensionIcon(
                     extension = extension,
                     modifier = Modifier

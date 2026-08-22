@@ -347,6 +347,8 @@ class PlayerViewModel @JvmOverloads constructor(
     val videoAspectOverride = _videoAspectOverride.asStateFlow()
 
     val isSeekingUI = MutableStateFlow(false)
+    private var pendingSeekTarget: Float? = null
+    private var pendingSeekTimeMs: Long = 0L
 
     private var hasTriggeredWatching = false
     private var timerJob: Job? = null
@@ -906,6 +908,16 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     fun updatePlayBackPos(pos: Float) {
+        val target = pendingSeekTarget
+        if (target != null) {
+            val elapsed = System.currentTimeMillis() - pendingSeekTimeMs
+            if (kotlin.math.abs(pos - target) <= 2.0f || elapsed > 1500L) {
+                pendingSeekTarget = null
+            } else {
+                return
+            }
+        }
+
         onSecondReached(pos.toInt(), duration.value.toInt())
         _pos.update { pos }
         
@@ -1112,11 +1124,20 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     fun seekBy(offset: Int, precise: Boolean = false) {
+        val current = _pos.value
+        val maxDuration = (activity.player.duration ?: 0).toFloat()
+        val target = (current + offset).coerceIn(0f, maxDuration)
+        pendingSeekTarget = target
+        pendingSeekTimeMs = System.currentTimeMillis()
+        _pos.update { target }
         MPVLib.command(arrayOf("seek", offset.toString(), if (precise) "relative+exact" else "relative"))
     }
 
     fun seekTo(position: Int, precise: Boolean = true) {
         if (position !in 0..(activity.player.duration ?: 0)) return
+        pendingSeekTarget = position.toFloat()
+        pendingSeekTimeMs = System.currentTimeMillis()
+        _pos.update { position.toFloat() }
         MPVLib.command(arrayOf("seek", position.toString(), if (precise) "absolute" else "absolute+keyframes"))
     }
 

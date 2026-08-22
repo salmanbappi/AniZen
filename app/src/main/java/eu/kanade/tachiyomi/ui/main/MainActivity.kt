@@ -215,6 +215,17 @@ class MainActivity : BaseActivity() {
                     }
                 }
 
+                LaunchedEffect(navigator) {
+                    snapshotFlow { navigator.lastItem }
+                        .collectLatest { screen ->
+                            val name = screen::class.simpleName ?: "Screen"
+                            eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.recordBreadcrumb(
+                                tag = "Nav",
+                                detail = name,
+                            )
+                        }
+                }
+
                 val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
                 CompositionLocalProvider(LocalBackPress provides navigator::pop) {
                     Scaffold(

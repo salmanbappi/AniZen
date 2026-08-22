@@ -108,6 +108,7 @@ internal fun BrowseSourceComfortableGridItem(
     usePanorama: Boolean? = null,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceComfortableGridItem")
     AnimeComfortableGridItem(
         modifier = modifier,
         title = anime.title,

@@ -262,6 +262,7 @@ data class BrowseSourceScreen(
                         FilterChip(
                             selected = isPopularSelected,
                             onClick = {
+                                eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.recordBreadcrumb("BrowseSource", "Selected Popular listing")
                                 screenModel.resetFilters()
                                 screenModel.setListing(Listing.Popular)
                             },
@@ -284,6 +285,7 @@ data class BrowseSourceScreen(
                             FilterChip(
                                 selected = isLatestSelected,
                                 onClick = {
+                                    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.recordBreadcrumb("BrowseSource", "Selected Latest listing")
                                     screenModel.resetFilters()
                                     screenModel.setListing(Listing.Latest)
                                 },

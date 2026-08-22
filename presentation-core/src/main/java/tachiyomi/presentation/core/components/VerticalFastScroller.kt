@@ -191,9 +191,15 @@ private fun ListFastScrollThumb(
 
     // ── Thumb → List ─────────────────────────────────────────────────────────
     LaunchedEffect(listState, trackHeightPx, thumbTopPadding) {
+        var lastScrolledIndex = -1
+        var lastScrolledOffset = -1
         snapshotFlow { if (isThumbDragged) thumbOffsetY else null }
             .collectLatest { y ->
-                if (y == null) return@collectLatest
+                if (y == null) {
+                    lastScrolledIndex = -1
+                    lastScrolledOffset = -1
+                    return@collectLatest
+                }
 
                 val proportion = ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
 
@@ -218,8 +224,12 @@ private fun ListFastScrollThumb(
                 
                 val targetItemOffset = (targetOffsetPx - accumulatedSize).roundToInt()
 
-                listState.scrollToItem(targetIndex, targetItemOffset)
-                scrolled.tryEmit(Unit)
+                if (targetIndex != lastScrolledIndex || abs(targetItemOffset - lastScrolledOffset) > 4) {
+                    lastScrolledIndex = targetIndex
+                    lastScrolledOffset = targetItemOffset
+                    listState.scrollToItem(targetIndex, targetItemOffset)
+                    scrolled.tryEmit(Unit)
+                }
             }
     }
 
@@ -409,9 +419,15 @@ private fun GridFastScrollThumb(
 
     // ── Thumb → Grid ─────────────────────────────────────────────────────────
     LaunchedEffect(state, trackHeightPx, thumbTopPadding, columnCount) {
+        var lastScrolledIndex = -1
+        var lastScrolledOffset = -1
         snapshotFlow { if (isThumbDragged) thumbOffsetY else null }
             .collectLatest { y ->
-                if (y == null) return@collectLatest
+                if (y == null) {
+                    lastScrolledIndex = -1
+                    lastScrolledOffset = -1
+                    return@collectLatest
+                }
                 
                 val proportion = ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
 
@@ -463,8 +479,12 @@ private fun GridFastScrollThumb(
                 
                 val targetItemOffset = (targetOffsetPx - accumulatedSize).roundToInt()
 
-                state.scrollToItem(targetIndex, targetItemOffset)
-                scrolled.tryEmit(Unit)
+                if (targetIndex != lastScrolledIndex || abs(targetItemOffset - lastScrolledOffset) > 4) {
+                    lastScrolledIndex = targetIndex
+                    lastScrolledOffset = targetItemOffset
+                    state.scrollToItem(targetIndex, targetItemOffset)
+                    scrolled.tryEmit(Unit)
+                }
             }
     }
 
