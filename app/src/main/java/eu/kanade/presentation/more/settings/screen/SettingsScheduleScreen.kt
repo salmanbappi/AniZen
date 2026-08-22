@@ -145,7 +145,7 @@ object SettingsScheduleScreen : SearchableSettings {
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         pref = schedulePreferences.showOnlyFavoriteSources(),
-                        title = "My Anime only",
+                        title = "In Library only",
                         subtitle = "When on, only shows scheduled anime that are already added to your library (matching your favorite sources if selected).",
                     ),
                 ),

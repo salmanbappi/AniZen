@@ -106,8 +106,8 @@ fun ScheduleFilterSheet(
 
             // In-Library / Favorite sources filter
             FilterSwitchRow(
-                title = "My Anime only",
-                subtitle = "Only show anime you are tracking",
+                title = "In Library only",
+                subtitle = "Only show anime added to your library",
                 checked = onlyFavorites,
                 onCheckedChange = onToggleOnlyFavorites,
             )
