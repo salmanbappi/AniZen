@@ -272,14 +272,14 @@ private fun ExtensionContent(
             }
         }
 
-        items(
+        itemsIndexed(
             items = items,
-            key = { "extension-${it.extension.pkgName}-${it.repoName}" },
-            contentType = { "extension_item" },
-        ) { item ->
+            key = { _, item -> "extension-${item.extension.pkgName}-${item.repoName}" },
+            contentType = { _, _ -> "extension_item" },
+        ) { index, item ->
             if (useContainer) {
-                val isFirst = items.first() == item
-                val isLast = items.last() == item
+                val isFirst = index == 0
+                val isLast = index == items.lastIndex
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -320,11 +320,13 @@ private fun ExtensionContent(
     if (trustState != null) {
         ExtensionTrustDialog(
             onClickConfirm = {
-                onTrustExtension(trustState!!)
+                val untrusted = trustState ?: return@ExtensionTrustDialog
+                onTrustExtension(untrusted)
                 trustState = null
             },
             onClickDismiss = {
-                onUninstallExtension(trustState!!)
+                val untrusted = trustState ?: return@ExtensionTrustDialog
+                onUninstallExtension(untrusted)
                 trustState = null
             },
             onDismissRequest = {
@@ -346,10 +348,12 @@ private fun ExtensionItem(
 ) {
     eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("ExtensionItem")
     val (extension, installStep) = item
+    val onItemClick = remember(onClickItem, extension) { { onClickItem(extension) } }
+    val onItemLongClick = remember(onLongClickItem, extension) { { onLongClickItem(extension) } }
     BaseBrowseItem(
         modifier = modifier,
-        onClickItem = { onClickItem(extension) },
-        onLongClickItem = { onLongClickItem(extension) },
+        onClickItem = onItemClick,
+        onLongClickItem = onItemLongClick,
         icon = {
             Box(
                 modifier = Modifier
