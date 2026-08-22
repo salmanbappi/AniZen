@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -218,7 +219,7 @@ class MainActivity : BaseActivity() {
                 LaunchedEffect(navigator) {
                     snapshotFlow { navigator.lastItem }
                         .collectLatest { screen ->
-                            val name = screen::class.simpleName ?: "Screen"
+                            val name = screen?.javaClass?.simpleName ?: "Screen"
                             eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.recordBreadcrumb(
                                 tag = "Nav",
                                 detail = name,

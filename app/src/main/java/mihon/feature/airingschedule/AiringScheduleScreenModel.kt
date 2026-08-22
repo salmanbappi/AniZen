@@ -23,7 +23,7 @@ import java.time.temporal.TemporalAdjusters
 import java.util.concurrent.TimeUnit
 
 import tachiyomi.domain.anime.interactor.FetchInterval
-import tachiyomi.domain.library.anime.model.LibraryAnime
+import tachiyomi.domain.library.model.LibraryAnime
 import kotlin.math.absoluteValue
 
 class AiringScheduleScreenModel(
@@ -109,10 +109,14 @@ class AiringScheduleScreenModel(
                 val update = runCatching {
                     fetchInterval.toAnimeUpdate(anime, now, Pair(0L, 0L))
                 }.getOrNull()
-                if (update != null && update.nextUpdate > 0L) {
-                    nextUpdateMs = update.nextUpdate
-                    if (update.fetchInterval > 0) {
-                        intervalDays = update.fetchInterval
+                if (update != null) {
+                    val updateNext = update.nextUpdate
+                    if (updateNext != null && updateNext > 0L) {
+                        nextUpdateMs = updateNext
+                    }
+                    val updateInterval = update.fetchInterval
+                    if (updateInterval != null && updateInterval > 0) {
+                        intervalDays = updateInterval
                     }
                 }
             }
@@ -121,7 +125,7 @@ class AiringScheduleScreenModel(
 
             val nextAirSec = nextUpdateMs / 1000L
             val intervalSec = intervalDays * 86400L
-            val currentEpCount = lib.episodesCount.toInt()
+            val currentEpCount = lib.totalEpisodes.toInt()
             val startEp = if (currentEpCount > 0) currentEpCount + 1 else 1
 
             for (cycle in 0..4) {
@@ -143,7 +147,7 @@ class AiringScheduleScreenModel(
                         format = "TV",
                         status = "RELEASING",
                         isAdult = false,
-                        genres = anime.genres.orEmpty(),
+                        genres = anime.genre.orEmpty(),
                     ),
                 )
             }
