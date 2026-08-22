@@ -104,10 +104,10 @@ fun ScheduleFilterSheet(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-            // Favorite sources filter
+            // In-Library / Favorite sources filter
             FilterSwitchRow(
-                title = stringResource(MR.strings.pref_schedule_show_only_favorites),
-                subtitle = stringResource(MR.strings.pref_schedule_show_only_favorites_summary),
+                title = "Show only library anime",
+                subtitle = "Filter out everything except anime in your library (and matching selected favorite sources)",
                 checked = onlyFavorites,
                 onCheckedChange = onToggleOnlyFavorites,
             )

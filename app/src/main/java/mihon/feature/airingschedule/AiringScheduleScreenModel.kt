@@ -262,6 +262,16 @@ class AiringScheduleScreenModel(
         return delays.values.maxOrNull()
     }
 
+    private fun isEntryInLibrary(
+        entry: AiringScheduleEntry,
+        libraryAnimeTitles: Set<String>,
+        libraryAnimeIdByTitle: Map<String, Long>,
+    ): Boolean {
+        val titleCandidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+        val candidateKeys = titleCandidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
+        return candidateKeys.any { it in libraryAnimeTitles || libraryAnimeIdByTitle.containsKey(it) }
+    }
+
     private fun filterEntries(
         entries: List<AiringScheduleEntry>,
         showAdult: Boolean,
@@ -269,18 +279,27 @@ class AiringScheduleScreenModel(
         hideAired: Boolean,
         selectedFormats: Set<String>,
         configuredSources: Set<String>,
+        libraryAnimeTitles: Set<String>,
         librarySourcesByTitle: Map<String, Set<String>>,
+        libraryAnimeIdByTitle: Map<String, Long>,
     ): List<AiringScheduleEntry> = entries.filter { entry ->
         // Re-apply adult-content filter in case the preference changed since last fetch.
         if (!showAdult && entry.isAdult) return@filter false
         if (hideAired && entry.hasAired()) return@filter false
         if (selectedFormats.isNotEmpty() && (entry.format == null || entry.format !in selectedFormats)) return@filter false
-        // Source filters only apply when the user has configured favourite/pinned sources.
-        if (configuredSources.isNotEmpty() && showOnlyFavorites) {
-            val matchedSources = matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
-            // showOnlyFavoriteSources: keep entries only when this specific anime is
-            // confirmed to be on one of the user's favourite/pinned sources.
-            if (matchedSources.isEmpty()) return@filter false
+
+        // When showOnlyFavorites is true:
+        // Filter out everything except anime in the user's library.
+        if (showOnlyFavorites) {
+            val inLibrary = isEntryInLibrary(entry, libraryAnimeTitles, libraryAnimeIdByTitle)
+            if (!inLibrary) return@filter false
+
+            // If specific favorite/pinned sources are selected in settings, filter out
+            // everything except those that are from those sources added to the library.
+            if (configuredSources.isNotEmpty()) {
+                val matchedSources = matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
+                if (matchedSources.isEmpty()) return@filter false
+            }
         }
         true
     }
@@ -317,6 +336,8 @@ class AiringScheduleScreenModel(
         val titleLang = schedulePrefs.titleLanguage().get()
         val pinnedSources = sourcePreferences.pinnedSources().get()
         val librarySourcesByTitle = mutableState.value.librarySourcesByTitle
+        val libraryAnimeTitles = mutableState.value.libraryAnimeTitles
+        val libraryAnimeIdByTitle = mutableState.value.libraryAnimeIdByTitle
         val hideAired = mutableState.value.hideAired
         val selectedFormats = mutableState.value.selectedFormats
         val manualDelayMinutes = computeManualDelayMinutes()
@@ -332,7 +353,9 @@ class AiringScheduleScreenModel(
             hideAired = hideAired,
             selectedFormats = selectedFormats,
             configuredSources = configuredSources,
+            libraryAnimeTitles = libraryAnimeTitles,
             librarySourcesByTitle = librarySourcesByTitle,
+            libraryAnimeIdByTitle = libraryAnimeIdByTitle,
         )
         val grouped = groupByDelayAdjustedDay(
             entries = filtered,
