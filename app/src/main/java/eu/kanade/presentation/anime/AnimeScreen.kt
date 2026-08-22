@@ -517,20 +517,20 @@ private fun AnimeScreenSmallImpl(
                     val isFirstItemScrolled by remember {
                         derivedStateOf { episodeListState.firstVisibleItemScrollOffset > 0 }
                     }
-                    val animatedTitleAlpha by animateFloatAsState(
+                    val animatedTitleAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Title",
                     )
-                    val animatedBgAlpha by animateFloatAsState(
+                    val animatedBgAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible || isFirstItemScrolled) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Background",
                     )
                     AnimeToolbar(
                         title = state.anime.title,
-                        titleAlphaProvider = { animatedTitleAlpha },
-                        backgroundAlphaProvider = { animatedBgAlpha },
+                        titleAlphaProvider = { animatedTitleAlphaState.value },
+                        backgroundAlphaProvider = { animatedBgAlphaState.value },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
                         onClickFilter = onFilterClicked,
@@ -1017,12 +1017,12 @@ fun AnimeScreenLargeImpl(
                     val isFirstItemScrolled by remember {
                         derivedStateOf { episodeListState.firstVisibleItemScrollOffset > 0 }
                     }
-                    val animatedTitleAlpha by animateFloatAsState(
+                    val animatedTitleAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Title",
                     )
-                    val animatedBgAlpha by animateFloatAsState(
+                    val animatedBgAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible || isFirstItemScrolled) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Background",
@@ -1030,8 +1030,8 @@ fun AnimeScreenLargeImpl(
                     AnimeToolbar(
                         modifier = Modifier.onSizeChanged { topBarHeight = it.height },
                         title = state.anime.title,
-                        titleAlphaProvider = { if (isAnySelected) 1f else animatedTitleAlpha },
-                        backgroundAlphaProvider = { animatedBgAlpha },
+                        titleAlphaProvider = { if (isAnySelected) 1f else animatedTitleAlphaState.value },
+                        backgroundAlphaProvider = { animatedBgAlphaState.value },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
                         onClickFilter = onFilterButtonClicked,

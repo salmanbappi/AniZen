@@ -101,7 +101,9 @@ fun AnimeToolbar(
                     text = if (isActionMode) actionModeCounter.toString() else title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = LocalContentColor.current.copy(alpha = if (isActionMode) 1f else titleAlphaProvider()),
+                    modifier = Modifier.graphicsLayer {
+                        alpha = if (isActionMode) 1f else titleAlphaProvider()
+                    },
                 )
             },
             navigationIcon = {

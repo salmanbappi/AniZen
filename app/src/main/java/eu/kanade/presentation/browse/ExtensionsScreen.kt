@@ -349,16 +349,13 @@ private fun ExtensionItem(
 ) {
     eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("ExtensionItem")
     val (extension, installStep) = item
-    val onItemClick = remember(onClickItem, extension) { { onClickItem(extension) } }
-    val onItemLongClick = remember(onLongClickItem, extension) { { onLongClickItem(extension) } }
-    BaseBrowseItem(
-        modifier = modifier,
-        onClickItem = onItemClick,
-        onLongClickItem = onItemLongClick,
-        icon = {
+    val onItemClick = remember(onClickItem, extension.pkgName) { { onClickItem(extension) } }
+    val onItemLongClick = remember(onLongClickItem, extension.pkgName) { { onLongClickItem(extension) } }
+
+    val iconContent: @Composable () -> Unit = remember(extension.pkgName, extension.iconUrl, installStep) {
+        {
             Box(
-                modifier = Modifier
-                    .size(40.dp),
+                modifier = Modifier.size(40.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 val idle = installStep.isCompleted()
@@ -377,8 +374,11 @@ private fun ExtensionItem(
                         .padding(padding),
                 )
             }
-        },
-        action = {
+        }
+    }
+
+    val actionContent: @Composable () -> Unit = remember(extension, installStep, onClickItemCancel, onClickItemAction, onClickItemSecondaryAction) {
+        {
             ExtensionItemActions(
                 extension = extension,
                 installStep = installStep,
@@ -386,15 +386,28 @@ private fun ExtensionItem(
                 onClickItemAction = onClickItemAction,
                 onClickItemSecondaryAction = onClickItemSecondaryAction,
             )
-        },
-    ) {
-        ExtensionItemContent(
-            extension = extension,
-            installStep = installStep,
-            repoName = item.repoName,
-            modifier = Modifier.weight(1f),
-        )
+        }
     }
+
+    val contentBlock: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(extension, installStep, item.repoName) {
+        {
+            ExtensionItemContent(
+                extension = extension,
+                installStep = installStep,
+                repoName = item.repoName,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    BaseBrowseItem(
+        modifier = modifier,
+        onClickItem = onItemClick,
+        onLongClickItem = onItemLongClick,
+        icon = iconContent,
+        action = actionContent,
+        content = contentBlock,
+    )
 }
 
 @Composable
