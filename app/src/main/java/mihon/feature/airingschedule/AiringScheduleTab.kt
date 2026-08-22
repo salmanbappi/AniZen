@@ -60,6 +60,7 @@ import tachiyomi.presentation.core.components.material.Scaffold
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.NavItem
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -104,10 +105,10 @@ data object AiringScheduleTab : Tab {
         val navigator = LocalNavigator.currentOrThrow
         val tabNavigator = LocalTabNavigator.current
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val visibleTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
-        val isTabInBottomBar = remember(visibleTabs) {
-            visibleTabs.contains(AiringScheduleTab.options.title) ||
-                visibleTabs.any { it.equals("Schedule", ignoreCase = true) || it.equals("Airing Schedule", ignoreCase = true) }
+        val bottomNavTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
+        val isTabInBottomBar = remember(bottomNavTabs) {
+            val visibleNavItems = bottomNavTabs.mapNotNull { id -> NavItem.fromId(id) }.filter { it.tab.isEnabled() }
+            visibleNavItems.any { it.tab::class == AiringScheduleTab::class }
         }
         val screenModel = rememberScreenModel { AiringScheduleScreenModel() }
         val state by screenModel.state.collectAsState()
@@ -130,7 +131,7 @@ data object AiringScheduleTab : Tab {
                             IconButton(onClick = { tabNavigator.current = MoreTab }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                    contentDescription = stringResource(MR.strings.action_back),
+                                    contentDescription = stringResource(MR.strings.action_bar_up_description),
                                 )
                             }
                         }
