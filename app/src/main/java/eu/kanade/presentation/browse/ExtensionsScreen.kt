@@ -178,25 +178,6 @@ private fun ExtensionContent(
     var trustState by remember { mutableStateOf<Extension.Untrusted?>(null) }
     val installGranted = rememberRequestPackageInstallsPermissionState(initialValue = true)
 
-    FastScrollLazyColumn(
-        contentPadding = PaddingValues(
-            start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
-            end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
-            top = contentPadding.calculateTopPadding() + 8.dp,
-            bottom = contentPadding.calculateBottomPadding() + 8.dp
-        ),
-    ) {
-        if (!installGranted && state.installer?.requiresSystemPermission == true) {
-            item(key = "extension-permissions-warning") {
-                WarningBanner(
-                    textRes = MR.strings.ext_permission_install_apps_warning,
-                    modifier = Modifier.clickable {
-                        context.launchRequestPackageInstallsPermission()
-                    },
-                )
-            }
-        }
-
     val handleItemClick: (Extension) -> Unit = remember(onInstallExtension, onOpenExtension) {
         { ext ->
             when (ext) {
@@ -235,7 +216,26 @@ private fun ExtensionContent(
         }
     }
 
-    state.items.forEach { (header, items) ->
+    FastScrollLazyColumn(
+        contentPadding = PaddingValues(
+            start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
+            end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
+            top = contentPadding.calculateTopPadding() + 8.dp,
+            bottom = contentPadding.calculateBottomPadding() + 8.dp
+        ),
+    ) {
+        if (!installGranted && state.installer?.requiresSystemPermission == true) {
+            item(key = "extension-permissions-warning") {
+                WarningBanner(
+                    textRes = MR.strings.ext_permission_install_apps_warning,
+                    modifier = Modifier.clickable {
+                        context.launchRequestPackageInstallsPermission()
+                    },
+                )
+            }
+        }
+
+        state.items.forEach { (header, items) ->
         item(
             contentType = "header",
             key = "extensionHeader-${header.hashCode()}",
