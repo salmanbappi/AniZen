@@ -534,6 +534,7 @@ object HomeScreen : Screen() {
         val tab = navItem.tab
         val tabNavigator = LocalTabNavigator.current
         val animatedTransitions by uiPreferences.animatedTransitions().collectAsStatePref()
+        val selected = tabNavigator.current.key == tab.key
         val scaleState = animateFloatAsState(
             targetValue = if (selected && animatedTransitions) 1.15f else 1f,
             animationSpec = tween(
