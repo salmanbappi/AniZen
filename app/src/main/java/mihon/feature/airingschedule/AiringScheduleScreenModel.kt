@@ -75,7 +75,6 @@ class AiringScheduleScreenModel(
                 schedulePrefs.favoriteSourceIds().changes(),
                 schedulePrefs.showAdultContent().changes(),
                 schedulePrefs.titleLanguage().changes(),
-                schedulePrefs.autoAddFromPinnedSources().changes(),
                 schedulePrefs.uploadDelayRefreshInterval().changes(),
                 schedulePrefs.customUploadDelayMinutes().changes(),
                 schedulePrefs.sourceUploadDelays().changes(),
@@ -315,7 +314,6 @@ class AiringScheduleScreenModel(
         val favoriteIds = schedulePrefs.favoriteSourceIds().get()
         val showAdult = schedulePrefs.showAdultContent().get()
         val titleLang = schedulePrefs.titleLanguage().get()
-        val autoAdd = schedulePrefs.autoAddFromPinnedSources().get()
         val pinnedSources = sourcePreferences.pinnedSources().get()
         val librarySourcesByTitle = mutableState.value.librarySourcesByTitle
         val libraryTitles = mutableState.value.libraryAnimeTitles
@@ -357,7 +355,6 @@ class AiringScheduleScreenModel(
                 manualDelayMinutes = manualDelayMinutes,
                 favoriteSourceIds = favoriteIds,
                 pinnedSourceIds = pinnedSources,
-                autoAddFromPinnedSources = autoAdd,
                 notifyOnceMediaIds = schedulePrefs.notifyOnceMediaIds().get(),
                 notifySeriesMediaIds = schedulePrefs.notifySeriesMediaIds().get(),
             )
@@ -444,7 +441,6 @@ class AiringScheduleScreenModel(
         val manualDelayMinutes: Long? = null,
         val favoriteSourceIds: Set<String> = emptySet(),
         val pinnedSourceIds: Set<String> = emptySet(),
-        val autoAddFromPinnedSources: Boolean = false,
         val notifyOnceMediaIds: Set<String> = emptySet(),
         val notifySeriesMediaIds: Set<String> = emptySet(),
         val libraryAnimeTitles: Set<String> = emptySet(),

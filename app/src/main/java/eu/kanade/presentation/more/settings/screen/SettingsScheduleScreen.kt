@@ -148,11 +148,6 @@ object SettingsScheduleScreen : SearchableSettings {
                         title = stringResource(MR.strings.pref_schedule_show_only_favorites),
                         subtitle = "Off by default. When on, only shows anime that are already in your library from one of your selected favorite/pinned sources.",
                     ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        pref = schedulePreferences.autoAddFromPinnedSources(),
-                        title = "Auto-add via pinned sources",
-                        subtitle = "When tapping the bookmark button, search only in your pinned sources (from Browse) using priority order — 1st pinned gets highest priority",
-                    ),
                 ),
             ),
             Preference.PreferenceGroup(

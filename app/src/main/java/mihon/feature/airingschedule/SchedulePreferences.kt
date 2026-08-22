@@ -80,11 +80,6 @@ class SchedulePreferences(
         "",
     )
 
-    fun autoAddFromPinnedSources() = preferenceStore.getBoolean(
-        "schedule_auto_add_from_pinned_sources",
-        false,
-    )
-
     fun scheduleAutoRefreshEnabled() = preferenceStore.getBoolean(
         "schedule_auto_refresh_enabled",
         false,

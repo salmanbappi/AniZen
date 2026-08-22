@@ -59,7 +59,6 @@ fun ScheduleAnimeCard(
     manualDelayMinutes: Long?,
     favoriteSourceIds: Set<String>,
     pinnedSourceIds: Set<String>,
-    autoAddFromPinnedSources: Boolean,
     isInLibrary: Boolean,
     notifyState: BellNotifyState,
     onSearchClick: (String) -> Unit,
@@ -140,7 +139,6 @@ fun ScheduleAnimeCard(
             ScheduleAnimeActions(
                 hasAired = hasAired,
                 isInLibrary = isInLibrary,
-                autoAddFromPinnedSources = autoAddFromPinnedSources,
                 notifyState = notifyState,
                 onSearchClick = { onSearchClick(displayTitle) },
                 onAddToLibraryClick = { onAddToLibraryClick(displayTitle) },
@@ -323,7 +321,6 @@ private fun ScheduleAnimeMetaRow(
 private fun ScheduleAnimeActions(
     hasAired: Boolean,
     isInLibrary: Boolean,
-    autoAddFromPinnedSources: Boolean,
     notifyState: BellNotifyState,
     onSearchClick: () -> Unit,
     onAddToLibraryClick: () -> Unit,
@@ -355,11 +352,7 @@ private fun ScheduleAnimeActions(
         ) {
             Icon(
                 imageVector = if (isInLibrary) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                contentDescription = when {
-                    isInLibrary -> "Already in library"
-                    autoAddFromPinnedSources -> "Add to library via pinned source"
-                    else -> "Add to library"
-                },
+                contentDescription = if (isInLibrary) "Already in library" else "Add to library",
                 modifier = Modifier.size(18.dp),
                 tint = if (isInLibrary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
