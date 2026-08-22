@@ -103,22 +103,16 @@ data object AiringScheduleTab : Tab {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val scope = rememberCoroutineScope()
-        val fromMore = isTabFromMore(NavItem.SCHEDULE.id)
-        val navigateUp: (() -> Unit)? = if (fromMore) {
-            {
-                if (navigator.lastItem == HomeScreen) {
-                    scope.launch { HomeScreen.openTab(HomeScreen.HomeTab.AnimeLib()) }
-                } else {
-                    navigator.pop()
-                }
-            }
-        } else {
-            null
+        val tabNavigator = LocalTabNavigator.current
+        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val bottomNavTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
+        val isTabInBottomBar = remember(bottomNavTabs) {
+            val visibleNavItems = bottomNavTabs.mapNotNull { id -> NavItem.fromId(id) }.filter { it.tab.isEnabled() }
+            visibleNavItems.any { it.tab::class == AiringScheduleTab::class }
         }
-
         val screenModel = rememberScreenModel { AiringScheduleScreenModel() }
         val state by screenModel.state.collectAsState()
+        val scope = rememberCoroutineScope()
         var showFilterSheet by remember { mutableStateOf(false) }
 
         val todayIndex = orderedDays.indexOf(state.selectedDay).coerceAtLeast(0)
@@ -133,8 +127,8 @@ data object AiringScheduleTab : Tab {
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        if (fromMore) {
-                            IconButton(onClick = { navigateUp?.invoke() }) {
+                        if (!isTabInBottomBar) {
+                            IconButton(onClick = { tabNavigator.current = MoreTab }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                                     contentDescription = stringResource(MR.strings.action_bar_up_description),

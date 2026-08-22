@@ -95,12 +95,14 @@ class AniChartApi {
             }
 
             runCatching {
-                val response = client.newCall(
-                    POST(
-                        API_URL,
-                        body = payload.toString().toRequestBody(jsonMime),
-                    ),
-                ).awaitSuccess().parseAs<ALMediaResponse>()
+                val response = with(json) {
+                    client.newCall(
+                        POST(
+                            API_URL,
+                            body = payload.toString().toRequestBody(jsonMime),
+                        ),
+                    ).awaitSuccess().parseAs<ALMediaResponse>()
+                }
                 response.data?.media?.id ?: 0L
             }.getOrDefault(0L)
         }
@@ -116,12 +118,14 @@ class AniChartApi {
             }
 
             runCatching {
-                val response = client.newCall(
-                    POST(
-                        API_URL,
-                        body = payload.toString().toRequestBody(jsonMime),
-                    ),
-                ).awaitSuccess().parseAs<ALMediaResponse>()
+                val response = with(json) {
+                    client.newCall(
+                        POST(
+                            API_URL,
+                            body = payload.toString().toRequestBody(jsonMime),
+                        ),
+                    ).awaitSuccess().parseAs<ALMediaResponse>()
+                }
                 val next = response.data?.media?.nextAiringEpisode
                 if (next != null) {
                     Pair(next.episode, next.airingAt)

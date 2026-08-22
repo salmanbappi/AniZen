@@ -67,7 +67,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                         matchedAnimeId = matchedAnime.anime.id
                         val episodes = getEpisodesByAnimeId.await(matchedAnime.anime.id)
                         episodes.any { ep ->
-                            ep.episodeNumber == episode.toFloat() &&
+                            ep.episodeNumber == episode.toDouble() &&
                                 (ep.seen || ep.dateFetch > 0L)
                         }
                     } else {

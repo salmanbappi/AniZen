@@ -121,7 +121,7 @@ class AiringScheduleScreenModel(
                     weekEnd = weekEnd.toLocalDate(),
                 )
                 // If cache is for the current week and was fetched within the last 12 hours, skip network fetch
-                val cacheAge = System.currentTimeMillis() - (cache.fetchedAt)
+                val cacheAge = System.currentTimeMillis() - (cache?.fetchedAt ?: 0L)
                 if (isCacheForCurrentWeek && cacheAge < TimeUnit.HOURS.toMillis(12)) {
                     rescheduleSeriesAlarms()
                     return@launch

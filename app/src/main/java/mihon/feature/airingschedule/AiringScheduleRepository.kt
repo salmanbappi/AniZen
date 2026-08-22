@@ -80,8 +80,7 @@ class AiringScheduleRepository {
                 if (e.code !in RETRYABLE_HTTP_CODES) throw e
                 attempt++
                 if (attempt < MAX_RETRIES) {
-                    val delayMs = getRetryDelay(e, attempt)
-                    delay(delayMs)
+                    delay(backoffDelayMs(attempt))
                 }
             } catch (e: IOException) {
                 lastError = e
@@ -95,15 +94,6 @@ class AiringScheduleRepository {
             }
         }
         throw lastError ?: IOException("Failed to fetch airing schedule")
-    }
-
-    private fun getRetryDelay(e: HttpException, attempt: Int): Long {
-        val retryAfterHeader = e.response.header("Retry-After")
-        val retryAfterSeconds = retryAfterHeader?.toLongOrNull()
-        if (retryAfterSeconds != null && retryAfterSeconds > 0) {
-            return min(retryAfterSeconds * 1000L, MAX_DELAY_MS)
-        }
-        return backoffDelayMs(attempt)
     }
 
     private fun backoffDelayMs(attempt: Int): Long {

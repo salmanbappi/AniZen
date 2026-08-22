@@ -258,7 +258,7 @@ class LibraryUpdateNotifier(
 
                         matchedEntries.forEach { entry ->
                             episodes.forEach { ep ->
-                                if (ep.episodeNumber == entry.episode.toFloat()) {
+                                if (ep.episodeNumber == entry.episode.toDouble()) {
                                     mihon.feature.airingschedule.notification.ScheduleNotifications.dismissNotification(
                                         context,
                                         entry.mediaId,
