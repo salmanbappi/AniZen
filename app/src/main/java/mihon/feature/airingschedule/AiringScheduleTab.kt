@@ -57,7 +57,14 @@ import mihon.feature.airingschedule.components.ScheduleAnimeCard
 import mihon.feature.airingschedule.components.ScheduleFilterSheet
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.tachiyomi.ui.more.MoreTab
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
 import java.time.DayOfWeek
@@ -95,6 +102,13 @@ data object AiringScheduleTab : Tab {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val tabNavigator = LocalTabNavigator.current
+        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val visibleTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
+        val isTabInBottomBar = remember(visibleTabs) {
+            visibleTabs.contains(AiringScheduleTab.options.title) ||
+                visibleTabs.any { it.equals("Schedule", ignoreCase = true) || it.equals("Airing Schedule", ignoreCase = true) }
+        }
         val screenModel = rememberScreenModel { AiringScheduleScreenModel() }
         val state by screenModel.state.collectAsState()
         val scope = rememberCoroutineScope()
@@ -111,6 +125,16 @@ data object AiringScheduleTab : Tab {
             contentWindowInsets = WindowInsets(0),
             topBar = {
                 TopAppBar(
+                    navigationIcon = {
+                        if (!isTabInBottomBar) {
+                            IconButton(onClick = { tabNavigator.current = MoreTab }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                    contentDescription = stringResource(MR.strings.action_back),
+                                )
+                            }
+                        }
+                    },
                     title = {
                         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                             Text(

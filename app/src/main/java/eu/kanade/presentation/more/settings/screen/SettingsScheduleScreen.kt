@@ -163,12 +163,13 @@ object SettingsScheduleScreen : SearchableSettings {
                         title = "Refresh interval",
                         subtitle = "How often to re-check and continuously refine the learned upload delay per source using a running average",
                         entries = intervalOptions,
+                        enabled = uploadDelayEnabled,
                     ),
                     Preference.PreferenceItem.EditTextPreference(
                         pref = schedulePreferences.customUploadDelayMinutes(),
                         title = "Custom delay (minutes)",
                         subtitle = "Only used when Refresh interval is set to Custom. A fixed number of minutes added to the official air time — shifts the expected upload time and countdown shown for every episode, in place of the auto-learned delay. Negative values mean early.",
-                        enabled = uploadDelayInterval == SchedulePreferences.UploadDelayInterval.CUSTOM,
+                        enabled = uploadDelayEnabled && uploadDelayInterval == SchedulePreferences.UploadDelayInterval.CUSTOM,
                         onValueChanged = { it.trim().toLongOrNull()?.let { minutes -> minutes in -24 * 60..24 * 60 } ?: false },
                     ),
                     Preference.PreferenceItem.InfoPreference(
