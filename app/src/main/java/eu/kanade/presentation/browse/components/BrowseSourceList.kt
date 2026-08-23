@@ -17,6 +17,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.library.components.AnimeListItem
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.domain.anime.model.Anime
@@ -30,7 +31,7 @@ fun BrowseSourceList(
     contentPadding: PaddingValues,
     onAnimeClick: (Anime, Int) -> Unit,
     onAnimeLongClick: (Anime, Int) -> Unit,
-    selection: List<Anime>,
+    selection: ImmutableList<Anime>,
     favoriteIds: ImmutableSet<Long>,
     onBatchIncrement: (Int) -> Unit = {},
     usePanorama: Boolean = false,

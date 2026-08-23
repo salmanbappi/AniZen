@@ -85,8 +85,7 @@ enum class AnimeCover(val ratio: Float) {
         // KMK <--
     ) {
         val context = LocalContext.current
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val animatedTransitions by uiPreferences.animatedTransitions().collectAsStatePref()
+        val animatedTransitions = remember { Injekt.get<UiPreferences>().animatedTransitions().get() }
         
         var state by remember(data) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
         val isSuccess = state is AsyncImagePainter.State.Success
@@ -216,39 +215,23 @@ enum class AnimeCover(val ratio: Float) {
 
         @Composable
         fun getRatio(animeId: Long): Float {
-            val uiPreferences = remember { Injekt.get<UiPreferences>() }
-            val usePanorama by uiPreferences.panoramaCover().collectAsStatePref()
-            
+            val usePanorama = remember { Injekt.get<UiPreferences>().panoramaCover().get() }
             if (!usePanorama) return Book.ratio
 
-            val ratio by androidx.compose.runtime.produceState(
-                initialValue = CoverColorObserver.ratios.value[animeId] ?: Book.ratio,
-                animeId,
-            ) {
-                CoverColorObserver.ratios
-                    .map { it[animeId] ?: Book.ratio }
-                    .distinctUntilChanged()
-                    .collect { value = it }
+            return remember(animeId) {
+                CoverColorObserver.ratios.value[animeId] ?: Book.ratio
             }
-            return ratio
         }
 
         @Composable
         fun getEntry(animeId: Long, usePanoramaOverride: Boolean? = null): Pair<AnimeCover, Float> {
-            val uiPreferences = remember { Injekt.get<UiPreferences>() }
-            val globalUsePanorama by uiPreferences.panoramaCover().collectAsStatePref()
+            val globalUsePanorama = remember { Injekt.get<UiPreferences>().panoramaCover().get() }
             val usePanorama = usePanoramaOverride ?: globalUsePanorama
             
             if (!usePanorama) return Book to Book.ratio
 
-            val ratio by androidx.compose.runtime.produceState(
-                initialValue = CoverColorObserver.ratios.value[animeId] ?: Book.ratio,
-                animeId,
-            ) {
-                CoverColorObserver.ratios
-                    .map { it[animeId] ?: Book.ratio }
-                    .distinctUntilChanged()
-                    .collect { value = it }
+            val ratio = remember(animeId) {
+                CoverColorObserver.ratios.value[animeId] ?: Book.ratio
             }
 
             return remember(ratio) {

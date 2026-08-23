@@ -1,9 +1,11 @@
 package eu.kanade.tachiyomi.extension.model
 
 import android.graphics.drawable.Drawable
+import androidx.compose.runtime.Immutable
 import eu.kanade.tachiyomi.source.Source
 import tachiyomi.domain.source.model.StubSource
 
+@Immutable
 sealed class Extension {
 
     abstract val name: String
@@ -16,6 +18,7 @@ sealed class Extension {
     abstract val isTorrent: Boolean
     abstract val repoUrl: String?
 
+    @Immutable
     data class Installed(
         override val name: String,
         override val pkgName: String,
@@ -36,6 +39,7 @@ sealed class Extension {
         val author: String? = null,
     ) : Extension()
 
+    @Immutable
     data class Available(
         override val name: String,
         override val pkgName: String,
@@ -52,6 +56,7 @@ sealed class Extension {
         val author: String? = null,
     ) : Extension() {
 
+        @Immutable
         data class AnimeSource(
             val id: Long,
             val lang: String,
@@ -68,6 +73,7 @@ sealed class Extension {
         }
     }
 
+    @Immutable
     data class Untrusted(
         override val name: String,
         override val pkgName: String,
