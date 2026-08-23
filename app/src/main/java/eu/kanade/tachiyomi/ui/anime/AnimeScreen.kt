@@ -107,8 +107,8 @@ class AnimeScreen(
     @Composable
     @Suppress("MagicNumber", "LongMethod", "CyclomaticComplexMethod")
     override fun Content() {
-        val sourcePreferences: SourcePreferences by injectLazy()
-        val uiPreferences: UiPreferences by injectLazy()
+        val sourcePreferences = remember { Injekt.get<SourcePreferences>() }
+        val uiPreferences = remember { Injekt.get<UiPreferences>() }
 
         if (!ifSourcesLoaded()) {
             LoadingScreen()
@@ -160,9 +160,6 @@ class AnimeScreen(
         }
 
         val autoExpandDescription by uiPreferences.autoExpandAnimeDescription().collectAsState()
-
-        val vibrantColors by CoverColorObserver.vibrantColors.collectAsState()
-        val vibrantColor = vibrantColors[successState.anime.id] ?: successState.anime.asAnimeCover().vibrantCoverColor
 
         val onBackClicked = remember(navigator) {
             {
