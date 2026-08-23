@@ -125,7 +125,7 @@ fun AnimeCompactGridItem(
                     data = coverData,
                     ratio = ratio,
                     shape = RectangleShape, // Optimization: Parent clips
-                    shouldExtractColor = false,
+                    shouldExtractColor = true,
                 )
             }
         }
@@ -245,7 +245,7 @@ fun AnimeComfortableGridItem(
                     data = coverData,
                     ratio = ratio,
                     shape = RectangleShape, // Optimization: Parent clips
-                    shouldExtractColor = false,
+                    shouldExtractColor = true,
                 )
             }
         }
