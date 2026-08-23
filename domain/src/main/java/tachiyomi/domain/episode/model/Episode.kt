@@ -1,7 +1,10 @@
 package tachiyomi.domain.episode.model
 
+import androidx.compose.runtime.Immutable
+
 typealias Chapter = Episode
 
+@Immutable
 data class Episode(
     val id: Long,
     val animeId: Long,

@@ -1,5 +1,6 @@
 package tachiyomi.domain.anime.model
 
+import androidx.compose.runtime.Immutable
 import tachiyomi.domain.anime.interactor.GetCustomAnimeInfo
 import uy.kohesive.injekt.injectLazy
 import java.util.concurrent.ConcurrentHashMap
@@ -7,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Contains the required data for AnimeCoverFetcher
  */
+@Immutable
 data class AnimeCover(
     val animeId: Long,
     val sourceId: Long,
