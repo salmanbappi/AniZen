@@ -170,6 +170,7 @@ fun AnimeInfoBox(
         val backdropImageRequest = remember(anime.id, anime.thumbnailUrl, anime.coverLastModified, animatedTransitions) {
             ImageRequest.Builder(context)
                 .data(anime.asAnimeCover())
+                .precision(coil3.size.Precision.INEXACT)
                 .crossfade(animatedTransitions)
                 .build()
         }
