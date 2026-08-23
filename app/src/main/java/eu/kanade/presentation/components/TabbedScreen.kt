@@ -110,7 +110,7 @@ fun TabbedScreen(
                 modifier = Modifier.fillMaxSize(),
                 state = state,
                 verticalAlignment = Alignment.Top,
-                beyondViewportPageCount = 0,
+                beyondViewportPageCount = 1,
             ) { page ->
                 tabs[page].content(
                     PaddingValues(bottom = contentPadding.calculateBottomPadding()),

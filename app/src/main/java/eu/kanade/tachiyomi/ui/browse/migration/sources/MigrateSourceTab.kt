@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.map
 import androidx.compose.ui.platform.LocalUriHandler
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
@@ -33,7 +35,10 @@ fun Screen.migrateSourceTab(): TabContent {
     val uriHandler = LocalUriHandler.current
     val navigator = LocalNavigator.currentOrThrow
     val screenModel = rememberScreenModel { MigrateSourceScreenModel() }
-    val state by screenModel.state.collectAsState()
+    val selectionMode by screenModel.state.map { it.selectionMode }.collectAsStateWithLifecycle(false)
+    val selectedSourcesCount by screenModel.state.map { it.selectedSources.size }.collectAsStateWithLifecycle(0)
+    val sortingMode by screenModel.state.map { it.sortingMode }.collectAsStateWithLifecycle(SetMigrateSorting.Mode.ALPHABETICAL)
+    val sortingDirection by screenModel.state.map { it.sortingDirection }.collectAsStateWithLifecycle(SetMigrateSorting.Direction.ASCENDING)
 
     val migrationHelpGuide = stringResource(MR.strings.migration_help_guide)
     val actionSelectAll = stringResource(MR.strings.action_select_all)
@@ -41,7 +46,7 @@ fun Screen.migrateSourceTab(): TabContent {
     
     val actionSortAlpha = stringResource(MR.strings.action_sort_alpha)
     val actionSortCount = stringResource(MR.strings.action_sort_count)
-    val sortModeTitle = if (state.sortingMode == SetMigrateSorting.Mode.ALPHABETICAL) {
+    val sortModeTitle = if (sortingMode == SetMigrateSorting.Mode.ALPHABETICAL) {
         actionSortAlpha
     } else {
         actionSortCount
@@ -49,19 +54,30 @@ fun Screen.migrateSourceTab(): TabContent {
     
     val actionAsc = stringResource(MR.strings.action_asc)
     val actionDesc = stringResource(MR.strings.action_desc)
-    val sortDirTitle = if (state.sortingDirection == SetMigrateSorting.Direction.ASCENDING) {
+    val sortDirTitle = if (sortingDirection == SetMigrateSorting.Direction.ASCENDING) {
         actionAsc
     } else {
         actionDesc
     }
 
-    return TabContent(
-        titleRes = if (state.selectionMode) MR.strings.label_migration else MR.strings.migrate,
-            numberTitle = if (state.selectionMode) state.selectedSources.size else 0,
+    return remember(
+        selectionMode,
+        selectedSourcesCount,
+        sortingMode,
+        sortingDirection,
+        migrationHelpGuide,
+        actionSelectAll,
+        actionSelectNone,
+        sortModeTitle,
+        sortDirTitle,
+    ) {
+        TabContent(
+            titleRes = if (selectionMode) MR.strings.label_migration else MR.strings.migrate,
+            numberTitle = if (selectionMode) selectedSourcesCount else 0,
             searchEnabled = false,
             actions = persistentListOf<AppBar.AppBarAction>().builder()
                 .apply {
-                    if (state.selectionMode) {
+                    if (selectionMode) {
                         add(
                             AppBar.Action(
                                 title = actionSelectAll,
@@ -80,7 +96,7 @@ fun Screen.migrateSourceTab(): TabContent {
                         add(
                             AppBar.Action(
                                 title = sortModeTitle,
-                                icon = if (state.sortingMode == SetMigrateSorting.Mode.ALPHABETICAL) {
+                                icon = if (sortingMode == SetMigrateSorting.Mode.ALPHABETICAL) {
                                     Icons.Outlined.SortByAlpha
                                 } else {
                                     Icons.Outlined.Numbers
@@ -91,7 +107,7 @@ fun Screen.migrateSourceTab(): TabContent {
                         add(
                             AppBar.Action(
                                 title = sortDirTitle,
-                                icon = if (state.sortingDirection == SetMigrateSorting.Direction.ASCENDING) {
+                                icon = if (sortingDirection == SetMigrateSorting.Direction.ASCENDING) {
                                     Icons.Outlined.ArrowUpward
                                 } else {
                                     Icons.Outlined.ArrowDownward
@@ -113,6 +129,7 @@ fun Screen.migrateSourceTab(): TabContent {
                 .build(),
             cancelAction = screenModel::selectNone,
             content = { contentPadding, _ ->
+                val state by screenModel.state.collectAsStateWithLifecycle()
                 MigrateSourceScreen(
                     state = state,
                     contentPadding = contentPadding,
@@ -136,4 +153,5 @@ fun Screen.migrateSourceTab(): TabContent {
                 )
             },
         )
+    }
 }
