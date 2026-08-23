@@ -292,22 +292,27 @@ class AnimeScreenModel(
             (it.downloadState.hashCode().toLong() * 10L) + 
             (it.downloadProgress.toLong() * 100L)
         }
+        val previousHash = (this as? State.Success)?.episodesStatusHash ?: 0L
         val episodesChanged = episodes.size != this.episodes.size || 
-                             episodesStatusHash != (this as? State.Success)?.let { success -> 
-                                 success.episodes.sumOf { 
-                                     it.episode.lastModifiedAt + 
-                                     (if (it.episode.seen) 1L else 0L) + 
-                                     (if (it.selected) 2L else 0L) + 
-                                     (it.downloadState.hashCode().toLong() * 10L) + 
-                                     (it.downloadProgress.toLong() * 100L)
-                                 } 
-                             } ?: 0L ||
+                             episodesStatusHash != previousHash ||
                              episodes.firstOrNull()?.episode?.id != this.episodes.firstOrNull()?.episode?.id
 
         val processedEpisodes = if (anime === this.anime && !episodesChanged) {
             this.processedEpisodes
         } else {
             episodes.applyFilters(anime, libraryPreferences.skipDupeEpisodes().get()).toImmutableList()
+        }
+
+        val hasUnseenEpisodes = if (anime === this.anime && !episodesChanged) {
+            this.hasUnseenEpisodes
+        } else {
+            processedEpisodes.any { !it.episode.seen }
+        }
+
+        val isWatching = if (anime === this.anime && !episodesChanged) {
+            this.isWatching
+        } else {
+            processedEpisodes.any { it.episode.seen }
         }
 
         val missingEpisodeCount = if (hideMissingEpisodes) {
@@ -507,6 +512,9 @@ class AnimeScreenModel(
             anime = anime,
             episodes = episodes.toImmutableList(),
             processedEpisodes = processedEpisodes,
+            hasUnseenEpisodes = hasUnseenEpisodes,
+            isWatching = isWatching,
+            episodesStatusHash = episodesStatusHash,
             episodeListItems = episodeListItems,
             missingEpisodeCount = missingEpisodeCount,
             trackItems = trackItems.toImmutableList(),
@@ -2144,6 +2152,9 @@ class AnimeScreenModel(
             val hideMissingEpisodes: Boolean = false,
             val availableScanlators: ImmutableList<String> = persistentListOf(),
             val excludedScanlators: ImmutableSet<String> = persistentSetOf(),
+            val hasUnseenEpisodes: Boolean = true,
+            val isWatching: Boolean = false,
+            val episodesStatusHash: Long = 0L,
         ) : State {
             companion object {
                 fun create(
@@ -2164,6 +2175,15 @@ class AnimeScreenModel(
                     excludedScanlators: ImmutableSet<String> = persistentSetOf(),
                 ): Success {
                     val processedEpisodes = episodes.applyFilters(anime, skipDupeEpisodes).toImmutableList()
+                    val hasUnseenEpisodes = processedEpisodes.any { !it.episode.seen }
+                    val isWatching = processedEpisodes.any { it.episode.seen }
+                    val episodesStatusHash = episodes.sumOf { 
+                        it.episode.lastModifiedAt + 
+                        (if (it.episode.seen) 1L else 0L) + 
+                        (if (it.selected) 2L else 0L) + 
+                        (it.downloadState.hashCode().toLong() * 10L) + 
+                        (it.downloadProgress.toLong() * 100L)
+                    }
                     val missingEpisodeCount = if (hideMissingEpisodes) 0 else processedEpisodes.map { it.episode.episodeNumber }.missingEpisodesCount()
                     
                     val episodeListItems = mutableListOf<EpisodeList>()
@@ -2342,6 +2362,9 @@ class AnimeScreenModel(
                         isFromSource = isFromSource,
                         episodes = episodes.toImmutableList(),
                         processedEpisodes = processedEpisodes,
+                        hasUnseenEpisodes = hasUnseenEpisodes,
+                        isWatching = isWatching,
+                        episodesStatusHash = episodesStatusHash,
                         episodeListItems = episodeListItems.toImmutableList(),
                         missingEpisodeCount = missingEpisodeCount,
                         isRefreshingData = isRefreshingData,

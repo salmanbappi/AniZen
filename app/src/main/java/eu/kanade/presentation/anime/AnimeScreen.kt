@@ -54,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -487,8 +488,8 @@ private fun AnimeScreenSmallImpl(
                 .background(MaterialTheme.colorScheme.background),
         ) {
             val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
-            val isFABVisible = remember(state.anime.fetchType, episodes, isAnySelected) {
-                state.anime.fetchType != FetchType.Seasons && !isAnySelected && episodes.fastAny { !it.episode.seen }
+            val isFABVisible = remember(state.anime.fetchType, state.hasUnseenEpisodes, isAnySelected) {
+                state.anime.fetchType != FetchType.Seasons && !isAnySelected && state.hasUnseenEpisodes
             }
             Scaffold(
                 hazeEnabled = false,
@@ -500,11 +501,8 @@ private fun AnimeScreenSmallImpl(
                         enter = fadeIn(),
                         exit = fadeOut(),
                     ) {
-                        val isWatching = remember(state.episodes) {
-                            state.episodes.fastAny { it.episode.seen }
-                        }
                         DraggableAnimeFAB(
-                            isWatching = isWatching,
+                            isWatching = state.isWatching,
                             onContinueWatching = { onContinueWatching(null) },
                             shouldExpand = episodeListState.shouldExpandFAB(),
                         )
@@ -987,8 +985,8 @@ fun AnimeScreenLargeImpl(
                 .background(MaterialTheme.colorScheme.background),
         ) {
             val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
-            val isFABVisible = remember(state.anime.fetchType, episodes, isAnySelected) {
-                state.anime.fetchType != FetchType.Seasons && !isAnySelected && episodes.fastAny { !it.episode.seen }
+            val isFABVisible = remember(state.anime.fetchType, state.hasUnseenEpisodes, isAnySelected) {
+                state.anime.fetchType != FetchType.Seasons && !isAnySelected && state.hasUnseenEpisodes
             }
             Scaffold(
                 hazeEnabled = false,
@@ -1000,11 +998,8 @@ fun AnimeScreenLargeImpl(
                         enter = fadeIn(),
                         exit = fadeOut(),
                     ) {
-                        val isWatching = remember(state.episodes) {
-                            state.episodes.fastAny { it.episode.seen }
-                        }
                         DraggableAnimeFAB(
-                            isWatching = isWatching,
+                            isWatching = state.isWatching,
                             onContinueWatching = { onContinueWatching(null) },
                             shouldExpand = episodeListState.shouldExpandFAB(),
                         )
@@ -1730,33 +1725,19 @@ private fun DraggableAnimeFAB(
     val fabOnLeftPref = remember { uiPreferences.animeDetailsFabOnLeft() }
     val isFabOnLeft by fabOnLeftPref.collectAsStatePref()
 
-    var containerWidth by remember { mutableStateOf(0f) }
-    var fabWidth by remember { mutableStateOf(0f) }
-    var dragOffset by remember { mutableStateOf(0f) }
+    var containerWidth by remember { mutableFloatStateOf(0f) }
+    var fabWidth by remember { mutableFloatStateOf(0f) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
-    var isInitialized by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val paddingPx = remember { with(density) { 16.dp.toPx() } }
+    val paddingPx = remember(density) { with(density) { 16.dp.toPx() } }
 
-    val targetOffset = if (isFabOnLeft) {
-        0f
-    } else {
-        (containerWidth - 2 * paddingPx - fabWidth).coerceAtLeast(0f)
-    }
-
-    if (containerWidth > 0f && fabWidth > 0f) {
-        LaunchedEffect(Unit) {
-            delay(50)
-            isInitialized = true
-        }
-    }
-
-    val animatedOffset by animateFloatAsState(
-        targetValue = targetOffset + dragOffset,
-        animationSpec = if (!isInitialized || isDragging) snap() else spring(stiffness = Spring.StiffnessMediumLow),
-        label = "FAB Position"
+    val animatedDragOffset by animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = if (isDragging) snap() else spring(stiffness = Spring.StiffnessMediumLow),
+        label = "FAB Drag Offset",
     )
 
     Box(
@@ -1764,12 +1745,12 @@ private fun DraggableAnimeFAB(
             .fillMaxWidth()
             .onSizeChanged { containerWidth = it.width.toFloat() }
             .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.BottomStart
+        contentAlignment = if (isFabOnLeft) Alignment.BottomStart else Alignment.BottomEnd,
     ) {
         ExtendedFloatingActionButton(
             modifier = Modifier
                 .onSizeChanged { fabWidth = it.width.toFloat() }
-                .offset { IntOffset(x = animatedOffset.roundToInt(), y = 0) }
+                .offset { IntOffset(x = animatedDragOffset.roundToInt(), y = 0) }
                 .tvFocusHighlight(
                     shape = RoundedCornerShape(16.dp),
                     focusedScale = 1.08f,
@@ -1783,7 +1764,8 @@ private fun DraggableAnimeFAB(
                         },
                         onDragEnd = {
                             isDragging = false
-                            val threshold = (containerWidth - 2 * paddingPx - fabWidth) / 3f
+                            val maxTravel = (containerWidth - 2 * paddingPx - fabWidth).coerceAtLeast(0f)
+                            val threshold = if (maxTravel > 0f) maxTravel / 3f else 100.dp.toPx()
                             val toggled = if (isFabOnLeft) {
                                 dragOffset > threshold
                             } else {
@@ -1803,7 +1785,7 @@ private fun DraggableAnimeFAB(
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
                             dragOffset += dragAmount
-                        }
+                        },
                     )
                 },
             text = {
