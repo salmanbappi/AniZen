@@ -440,9 +440,9 @@ private fun AnimeScreenSmallImpl(
         derivedStateOf { episodeListState.firstVisibleItemIndex == 0 }
     }
 
-    val showSuggestions = sourcePreferences.relatedAnimeShowSource().collectAsState().value
-    val expandSuggestions = sourcePreferences.relatedAnimeExpand().collectAsState().value
-    val suggestionsInOverflow = sourcePreferences.relatedAnimeInOverflow().collectAsState().value
+    val showSuggestions by sourcePreferences.relatedAnimeShowSource().collectAsStatePref()
+    val expandSuggestions by sourcePreferences.relatedAnimeExpand().collectAsStatePref()
+    val suggestionsInOverflow by sourcePreferences.relatedAnimeInOverflow().collectAsStatePref()
 
     val isAnySelected by remember(episodes) {
         derivedStateOf { episodes.fastAny { it.selected } }
@@ -948,9 +948,9 @@ fun AnimeScreenLargeImpl(
         }
     }
 
-    val showSuggestions = sourcePreferences.relatedAnimeShowSource().collectAsState().value
-    val expandSuggestions = sourcePreferences.relatedAnimeExpand().collectAsState().value
-    val suggestionsInOverflow = sourcePreferences.relatedAnimeInOverflow().collectAsState().value
+    val showSuggestions by sourcePreferences.relatedAnimeShowSource().collectAsStatePref()
+    val expandSuggestions by sourcePreferences.relatedAnimeExpand().collectAsStatePref()
+    val suggestionsInOverflow by sourcePreferences.relatedAnimeInOverflow().collectAsStatePref()
 
     val isAnySelected by remember(episodes) {
         derivedStateOf { episodes.fastAny { it.selected } }
