@@ -237,6 +237,7 @@ object SettingsMainScreen : Screen() {
         if (twoPane) replace(screen) else push(screen)
     }
 
+    @androidx.compose.runtime.Immutable
     data class Item(
         val titleRes: StringResource,
         val subtitleRes: StringResource? = null,

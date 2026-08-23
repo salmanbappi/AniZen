@@ -14,6 +14,11 @@ import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -104,7 +109,7 @@ class ExtensionsScreenModel(
                 val (_updates, _installed, _available, _untrusted) = extensions
                 val searchQuery = query ?: ""
 
-                val itemsGroups: ItemGroups = mutableMapOf()
+                val itemsGroups = mutableMapOf<ExtensionUiModel.Header, ImmutableList<ExtensionUiModel.Item>>()
 
                 val updates = _updates
                     .filter { !nsfwOnly || it.isNsfw }
@@ -112,6 +117,7 @@ class ExtensionsScreenModel(
                     .map(
                         extensionMapper(downloads),
                     )
+                    .toImmutableList()
                 if (updates.isNotEmpty()) {
                     itemsGroups[ExtensionUiModel.Header.Resource(MR.strings.ext_updates_pending)] = updates
                 }
@@ -129,7 +135,7 @@ class ExtensionsScreenModel(
                         extensionMapper(downloads),
                     )
                 if (installed.isNotEmpty() || untrusted.isNotEmpty()) {
-                    itemsGroups[ExtensionUiModel.Header.Resource(MR.strings.ext_installed)] = installed + untrusted
+                    itemsGroups[ExtensionUiModel.Header.Resource(MR.strings.ext_installed)] = (installed + untrusted).toImmutableList()
                 }
 
                 val languagesWithExtensions = _available
@@ -140,14 +146,14 @@ class ExtensionsScreenModel(
                     .map { (lang, exts) ->
                         ExtensionUiModel.Header.Text(
                             LocaleHelper.getSourceDisplayName(lang, context),
-                        ) to exts.map(extensionMapper(downloads))
+                        ) to exts.map(extensionMapper(downloads)).toImmutableList()
                     }
 
                 if (languagesWithExtensions.isNotEmpty()) {
                     itemsGroups.putAll(languagesWithExtensions)
                 }
 
-                itemsGroups
+                itemsGroups.toImmutableMap()
             }
                 .collectLatest {
                     mutableState.update { state ->
@@ -245,7 +251,7 @@ class ExtensionsScreenModel(
     data class State(
         val isLoading: Boolean = true,
         val isRefreshing: Boolean = false,
-        val items: ItemGroups = mutableMapOf(),
+        val items: ItemGroups = persistentMapOf(),
         val updates: Int = 0,
         val installer: BasePreferences.ExtensionInstaller? = null,
         val searchQuery: String? = null,
@@ -255,13 +261,16 @@ class ExtensionsScreenModel(
     }
 }
 
-typealias ItemGroups = MutableMap<ExtensionUiModel.Header, List<ExtensionUiModel.Item>>
+typealias ItemGroups = ImmutableMap<ExtensionUiModel.Header, ImmutableList<ExtensionUiModel.Item>>
 
+@androidx.compose.runtime.Immutable
 object ExtensionUiModel {
+    @androidx.compose.runtime.Immutable
     sealed interface Header {
         data class Resource(val textRes: StringResource) : Header
         data class Text(val text: String) : Header
     }
+    @androidx.compose.runtime.Immutable
     data class Item(
         val extension: Extension,
         val installStep: InstallStep,

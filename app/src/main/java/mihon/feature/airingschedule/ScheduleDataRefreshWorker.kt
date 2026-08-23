@@ -127,15 +127,20 @@ class ScheduleDataRefreshWorker(
 
         private const val INPUT_FORCE_REFRESH = "force_refresh"
 
+        private var inMemoryCache: ScheduleCacheData? = null
+
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
         }
 
         suspend fun readCache(context: Context): ScheduleCacheData? = withContext(Dispatchers.IO) {
+            inMemoryCache?.let { return@withContext it }
             try {
                 val file = context.cacheFile()
                 if (!file.exists()) return@withContext null
-                cacheJson.decodeFromString(ScheduleCacheData.serializer(), file.readText())
+                val data = cacheJson.decodeFromString(ScheduleCacheData.serializer(), file.readText())
+                inMemoryCache = data
+                data
             } catch (_: Exception) {
                 null
             }
@@ -155,6 +160,7 @@ class ScheduleDataRefreshWorker(
                         weekStartEpoch = weekStartEpoch,
                         entries = entries,
                     )
+                    inMemoryCache = cacheData
                     val file = context.cacheFile()
                     file.parentFile?.mkdirs()
                     file.writeText(cacheJson.encodeToString(ScheduleCacheData.serializer(), cacheData))

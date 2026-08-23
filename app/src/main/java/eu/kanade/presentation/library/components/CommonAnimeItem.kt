@@ -113,8 +113,8 @@ fun AnimeCompactGridItem(
         modifier = modifier,
     ) {
         val (entry, ratio) = AnimeCover.getEntry(coverData.animeId, usePanoramaOverride = usePanorama)
-        AnimeGridCover(
-            cover = {
+        val coverBlock: @Composable BoxScope.() -> Unit = remember(entry, coverData, ratio, isSelected, coverAlpha) {
+            {
                 entry(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -125,12 +125,12 @@ fun AnimeCompactGridItem(
                     data = coverData,
                     ratio = ratio,
                     shape = RectangleShape, // Optimization: Parent clips
+                    shouldExtractColor = false,
                 )
-            },
-            ratio = ratio,
-            badgesStart = coverBadgeStart,
-            badgesEnd = coverBadgeEnd,
-            content = {
+            }
+        }
+        val contentBlock: @Composable BoxScope.() -> Unit = remember(title, onClickContinueWatching) {
+            {
                 if (title != null) {
                     CoverTextOverlay(
                         title = title,
@@ -146,7 +146,14 @@ fun AnimeCompactGridItem(
                             .align(Alignment.BottomEnd),
                     )
                 }
-            },
+            }
+        }
+        AnimeGridCover(
+            cover = coverBlock,
+            ratio = ratio,
+            badgesStart = coverBadgeStart,
+            badgesEnd = coverBadgeEnd,
+            content = contentBlock,
         )
     }
 }
@@ -181,12 +188,11 @@ internal fun BoxScope.CoverTextOverlay(
         GridItemTitle(
             modifier = Modifier
                 .weight(1f)
-                .padding(8.dp),
+                .padding(all = 4.dp),
             title = title,
-            style = MaterialTheme.typography.titleSmall.copy(
-                color = Color.White,
-            ),
+            style = MaterialTheme.typography.bodyMedium,
             minLines = 1,
+            maxLines = 2,
         )
         if (onClickContinueWatching != null) {
             ContinueWatchingButton(
@@ -194,8 +200,8 @@ internal fun BoxScope.CoverTextOverlay(
                 iconSize = ContinueWatchingButtonIconSizeSmall,
                 onClick = onClickContinueWatching,
                 modifier = Modifier.padding(
-                    end = ContinueWatchingButtonGridPadding,
                     bottom = ContinueWatchingButtonGridPadding,
+                    end = ContinueWatchingButtonGridPadding,
                 ),
             )
         }
@@ -207,16 +213,16 @@ internal fun BoxScope.CoverTextOverlay(
  */
 @Composable
 fun AnimeComfortableGridItem(
-    isSelected: Boolean = false,
-    title: String,
+    coverData: EntryCoverModel,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    isSelected: Boolean = false,
+    title: String = "",
     titleMaxLines: Int = 2,
-    coverData: EntryCoverModel,
     coverAlpha: Float = 1f,
-    coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
-    coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
     onClickContinueWatching: (() -> Unit)? = null,
+    coverBadgeStart: @Composable (RowScope.() -> Unit)? = null,
+    coverBadgeEnd: @Composable (RowScope.() -> Unit)? = null,
     usePanorama: Boolean? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -227,36 +233,43 @@ fun AnimeComfortableGridItem(
         modifier = modifier,
     ) {
         val (entry, ratio) = AnimeCover.getEntry(coverData.animeId, usePanoramaOverride = usePanorama)
+        val coverBlock: @Composable BoxScope.() -> Unit = remember(entry, coverData, ratio, isSelected, coverAlpha) {
+            {
+                entry(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
+                            this.compositingStrategy = CompositingStrategy.ModulateAlpha
+                        },
+                    data = coverData,
+                    ratio = ratio,
+                    shape = RectangleShape, // Optimization: Parent clips
+                    shouldExtractColor = false,
+                )
+            }
+        }
+        val contentBlock: @Composable BoxScope.() -> Unit = remember(onClickContinueWatching) {
+            {
+                if (onClickContinueWatching != null) {
+                    ContinueWatchingButton(
+                        size = ContinueWatchingButtonSizeLarge,
+                        iconSize = ContinueWatchingButtonIconSizeLarge,
+                        onClick = onClickContinueWatching,
+                        modifier = Modifier
+                            .padding(ContinueWatchingButtonGridPadding)
+                            .align(Alignment.BottomEnd),
+                    )
+                }
+            }
+        }
         Column {
             AnimeGridCover(
-                cover = {
-                    entry(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
-                                this.compositingStrategy = CompositingStrategy.ModulateAlpha
-                            },
-                        data = coverData,
-                        ratio = ratio,
-                        shape = RectangleShape, // Optimization: Parent clips
-                    )
-                },
+                cover = coverBlock,
                 ratio = ratio,
                 badgesStart = coverBadgeStart,
                 badgesEnd = coverBadgeEnd,
-                content = {
-                    if (onClickContinueWatching != null) {
-                        ContinueWatchingButton(
-                            size = ContinueWatchingButtonSizeLarge,
-                            iconSize = ContinueWatchingButtonIconSizeLarge,
-                            onClick = onClickContinueWatching,
-                            modifier = Modifier
-                                .padding(ContinueWatchingButtonGridPadding)
-                                .align(Alignment.BottomEnd),
-                        )
-                    }
-                },
+                content = contentBlock,
             )
             GridItemTitle(
                 modifier = Modifier.padding(4.dp),
@@ -344,12 +357,7 @@ internal fun GridItemSelectable(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val uiPreferences = remember { Injekt.get<UiPreferences>() }
-    val animatedTransitions by uiPreferences.animatedTransitions().collectAsStatePref()
-    val scale by animateFloatAsState(
-        if (isSelected && animatedTransitions) 0.95f else 1f,
-        label = "selection_scale",
-    )
+    val scale = if (isSelected) 0.95f else 1f
     val shape = MaterialTheme.shapes.medium
     val borderColor = MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surface

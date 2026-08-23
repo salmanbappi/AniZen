@@ -6,6 +6,7 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.util.system.networkStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -52,16 +53,16 @@ class HomeScreenModel(
         )
 
     init {
-        // Polling evaluation (cooldown enforced)
-        screenModelScope.launch {
+        // Polling evaluation (cooldown enforced, dispatched on IO to prevent main-thread jank)
+        screenModelScope.launch(Dispatchers.IO) {
             while (true) {
                 adaptiveEngine.evaluateRules()
                 delay(60000) // Every minute
             }
         }
 
-        // Real-time triggers (force bypasses cooldown for state changes)
-        screenModelScope.launch {
+        // Real-time triggers (force bypasses cooldown for state changes, dispatched on IO)
+        screenModelScope.launch(Dispatchers.IO) {
             merge(
                 context.networkStateFlow(),
                 uiPreferences.adaptiveNavEnabled().changes(),

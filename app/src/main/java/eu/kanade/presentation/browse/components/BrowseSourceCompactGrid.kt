@@ -18,6 +18,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.library.components.AnimeCompactGridItem
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.domain.anime.model.Anime
@@ -31,7 +32,7 @@ fun BrowseSourceCompactGrid(
     contentPadding: PaddingValues,
     onAnimeClick: (Anime, Int) -> Unit,
     onAnimeLongClick: (Anime, Int) -> Unit,
-    selection: List<Anime>,
+    selection: ImmutableList<Anime>,
     favoriteIds: ImmutableSet<Long>,
     onBatchIncrement: (Int) -> Unit = {},
     showTitle: Boolean = true,
@@ -55,16 +56,17 @@ fun BrowseSourceCompactGrid(
 
         items(
             count = animeList.itemCount,
-            key = { index -> "source-compact-grid-${animeList.peek(index)?.value?.id ?: "placeholder"}-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
             contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
         ) { index ->
-            val anime by animeList[index]?.collectAsState() ?: return@items
+            val animeFlow = animeList[index] ?: return@items
+            val anime = animeFlow.value
             onBatchIncrement(index)
 
-            val currentOnAnimeClick = remember(onAnimeClick, anime, index) { 
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
                 { onAnimeClick(anime, index) } 
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime, index) { 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
                 { onAnimeLongClick(anime, index) } 
             }
 
@@ -111,6 +113,10 @@ internal fun BrowseSourceCompactGridItem(
     usePanorama: Boolean? = null,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceCompactGridItem")
+    val badgeStart: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(isFavorite) {
+        { InLibraryBadge(enabled = isFavorite) }
+    }
     AnimeCompactGridItem(
         modifier = modifier,
         title = anime.title.takeIf { showTitle },
@@ -118,9 +124,7 @@ internal fun BrowseSourceCompactGridItem(
             anime.asAnimeCover().copy(isAnimeFavorite = isFavorite)
         },
         coverAlpha = if (isFavorite) CommonAnimeItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-        coverBadgeStart = {
-            InLibraryBadge(enabled = isFavorite)
-        },
+        coverBadgeStart = badgeStart,
         onLongClick = onLongClick,
         onClick = onClick,
         isSelected = isSelected,

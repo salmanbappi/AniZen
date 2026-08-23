@@ -1,7 +1,9 @@
 package tachiyomi.domain.anime.model
 
+import androidx.compose.runtime.Immutable
 import tachiyomi.domain.library.model.LibraryAnime
 
+@Immutable
 data class SeasonAnime(
     val anime: Anime,
     val totalCount: Long,

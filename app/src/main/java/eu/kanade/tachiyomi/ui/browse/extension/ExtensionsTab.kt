@@ -71,15 +71,11 @@ fun extensionsTab(
             content = { contentPadding, _ ->
                 val state by extensionsScreenModel.state.collectAsStateWithLifecycle()
                 var privateExtensionToUninstall by remember { mutableStateOf<Extension?>(null) }
-                ExtensionScreen(
-                    state = state,
-                    contentPadding = contentPadding,
-                    searchQuery = state.searchQuery,
-                    onLongClickItem = { extension ->
+
+                val onLongClickItem: (Extension) -> Unit = remember(context, extensionsScreenModel) {
+                    { extension ->
                         when (extension) {
-                            is Extension.Available -> extensionsScreenModel.installExtension(
-                                extension,
-                            )
+                            is Extension.Available -> extensionsScreenModel.installExtension(extension)
                             else -> {
                                 if (context.isPackageInstalled(extension.pkgName)) {
                                     extensionsScreenModel.uninstallExtension(extension)
@@ -88,10 +84,11 @@ fun extensionsTab(
                                 }
                             }
                         }
-                    },
-                    onClickItemCancel = extensionsScreenModel::cancelInstallUpdateExtension,
-                    onClickUpdateAll = extensionsScreenModel::updateAllExtensions,
-                    onOpenWebView = { extension ->
+                    }
+                }
+
+                val onOpenWebView: (Extension.Available) -> Unit = remember(navigator) {
+                    { extension ->
                         extension.sources.getOrNull(0)?.let {
                             navigator.push(
                                 WebViewScreen(
@@ -101,11 +98,33 @@ fun extensionsTab(
                                 ),
                             )
                         }
-                    },
+                    }
+                }
+
+                val onOpenExtension: (Extension.Installed) -> Unit = remember(navigator) {
+                    { navigator.push(ExtensionDetailsScreen(it.pkgName)) }
+                }
+
+                val onTrustExtension: (Extension.Untrusted) -> Unit = remember(extensionsScreenModel) {
+                    { extensionsScreenModel.trustExtension(it) }
+                }
+
+                val onUninstallExtension: (Extension) -> Unit = remember(extensionsScreenModel) {
+                    { extensionsScreenModel.uninstallExtension(it) }
+                }
+
+                ExtensionScreen(
+                    state = state,
+                    contentPadding = contentPadding,
+                    searchQuery = state.searchQuery,
+                    onLongClickItem = onLongClickItem,
+                    onClickItemCancel = extensionsScreenModel::cancelInstallUpdateExtension,
+                    onClickUpdateAll = extensionsScreenModel::updateAllExtensions,
+                    onOpenWebView = onOpenWebView,
                     onInstallExtension = extensionsScreenModel::installExtension,
-                    onOpenExtension = { navigator.push(ExtensionDetailsScreen(it.pkgName)) },
-                    onTrustExtension = { extensionsScreenModel.trustExtension(it) },
-                    onUninstallExtension = { extensionsScreenModel.uninstallExtension(it) },
+                    onOpenExtension = onOpenExtension,
+                    onTrustExtension = onTrustExtension,
+                    onUninstallExtension = onUninstallExtension,
                     onUpdateExtension = extensionsScreenModel::updateExtension,
                     onRefresh = extensionsScreenModel::findAvailableExtensions,
                 )

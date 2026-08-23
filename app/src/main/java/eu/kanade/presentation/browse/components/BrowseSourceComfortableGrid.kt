@@ -18,6 +18,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.library.components.AnimeComfortableGridItem
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.domain.anime.model.Anime
@@ -31,7 +32,7 @@ fun BrowseSourceComfortableGrid(
     contentPadding: PaddingValues,
     onAnimeClick: (Anime, Int) -> Unit,
     onAnimeLongClick: (Anime, Int) -> Unit,
-    selection: List<Anime>,
+    selection: ImmutableList<Anime>,
     favoriteIds: ImmutableSet<Long>,
     onBatchIncrement: (Int) -> Unit = {},
     usePanorama: Boolean? = null,
@@ -54,16 +55,17 @@ fun BrowseSourceComfortableGrid(
 
         items(
             count = animeList.itemCount,
-            key = { index -> "source-comfortable-grid-${animeList.peek(index)?.value?.id ?: "placeholder"}-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
             contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
         ) { index ->
-            val anime by animeList[index]?.collectAsState() ?: return@items
+            val animeFlow = animeList[index] ?: return@items
+            val anime = animeFlow.value
             onBatchIncrement(index)
             
-            val currentOnAnimeClick = remember(onAnimeClick, anime, index) { 
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
                 { onAnimeClick(anime, index) } 
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime, index) { 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
                 { onAnimeLongClick(anime, index) } 
             }
 
@@ -108,6 +110,10 @@ internal fun BrowseSourceComfortableGridItem(
     usePanorama: Boolean? = null,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceComfortableGridItem")
+    val badgeStart: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(isFavorite) {
+        { InLibraryBadge(enabled = isFavorite) }
+    }
     AnimeComfortableGridItem(
         modifier = modifier,
         title = anime.title,
@@ -115,9 +121,7 @@ internal fun BrowseSourceComfortableGridItem(
             anime.asAnimeCover().copy(isAnimeFavorite = isFavorite)
         },
         coverAlpha = if (isFavorite) CommonAnimeItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-        coverBadgeStart = {
-            InLibraryBadge(enabled = isFavorite)
-        },
+        coverBadgeStart = badgeStart,
         onLongClick = onLongClick,
         onClick = onClick,
         isSelected = isSelected,

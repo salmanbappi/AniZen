@@ -22,6 +22,10 @@ import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 import java.util.concurrent.TimeUnit
 
+import tachiyomi.domain.anime.interactor.FetchInterval
+import tachiyomi.domain.library.model.LibraryAnime
+import kotlin.math.absoluteValue
+
 class AiringScheduleScreenModel(
     private val repository: AiringScheduleRepository = AiringScheduleRepository(),
     private val schedulePrefs: SchedulePreferences = Injekt.get(),
@@ -29,9 +33,12 @@ class AiringScheduleScreenModel(
     private val uploadDelayTracker: UploadDelayTracker = Injekt.get(),
     private val application: Application = Injekt.get(),
     private val getLibraryAnime: GetLibraryAnime = Injekt.get(),
+    private val fetchInterval: FetchInterval = Injekt.get(),
 ) : StateScreenModel<AiringScheduleScreenModel.State>(State()) {
 
     private var allEntries: List<AiringScheduleEntry> = emptyList()
+    private var remoteEntries: List<AiringScheduleEntry> = emptyList()
+    private var libraryPredictedEntries: List<AiringScheduleEntry> = emptyList()
     private var hasLoaded = false
 
     init {
@@ -43,7 +50,7 @@ class AiringScheduleScreenModel(
     private fun observeLibrary() {
         screenModelScope.launch {
             getLibraryAnime.subscribe().collectLatest { libraryAnime ->
-                val (titles, sourcesByTitle, idByTitle) = withIOContext {
+                val (titles, sourcesByTitle, idByTitle, predicted) = withIOContext {
                     val titles = mutableSetOf<String>()
                     val sourcesByTitle = mutableMapOf<String, Set<String>>()
                     val idByTitle = mutableMapOf<String, Long>()
@@ -59,8 +66,12 @@ class AiringScheduleScreenModel(
                             idByTitle[k] = lib.anime.id
                         }
                     }
-                    Triple(titles, sourcesByTitle, idByTitle)
+                    val predicted = generateLibraryPredictedEntries(libraryAnime)
+                    LibraryObservedData(titles, sourcesByTitle, idByTitle, predicted)
                 }
+
+                libraryPredictedEntries = predicted
+                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
 
                 mutableState.update {
                     it.copy(
@@ -75,6 +86,102 @@ class AiringScheduleScreenModel(
             }
         }
     }
+
+    private suspend fun generateLibraryPredictedEntries(
+        libraryAnime: List<LibraryAnime>,
+    ): List<AiringScheduleEntry> {
+        val zone = ZoneId.systemDefault()
+        val now = ZonedDateTime.now(zone)
+        val nowMs = System.currentTimeMillis()
+        val result = mutableListOf<AiringScheduleEntry>()
+
+        for (lib in libraryAnime) {
+            val anime = lib.anime
+            if (anime.status == eu.kanade.tachiyomi.animesource.model.SAnime.COMPLETED.toLong()) continue
+            if (anime.fetchInterval == FetchInterval.MANUAL_DISABLE) continue
+
+            var nextUpdateMs = anime.nextUpdate
+            var intervalDays = if (anime.fetchInterval in 1..FetchInterval.MAX_INTERVAL) {
+                anime.fetchInterval
+            } else 7
+
+            if (nextUpdateMs <= 0L || nextUpdateMs < nowMs) {
+                val update = runCatching {
+                    fetchInterval.toAnimeUpdate(anime, now, Pair(0L, 0L))
+                }.getOrNull()
+                if (update != null) {
+                    val updateNext = update.nextUpdate
+                    if (updateNext != null && updateNext > 0L) {
+                        nextUpdateMs = updateNext
+                    }
+                    val updateInterval = update.fetchInterval
+                    if (updateInterval != null && updateInterval > 0) {
+                        intervalDays = updateInterval
+                    }
+                }
+            }
+
+            if (nextUpdateMs <= 0L) continue
+
+            val nextAirSec = nextUpdateMs / 1000L
+            val intervalSec = intervalDays * 86400L
+            val currentEpCount = lib.totalEpisodes.toInt()
+            val startEp = if (currentEpCount > 0) currentEpCount + 1 else 1
+
+            for (cycle in 0..4) {
+                val epAir = nextAirSec + (cycle * intervalSec)
+                val epNum = startEp + cycle
+                result.add(
+                    AiringScheduleEntry(
+                        scheduleId = -((anime.id * 100 + cycle).toInt().absoluteValue),
+                        airingAt = epAir,
+                        episode = epNum,
+                        mediaId = anime.id.toInt(),
+                        titleUserPreferred = anime.title,
+                        titleEnglish = null,
+                        titleRomaji = null,
+                        titleNative = null,
+                        coverImageUrl = anime.thumbnailUrl.orEmpty(),
+                        totalEpisodes = null,
+                        averageScore = null,
+                        format = "TV",
+                        status = "RELEASING",
+                        isAdult = false,
+                        genres = anime.genre.orEmpty(),
+                    ),
+                )
+            }
+        }
+        return result
+    }
+
+    private fun mergeEntries(
+        remote: List<AiringScheduleEntry>,
+        predicted: List<AiringScheduleEntry>,
+    ): List<AiringScheduleEntry> {
+        if (remote.isEmpty()) return predicted
+        if (predicted.isEmpty()) return remote
+
+        val nonDuplicatePredicted = predicted.filter { pred ->
+            val isAlreadyInRemote = remote.any { rem ->
+                val timeDiffSec = kotlin.math.abs(rem.airingAt - pred.airingAt)
+                timeDiffSec < 3 * 86400L && mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(
+                    pred.titleUserPreferred,
+                    mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(rem),
+                )
+            }
+            !isAlreadyInRemote
+        }
+
+        return (remote + nonDuplicatePredicted).sortedBy { it.airingAt }
+    }
+
+    private data class LibraryObservedData(
+        val titles: Set<String>,
+        val sourcesByTitle: Map<String, Set<String>>,
+        val idByTitle: Map<String, Long>,
+        val predicted: List<AiringScheduleEntry>,
+    )
 
     private fun observePreferences() {
         screenModelScope.launch {
@@ -113,7 +220,8 @@ class AiringScheduleScreenModel(
             val isCacheForCurrentWeek = cache != null && cache.weekStartEpoch == currentWeekStart
 
             if (cachedEntries != null && !forceRefresh) {
-                allEntries = cachedEntries
+                remoteEntries = cachedEntries
+                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
                 hasLoaded = true
                 applyFilters(
                     entries = allEntries,
@@ -127,6 +235,15 @@ class AiringScheduleScreenModel(
                     rescheduleSeriesAlarms()
                     return@launch
                 }
+            } else if (allEntries.isEmpty() && libraryPredictedEntries.isNotEmpty()) {
+                allEntries = libraryPredictedEntries
+                hasLoaded = true
+                applyFilters(
+                    entries = allEntries,
+                    delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
+                    weekStart = weekStart.toLocalDate(),
+                    weekEnd = weekEnd.toLocalDate(),
+                )
             }
 
             // 2. Fetch live data from AniList
@@ -145,7 +262,8 @@ class AiringScheduleScreenModel(
                 // Persist live fetch to disk cache
                 ScheduleDataRefreshWorker.writeCache(application, currentWeekStart, fetched)
 
-                allEntries = fetched
+                remoteEntries = fetched
+                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
                 hasLoaded = true
 
                 val delays = if (schedulePrefs.uploadDelayEnabled().get()) {
@@ -163,23 +281,24 @@ class AiringScheduleScreenModel(
                     weekEnd = weekEnd.toLocalDate(),
                 )
             } catch (e: Exception) {
-                if (allEntries.isEmpty()) {
+                if (remoteEntries.isEmpty()) {
                     val fallback = cache?.takeIf { it.weekStartEpoch == currentWeekStart }
                         ?: cache?.takeIf { it.entries.isNotEmpty() }
                     if (fallback != null) {
-                        allEntries = fallback.entries
-                        hasLoaded = true
-                        applyFilters(
-                            entries = allEntries,
-                            delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
-                            weekStart = weekStart.toLocalDate(),
-                            weekEnd = weekEnd.toLocalDate(),
-                        )
-                    } else {
-                        mutableState.update { it.copy(isLoading = false, error = e.message) }
+                        remoteEntries = fallback.entries
                     }
+                }
+                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
+                if (allEntries.isNotEmpty()) {
+                    hasLoaded = true
+                    applyFilters(
+                        entries = allEntries,
+                        delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
+                        weekStart = weekStart.toLocalDate(),
+                        weekEnd = weekEnd.toLocalDate(),
+                    )
                 } else {
-                    mutableState.update { it.copy(isLoading = false) }
+                    mutableState.update { it.copy(isLoading = false, error = e.message) }
                 }
             }
         }

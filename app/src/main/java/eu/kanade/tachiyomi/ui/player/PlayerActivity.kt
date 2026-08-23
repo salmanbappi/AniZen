@@ -304,10 +304,6 @@ class PlayerActivity : BaseActivity() {
                 viewModel.showPanel(Panels.None)
                 return@addCallback
             }
-            if (viewModel.controlsShown.value) {
-                viewModel.hideControls()
-                return@addCallback
-            }
             finish()
         }
 

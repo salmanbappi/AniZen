@@ -170,6 +170,9 @@ object HomeScreen : Screen() {
             }
         }
 
+        val behaviorMap by uiPreferences.bottomNavBehaviors().collectAsStatePref()
+        val executor = remember(context, scope, navigator) { NavActionExecutor(context, scope, navigator) }
+
         TabNavigator(
             tab = defaultTab,
             key = TAB_NAVIGATOR_KEY,
@@ -193,7 +196,7 @@ object HomeScreen : Screen() {
                             ) {
                                 for (navItem in visibleNavItems) {
                                     key(navItem.id) {
-                                        HomeNavigationRailItem(tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount)
+                                        HomeNavigationRailItem(tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
                                     }
                                 }
                             }
@@ -215,7 +218,7 @@ object HomeScreen : Screen() {
                                 ) {
                                     for (navItem in visibleNavItems) {
                                         key(navItem.id) {
-                                            HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount)
+                                            HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
                                         }
                                     }
                                 }
@@ -244,7 +247,7 @@ object HomeScreen : Screen() {
                             contentKey = { it.key },
                         ) {
                             key(it.key) {
-                                tabNavigator.saveableState(key = "currentTab", it) {
+                                tabNavigator.saveableState(key = "tab-${it.key}", it) {
                                     it.Content()
                                 }
                             }
@@ -345,17 +348,16 @@ object HomeScreen : Screen() {
         adaptiveDecision: AdaptiveDecision?,
         updatesCount: Int,
         extensionUpdatesCount: Int,
+        behaviorMap: Map<String, NavBehavior>,
+        executor: NavActionExecutor,
     ) {
         val tab = navItem.tab
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val context = LocalContext.current
-        val behaviorMap by uiPreferences.bottomNavBehaviors().collectAsStatePref()
         val behavior = remember(behaviorMap, navItem.id) { behaviorMap[navItem.id] ?: NavBehavior() }
 
         val selected = tabNavigator.current.key == tab.key
         val haptic = LocalHapticFeedback.current
-        val executor = remember(context, scope, navigator) { NavActionExecutor(context, scope, navigator) }
         
         val title = stringResource(navItem.titleRes)
 
@@ -433,18 +435,16 @@ object HomeScreen : Screen() {
         adaptiveDecision: AdaptiveDecision?,
         updatesCount: Int,
         extensionUpdatesCount: Int,
+        behaviorMap: Map<String, NavBehavior>,
+        executor: NavActionExecutor,
     ) {
         val tab = navItem.tab
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val context = LocalContext.current
-        
-        val behaviorMap by uiPreferences.bottomNavBehaviors().collectAsStatePref()
         val behavior = remember(behaviorMap, navItem.id) { behaviorMap[navItem.id] ?: NavBehavior() }
 
         val selected = tabNavigator.current.key == tab.key
         val haptic = LocalHapticFeedback.current
-        val executor = remember(context, scope, navigator) { NavActionExecutor(context, scope, navigator) }
 
         val title = stringResource(navItem.titleRes)
 
@@ -533,9 +533,9 @@ object HomeScreen : Screen() {
     ) {
         val tab = navItem.tab
         val tabNavigator = LocalTabNavigator.current
-        val animatedTransitions by uiPreferences.animatedTransitions().collectAsStatePref()
+        val animatedTransitions = remember { uiPreferences.animatedTransitions().get() }
         val selected = tabNavigator.current.key == tab.key
-        val scale by animateFloatAsState(
+        val scaleState = animateFloatAsState(
             targetValue = if (selected && animatedTransitions) 1.15f else 1f,
             animationSpec = tween(
                 durationMillis = 200,
@@ -546,8 +546,8 @@ object HomeScreen : Screen() {
 
         BadgedBox(
             modifier = Modifier.graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                scaleX = scaleState.value
+                scaleY = scaleState.value
             },
             badge = {
                 when {
@@ -584,44 +584,23 @@ object HomeScreen : Screen() {
                 }
             },
         ) {
+            val animResId = remember(tab::class) {
+                when {
+                    LibraryTab::class.isInstance(tab) -> R.drawable.anim_library_enter
+                    UpdatesTab::class.isInstance(tab) -> R.drawable.anim_updates_enter
+                    HistoryTab::class.isInstance(tab) -> R.drawable.anim_history_enter
+                    BrowseTab::class.isInstance(tab) -> R.drawable.anim_browse_enter
+                    MoreTab::class.isInstance(tab) -> R.drawable.anim_more_enter
+                    else -> null
+                }
+            }
+            val animVector = animResId?.let { AnimatedImageVector.animatedVectorResource(it) }
+            val animatedPainter = animVector?.let { rememberAnimatedVectorPainter(it, selected) }
             val iconPainter = when {
                 navItem.iconVector != null -> null
-                LibraryTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_library_enter),
-                        selected
-                    )
-                }
-                UpdatesTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_updates_enter),
-                        selected
-                    )
-                }
-                HistoryTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_history_enter),
-                        selected
-                    )
-                }
-                BrowseTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_browse_enter),
-                        selected
-                    )
-                }
-                MoreTab::class.isInstance(tab) -> {
-                    rememberAnimatedVectorPainter(
-                        AnimatedImageVector.animatedVectorResource(R.drawable.anim_more_enter),
-                        selected
-                    )
-                }
-                FeedTab::class.isInstance(tab) -> {
-                    painterResource(R.drawable.ic_dynamic_feed_24dp)
-                }
-                AiringScheduleTab::class.isInstance(tab) -> {
-                    painterResource(R.drawable.ic_progress_clock_24dp)
-                }
+                animatedPainter != null -> animatedPainter
+                FeedTab::class.isInstance(tab) -> painterResource(R.drawable.ic_dynamic_feed_24dp)
+                AiringScheduleTab::class.isInstance(tab) -> painterResource(R.drawable.ic_progress_clock_24dp)
                 else -> painterResource(R.drawable.ic_browse_filled_24dp)
             }
 

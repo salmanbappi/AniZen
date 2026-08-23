@@ -439,13 +439,12 @@ fun PlayerControls(
                     val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
 
                     var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
-                    var sliderPosition by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                    var sliderPosition by remember { androidx.compose.runtime.mutableFloatStateOf(position) }
                     var lastTargetSeekPos by remember { mutableStateOf<Float?>(null) }
 
                     LaunchedEffect(position, seekPosition, isSeekingUI) {
                         if (isSeekingUI) {
                             sliderPosition = seekPosition
-                            lastTargetSeekPos = seekPosition
                         } else {
                             val target = lastTargetSeekPos
                             if (target != null) {
@@ -479,12 +478,16 @@ fun PlayerControls(
                                 viewModel.updateIsSeeking(true)
                             }
                             sliderPosition = it
+                            lastTargetSeekPos = it
                             viewModel.updateSeekPos(it)
                             viewModel.scrubSeekTo(it.toInt(), false)
                         },
                         onValueChangeFinished = {
+                            val target = sliderPosition
+                            lastTargetSeekPos = target
+                            viewModel.updateSeekPos(target)
                             viewModel.updateIsSeeking(false)
-                            viewModel.seekTo(sliderPosition.toInt(), preciseSeeking)
+                            viewModel.seekTo(target.toInt(), preciseSeeking)
                             if (!wasPlayerAlreadyPause) {
                                 viewModel.unpause()
                             }

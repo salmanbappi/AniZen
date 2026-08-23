@@ -440,9 +440,9 @@ private fun AnimeScreenSmallImpl(
         derivedStateOf { episodeListState.firstVisibleItemIndex == 0 }
     }
 
-    val showSuggestions = sourcePreferences.relatedAnimeShowSource().collectAsState().value
-    val expandSuggestions = sourcePreferences.relatedAnimeExpand().collectAsState().value
-    val suggestionsInOverflow = sourcePreferences.relatedAnimeInOverflow().collectAsState().value
+    val showSuggestions by sourcePreferences.relatedAnimeShowSource().collectAsStatePref()
+    val expandSuggestions by sourcePreferences.relatedAnimeExpand().collectAsStatePref()
+    val suggestionsInOverflow by sourcePreferences.relatedAnimeInOverflow().collectAsStatePref()
 
     val isAnySelected by remember(episodes) {
         derivedStateOf { episodes.fastAny { it.selected } }
@@ -517,20 +517,20 @@ private fun AnimeScreenSmallImpl(
                     val isFirstItemScrolled by remember {
                         derivedStateOf { episodeListState.firstVisibleItemScrollOffset > 0 }
                     }
-                    val animatedTitleAlpha by animateFloatAsState(
+                    val animatedTitleAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Title",
                     )
-                    val animatedBgAlpha by animateFloatAsState(
+                    val animatedBgAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible || isFirstItemScrolled) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Background",
                     )
                     AnimeToolbar(
                         title = state.anime.title,
-                        titleAlphaProvider = { animatedTitleAlpha },
-                        backgroundAlphaProvider = { animatedBgAlpha },
+                        titleAlphaProvider = { animatedTitleAlphaState.value },
+                        backgroundAlphaProvider = { animatedBgAlphaState.value },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
                         onClickFilter = onFilterClicked,
@@ -948,9 +948,9 @@ fun AnimeScreenLargeImpl(
         }
     }
 
-    val showSuggestions = sourcePreferences.relatedAnimeShowSource().collectAsState().value
-    val expandSuggestions = sourcePreferences.relatedAnimeExpand().collectAsState().value
-    val suggestionsInOverflow = sourcePreferences.relatedAnimeInOverflow().collectAsState().value
+    val showSuggestions by sourcePreferences.relatedAnimeShowSource().collectAsStatePref()
+    val expandSuggestions by sourcePreferences.relatedAnimeExpand().collectAsStatePref()
+    val suggestionsInOverflow by sourcePreferences.relatedAnimeInOverflow().collectAsStatePref()
 
     val isAnySelected by remember(episodes) {
         derivedStateOf { episodes.fastAny { it.selected } }
@@ -1017,12 +1017,12 @@ fun AnimeScreenLargeImpl(
                     val isFirstItemScrolled by remember {
                         derivedStateOf { episodeListState.firstVisibleItemScrollOffset > 0 }
                     }
-                    val animatedTitleAlpha by animateFloatAsState(
+                    val animatedTitleAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Title",
                     )
-                    val animatedBgAlpha by animateFloatAsState(
+                    val animatedBgAlphaState = animateFloatAsState(
                         targetValue = if (!isFirstItemVisible || isFirstItemScrolled) 1f else 0f,
                         animationSpec = tween(200),
                         label = "Top Bar Background",
@@ -1030,8 +1030,8 @@ fun AnimeScreenLargeImpl(
                     AnimeToolbar(
                         modifier = Modifier.onSizeChanged { topBarHeight = it.height },
                         title = state.anime.title,
-                        titleAlphaProvider = { if (isAnySelected) 1f else animatedTitleAlpha },
-                        backgroundAlphaProvider = { animatedBgAlpha },
+                        titleAlphaProvider = { if (isAnySelected) 1f else animatedTitleAlphaState.value },
+                        backgroundAlphaProvider = { animatedBgAlphaState.value },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
                         onClickFilter = onFilterButtonClicked,
@@ -1409,6 +1409,28 @@ private fun EpisodeItemWrapper(
                     item.fileSize = fileSizeAsync
                 }
             }
+            val onLongClickMemo = remember(item.id, item.selected, onEpisodeSelected) {
+                { onEpisodeSelected(item, !item.selected, true, true) }
+            }
+            val onClickMemo = remember(item.id, item.selected, isAnyEpisodeSelected, onEpisodeClicked, onEpisodeSelected) {
+                {
+                    onEpisodeItemClick(
+                        episodeItem = item,
+                        isAnyEpisodeSelected = isAnyEpisodeSelected,
+                        onToggleSelection = { onEpisodeSelected(item, !item.selected, true, false) },
+                        onEpisodeClicked = onEpisodeClicked,
+                    )
+                }
+            }
+            val onDownloadClickMemo = remember(item.id, onDownloadEpisode) {
+                if (onDownloadEpisode != null) {
+                    { action: EpisodeDownloadAction -> onDownloadEpisode(listOf(item), action) }
+                } else null
+            }
+            val onEpisodeSwipeMemo = remember(item.id, onEpisodeSwipe) {
+                { action: LibraryPreferences.EpisodeSwipeAction -> onEpisodeSwipe(item, action) }
+            }
+
             AnimeEpisodeListItem(
                 title = if (anime.displayMode == Anime.EPISODE_DISPLAY_NUMBER) {
                     stringResource(
@@ -1438,25 +1460,10 @@ private fun EpisodeItemWrapper(
                 downloadProgressProvider = { item.downloadProgress },
                 episodeSwipeStartAction = episodeSwipeStartAction,
                 episodeSwipeEndAction = episodeSwipeEndAction,
-                onLongClick = {
-                    onEpisodeSelected(item, !item.selected, true, true)
-                },
-                onClick = {
-                    onEpisodeItemClick(
-                        episodeItem = item,
-                        isAnyEpisodeSelected = isAnyEpisodeSelected,
-                        onToggleSelection = { onEpisodeSelected(item, !item.selected, true, false) },
-                        onEpisodeClicked = onEpisodeClicked,
-                    )
-                },
-                onDownloadClick = if (onDownloadEpisode != null) {
-                    { onDownloadEpisode(listOf(item), it) }
-                } else {
-                    null
-                },
-                onEpisodeSwipe = {
-                    onEpisodeSwipe(item, it)
-                },
+                onLongClick = onLongClickMemo,
+                onClick = onClickMemo,
+                onDownloadClick = onDownloadClickMemo,
+                onEpisodeSwipe = onEpisodeSwipeMemo,
                 fileSize = fileSizeAsync,
             )
         }

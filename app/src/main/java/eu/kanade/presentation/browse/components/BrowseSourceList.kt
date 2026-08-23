@@ -17,6 +17,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.library.components.AnimeListItem
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.domain.anime.model.Anime
@@ -30,7 +31,7 @@ fun BrowseSourceList(
     contentPadding: PaddingValues,
     onAnimeClick: (Anime, Int) -> Unit,
     onAnimeLongClick: (Anime, Int) -> Unit,
-    selection: List<Anime>,
+    selection: ImmutableList<Anime>,
     favoriteIds: ImmutableSet<Long>,
     onBatchIncrement: (Int) -> Unit = {},
     usePanorama: Boolean = false,
@@ -50,16 +51,17 @@ fun BrowseSourceList(
 
         items(
             count = animeList.itemCount,
-            key = { index -> "source-list-${animeList.peek(index)?.value?.id ?: "placeholder"}-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
             contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
         ) { index ->
-            val anime by animeList[index]?.collectAsState() ?: return@items
+            val animeFlow = animeList[index] ?: return@items
+            val anime = animeFlow.value
             onBatchIncrement(index)
 
-            val currentOnAnimeClick = remember(onAnimeClick, anime, index) { 
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
                 { onAnimeClick(anime, index) } 
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime, index) { 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
                 { onAnimeLongClick(anime, index) } 
             }
 
@@ -81,7 +83,7 @@ fun BrowseSourceList(
                 onClick = currentOnAnimeClick,
                 onLongClick = currentOnAnimeLongClick,
                 entries = entries,
-                containerHeight = 0,
+                containerHeight = 96,
                 usePanorama = usePanorama,
                 modifier = itemModifier,
             )
@@ -107,6 +109,10 @@ internal fun BrowseSourceListItem(
     usePanorama: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("BrowseSourceListItem")
+    val badge: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = remember(isFavorite) {
+        { InLibraryBadge(enabled = isFavorite) }
+    }
     AnimeListItem(
         modifier = modifier,
         title = anime.title,
@@ -121,9 +127,7 @@ internal fun BrowseSourceListItem(
             )
         },
         coverAlpha = if (isFavorite) CommonAnimeItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-        badge = {
-            InLibraryBadge(enabled = isFavorite)
-        },
+        badge = badge,
         onLongClick = onLongClick,
         onClick = onClick,
         entries = entries,

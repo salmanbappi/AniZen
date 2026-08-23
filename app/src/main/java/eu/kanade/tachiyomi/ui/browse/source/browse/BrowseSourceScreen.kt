@@ -95,6 +95,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import tachiyomi.core.common.Constants
+import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -262,6 +263,7 @@ data class BrowseSourceScreen(
                         FilterChip(
                             selected = isPopularSelected,
                             onClick = {
+                                eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.recordBreadcrumb("BrowseSource", "Selected Popular listing")
                                 screenModel.resetFilters()
                                 screenModel.setListing(Listing.Popular)
                             },
@@ -284,6 +286,7 @@ data class BrowseSourceScreen(
                             FilterChip(
                                 selected = isLatestSelected,
                                 onClick = {
+                                    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.recordBreadcrumb("BrowseSource", "Selected Latest listing")
                                     screenModel.resetFilters()
                                     screenModel.setListing(Listing.Latest)
                                 },
@@ -447,6 +450,30 @@ data class BrowseSourceScreen(
                 }
             }
 
+            val currentAnimeList by androidx.compose.runtime.rememberUpdatedState(animeList)
+            val onAnimeClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, screenModel, navigator) {
+                { anime, index ->
+                    if (state.selectionMode) {
+                        screenModel.toggleSelection(anime, index)
+                    } else {
+                        navigator.push((AnimeScreen(anime.id, true)))
+                    }
+                }
+            }
+            val onAnimeLongClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, state.lastSelectedIndex, screenModel) {
+                { anime, index ->
+                    val lastIndex = state.lastSelectedIndex
+                    if (state.selectionMode && lastIndex != null) {
+                        val items = currentAnimeList.itemSnapshotList.items.mapNotNull { it?.value }
+                        screenModel.selectRange(items, lastIndex, index)
+                    } else {
+                        screenModel.toggleSelection(anime, index)
+                    }
+                }
+            }
+
+            val onGlobalHelpClick = remember(uriHandler) { { uriHandler.openUri(Constants.URL_HELP) } }
+
             BrowseSourceContent(
                 source = screenModel.source,
                 animeList = animeList,
@@ -456,24 +483,10 @@ data class BrowseSourceScreen(
                 snackbarHostState = snackbarHostState,
                 contentPadding = paddingValues,
                 onWebViewClick = onWebViewClick,
-                onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
+                onHelpClick = onGlobalHelpClick,
                 onLocalSourceHelpClick = onHelpClick,
-                onAnimeClick = { anime, index ->
-                    if (state.selectionMode) {
-                        screenModel.toggleSelection(anime, index)
-                    } else {
-                        navigator.push((AnimeScreen(anime.id, true)))
-                    }
-                },
-                onAnimeLongClick = { anime, index ->
-                    val lastIndex = state.lastSelectedIndex
-                    if (state.selectionMode && lastIndex != null) {
-                        val items = animeList.itemSnapshotList.items.mapNotNull { it?.value }
-                        screenModel.selectRange(items, lastIndex, index)
-                    } else {
-                        screenModel.toggleSelection(anime, index)
-                    }
-                },
+                onAnimeClick = onAnimeClickMemoized,
+                onAnimeLongClick = onAnimeLongClickMemoized,
                 selection = state.selection.toImmutableList(),
                 favoriteIds = state.favoriteIds,
                 onBatchIncrement = { /* Manual increment only via Select All button */ },
