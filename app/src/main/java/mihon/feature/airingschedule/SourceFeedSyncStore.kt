@@ -20,7 +20,7 @@ class SourceFeedSyncStore(
 ) {
     fun readRecent(now: LocalDate = LocalDate.now(ZoneId.systemDefault())): List<SourceFeedObservation> {
         val directory = directory()
-        val observations = (0..1).flatMap { offset ->
+        val observations = (0..RETENTION_DAYS - 1).flatMap { offset ->
             readDay(directory, now.minusDays(offset.toLong()))
         }
         prune(directory, now)
@@ -58,9 +58,10 @@ class SourceFeedSyncStore(
         }.getOrDefault(emptyList())
 
     private fun prune(directory: File, now: LocalDate) {
+        val validFileNames = (0..RETENTION_DAYS - 1).map { dayFile(directory, now.minusDays(it.toLong())).name }.toSet()
         directory.listFiles()
             ?.filter { it.name.endsWith(FILE_SUFFIX) }
-            ?.filterNot { it.name == dayFile(directory, now).name || it.name == dayFile(directory, now.minusDays(1)).name }
+            ?.filterNot { it.name in validFileNames }
             ?.forEach { it.delete() }
     }
 
@@ -70,6 +71,7 @@ class SourceFeedSyncStore(
     companion object {
         private const val DIRECTORY_NAME = "source_feed_sync"
         private const val FILE_SUFFIX = ".json"
+        const val RETENTION_DAYS = 7
     }
 }
 

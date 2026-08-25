@@ -322,70 +322,6 @@ class AiringScheduleScreenModel(
         return SchedulePreferences.parseCustomDelayMinutes(schedulePrefs.customUploadDelayMinutes().get())
     }
 
-    /**
-     * The actual favourite/pinned source ids that carry *this specific* anime, resolved via the
-     * library-anime title match (bounded to anime the user already added — we can't check every
-     * source's full catalogue for every scheduled anime without being far too slow, so this only
-     * reports "confirmed on a favourite source" for library anime).
-     */
-    private fun matchedSourcesFor(
-        entry: AiringScheduleEntry,
-        configuredSources: Set<String>,
-        librarySourcesByTitle: Map<String, Set<String>>,
-    ): Set<String> {
-        val titleCandidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
-        val candidateKeys = titleCandidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
-        val candidateSources = candidateKeys.flatMap { librarySourcesByTitle[it].orEmpty() }.toSet()
-        return candidateSources.intersect(configuredSources)
-    }
-
-    /**
-     * Resolves the learned upload delay according to pinned sources priority order,
-     * falling back to favorite sources or the largest learned delay.
-     */
-    private fun priorityDelayFor(
-        matchedSources: Set<String>,
-        manualDelayMinutes: Long?,
-        delays: Map<String, Long>,
-        pinnedSources: Set<String>,
-        favoriteIds: Set<String>,
-    ): Long? {
-        manualDelayMinutes?.let { return it }
-        if (delays.isEmpty()) return null
-
-        // 1. If this anime is matched to specific sources in library, check pinned then favorite in order
-        if (matchedSources.isNotEmpty()) {
-            for (pinned in pinnedSources) {
-                if (pinned in matchedSources && delays.containsKey(pinned)) {
-                    return delays[pinned]
-                }
-            }
-            for (fav in favoriteIds) {
-                if (fav in matchedSources && delays.containsKey(fav)) {
-                    return delays[fav]
-                }
-            }
-            val firstMatched = matchedSources.firstNotNullOfOrNull { delays[it] }
-            if (firstMatched != null) return firstMatched
-        }
-
-        // 2. Otherwise check pinned sources in priority order
-        for (pinned in pinnedSources) {
-            if (delays.containsKey(pinned)) {
-                return delays[pinned]
-            }
-        }
-
-        // 3. Fallback to favorite IDs
-        for (fav in favoriteIds) {
-            if (delays.containsKey(fav)) {
-                return delays[fav]
-            }
-        }
-
-        return delays.values.maxOrNull()
-    }
-
     private fun isEntryInLibrary(
         entry: AiringScheduleEntry,
         libraryAnimeTitles: Set<String>,
@@ -421,7 +357,11 @@ class AiringScheduleScreenModel(
             // If specific favorite/pinned sources are selected in settings, filter out
             // everything except those that are from those sources added to the library.
             if (configuredSources.isNotEmpty()) {
-                val matchedSources = matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
+                val matchedSources = mihon.feature.airingschedule.util.UploadDelayResolver.matchedSourcesFor(
+                    entry,
+                    configuredSources,
+                    librarySourcesByTitle,
+                )
                 if (matchedSources.isEmpty()) return@filter false
             }
         }
@@ -430,7 +370,6 @@ class AiringScheduleScreenModel(
 
     private fun groupByDelayAdjustedDay(
         entries: List<AiringScheduleEntry>,
-        configuredSources: Set<String>,
         librarySourcesByTitle: Map<String, Set<String>>,
         manualDelayMinutes: Long?,
         delays: Map<String, Long>,
@@ -441,23 +380,27 @@ class AiringScheduleScreenModel(
         weekEndDate: LocalDate? = null,
     ): Map<DayOfWeek, List<AiringScheduleEntry>> = entries.filter { entry ->
         if (weekStartDate == null || weekEndDate == null) return@filter true
-        val matchedSources = if (configuredSources.isNotEmpty()) {
-            matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
-        } else {
-            emptySet()
-        }
-        val priorityDelay = priorityDelayFor(matchedSources, manualDelayMinutes, delays, pinnedSources, favoriteIds)
-        val airTime = if (priorityDelay != null) entry.airingAt + (priorityDelay * 60) else entry.airingAt
+        val delay = mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
+            entry = entry,
+            delays = delays,
+            manualDelayMinutes = manualDelayMinutes,
+            librarySourcesByTitle = librarySourcesByTitle,
+            pinnedSources = pinnedSources,
+            favoriteSources = favoriteIds,
+        )
+        val airTime = mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, delay)
         val entryDate = ZonedDateTime.ofInstant(Instant.ofEpochSecond(airTime), zone).toLocalDate()
         !entryDate.isBefore(weekStartDate) && !entryDate.isAfter(weekEndDate)
     }.groupBy { entry ->
-        val matchedSources = if (configuredSources.isNotEmpty()) {
-            matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
-        } else {
-            emptySet()
-        }
-        val priorityDelay = priorityDelayFor(matchedSources, manualDelayMinutes, delays, pinnedSources, favoriteIds)
-        val airTime = if (priorityDelay != null) entry.airingAt + (priorityDelay * 60) else entry.airingAt
+        val delay = mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
+            entry = entry,
+            delays = delays,
+            manualDelayMinutes = manualDelayMinutes,
+            librarySourcesByTitle = librarySourcesByTitle,
+            pinnedSources = pinnedSources,
+            favoriteSources = favoriteIds,
+        )
+        val airTime = mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, delay)
         ZonedDateTime.ofInstant(Instant.ofEpochSecond(airTime), zone).dayOfWeek
     }
 
@@ -496,7 +439,6 @@ class AiringScheduleScreenModel(
         )
         val grouped = groupByDelayAdjustedDay(
             entries = filtered,
-            configuredSources = configuredSources,
             librarySourcesByTitle = librarySourcesByTitle,
             manualDelayMinutes = manualDelayMinutes,
             delays = delays,
