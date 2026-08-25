@@ -209,7 +209,12 @@ class AiringScheduleScreenModel(
             val weekStart = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                 .toLocalDate().atStartOfDay(zone)
             val weekEnd = weekStart.plusDays(7).minusSeconds(1)
-            val currentWeekStart = weekStart.toEpochSecond()
+
+            val firstDayOfMonth = now.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay(zone)
+            val lastDayOfMonth = now.with(TemporalAdjusters.lastDayOfMonth()).toLocalDate().atTime(23, 59, 59).atZone(zone)
+            val fetchStart = if (weekStart.isBefore(firstDayOfMonth)) weekStart else firstDayOfMonth
+            val fetchEnd = if (weekEnd.isAfter(lastDayOfMonth)) weekEnd else lastDayOfMonth
+            val currentMonthStart = firstDayOfMonth.toEpochSecond()
 
             // 1. Try reading disk cache first (Instant Offline Display, no blank screen)
             val cache = ScheduleDataRefreshWorker.readCache(application)
@@ -217,7 +222,7 @@ class AiringScheduleScreenModel(
                 cache.entries
             } else null
 
-            val isCacheForCurrentWeek = cache != null && cache.weekStartEpoch == currentWeekStart
+            val isCacheForCurrentMonth = cache != null && (cache.monthStartEpoch == currentMonthStart || cache.weekStartEpoch == currentMonthStart)
 
             if (cachedEntries != null && !forceRefresh) {
                 remoteEntries = cachedEntries
@@ -229,9 +234,9 @@ class AiringScheduleScreenModel(
                     weekStart = weekStart.toLocalDate(),
                     weekEnd = weekEnd.toLocalDate(),
                 )
-                // If cache is for the current week and was fetched within the last 12 hours, skip network fetch
+                // If cache is for the current month and was fetched within the last 12 hours, skip network fetch
                 val cacheAge = System.currentTimeMillis() - (cache?.fetchedAt ?: 0L)
-                if (isCacheForCurrentWeek && cacheAge < TimeUnit.HOURS.toMillis(12)) {
+                if (isCacheForCurrentMonth && cacheAge < TimeUnit.HOURS.toMillis(12)) {
                     rescheduleSeriesAlarms()
                     return@launch
                 }
@@ -253,14 +258,14 @@ class AiringScheduleScreenModel(
 
             try {
                 val includeAdult = schedulePrefs.showAdultContent().get()
-                val fetched = repository.getWeeklySchedule(
-                    weekStart.toEpochSecond(),
-                    weekEnd.toEpochSecond(),
+                val fetched = repository.getMonthlySchedule(
+                    fetchStart.toEpochSecond(),
+                    fetchEnd.toEpochSecond(),
                     includeAdult = includeAdult,
                 )
 
                 // Persist live fetch to disk cache
-                ScheduleDataRefreshWorker.writeCache(application, currentWeekStart, fetched)
+                ScheduleDataRefreshWorker.writeCache(application, currentMonthStart, fetched)
 
                 remoteEntries = fetched
                 allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
@@ -282,7 +287,7 @@ class AiringScheduleScreenModel(
                 )
             } catch (e: Exception) {
                 if (remoteEntries.isEmpty()) {
-                    val fallback = cache?.takeIf { it.weekStartEpoch == currentWeekStart }
+                    val fallback = cache?.takeIf { it.monthStartEpoch == currentMonthStart || it.weekStartEpoch == currentMonthStart }
                         ?: cache?.takeIf { it.entries.isNotEmpty() }
                     if (fallback != null) {
                         remoteEntries = fallback.entries
@@ -432,7 +437,20 @@ class AiringScheduleScreenModel(
         pinnedSources: Set<String>,
         favoriteIds: Set<String>,
         zone: ZoneId,
-    ): Map<DayOfWeek, List<AiringScheduleEntry>> = entries.groupBy { entry ->
+        weekStartDate: LocalDate? = null,
+        weekEndDate: LocalDate? = null,
+    ): Map<DayOfWeek, List<AiringScheduleEntry>> = entries.filter { entry ->
+        if (weekStartDate == null || weekEndDate == null) return@filter true
+        val matchedSources = if (configuredSources.isNotEmpty()) {
+            matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
+        } else {
+            emptySet()
+        }
+        val priorityDelay = priorityDelayFor(matchedSources, manualDelayMinutes, delays, pinnedSources, favoriteIds)
+        val airTime = if (priorityDelay != null) entry.airingAt + (priorityDelay * 60) else entry.airingAt
+        val entryDate = ZonedDateTime.ofInstant(Instant.ofEpochSecond(airTime), zone).toLocalDate()
+        !entryDate.isBefore(weekStartDate) && !entryDate.isAfter(weekEndDate)
+    }.groupBy { entry ->
         val matchedSources = if (configuredSources.isNotEmpty()) {
             matchedSourcesFor(entry, configuredSources, librarySourcesByTitle)
         } else {
@@ -485,6 +503,8 @@ class AiringScheduleScreenModel(
             pinnedSources = pinnedSources,
             favoriteIds = favoriteIds,
             zone = ZoneId.systemDefault(),
+            weekStartDate = weekStart,
+            weekEndDate = weekEnd,
         )
 
         mutableState.update {
