@@ -210,11 +210,17 @@ class AiringScheduleScreenModel(
                 .toLocalDate().atStartOfDay(zone)
             val weekEnd = weekStart.plusDays(7).minusSeconds(1)
 
-            val firstDayOfMonth = now.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay(zone)
-            val lastDayOfMonth = now.with(TemporalAdjusters.lastDayOfMonth()).toLocalDate().atTime(23, 59, 59).atZone(zone)
-            val fetchStart = if (weekStart.isBefore(firstDayOfMonth)) weekStart else firstDayOfMonth
-            val fetchEnd = if (weekEnd.isAfter(lastDayOfMonth)) weekEnd else lastDayOfMonth
-            val currentMonthStart = firstDayOfMonth.toEpochSecond()
+            // Optimize schedule window:
+            // - Past: 1 week past release date (7 days ago, or start of current week, whichever is earlier)
+            //   This avoids wasting network calls and memory on weeks of obsolete historical data.
+            // - Future: Focus on upcoming release dates (rolling 30 days ahead from today)
+            //   Ensures releases extending into next month are fetched and displayed ahead of time.
+            val pastWeekStart = now.minusDays(7).toLocalDate().atStartOfDay(zone)
+            val fetchStart = if (weekStart.isBefore(pastWeekStart)) weekStart else pastWeekStart
+            val fetchEnd = now.plusDays(30).toLocalDate().atTime(23, 59, 59).atZone(zone).let {
+                if (weekEnd.isAfter(it)) weekEnd else it
+            }
+            val currentFetchStart = fetchStart.toEpochSecond()
 
             // 1. Try reading disk cache first (Instant Offline Display, no blank screen)
             val cache = ScheduleDataRefreshWorker.readCache(application)
@@ -222,7 +228,8 @@ class AiringScheduleScreenModel(
                 cache.entries
             } else null
 
-            val isCacheForCurrentMonth = cache != null && (cache.monthStartEpoch == currentMonthStart || cache.weekStartEpoch == currentMonthStart)
+            val cacheAge = System.currentTimeMillis() - (cache?.fetchedAt ?: 0L)
+            val isCacheValid = cache != null && cache.entries.isNotEmpty() && cacheAge < TimeUnit.HOURS.toMillis(12)
 
             if (cachedEntries != null && !forceRefresh) {
                 remoteEntries = cachedEntries
@@ -234,9 +241,8 @@ class AiringScheduleScreenModel(
                     weekStart = weekStart.toLocalDate(),
                     weekEnd = weekEnd.toLocalDate(),
                 )
-                // If cache is for the current month and was fetched within the last 12 hours, skip network fetch
-                val cacheAge = System.currentTimeMillis() - (cache?.fetchedAt ?: 0L)
-                if (isCacheForCurrentMonth && cacheAge < TimeUnit.HOURS.toMillis(12)) {
+                // If cache is fresh (< 12 hours old), skip network fetch
+                if (isCacheValid) {
                     rescheduleSeriesAlarms()
                     return@launch
                 }
@@ -258,14 +264,14 @@ class AiringScheduleScreenModel(
 
             try {
                 val includeAdult = schedulePrefs.showAdultContent().get()
-                val fetched = repository.getMonthlySchedule(
+                val fetched = repository.getSchedule(
                     fetchStart.toEpochSecond(),
                     fetchEnd.toEpochSecond(),
                     includeAdult = includeAdult,
                 )
 
                 // Persist live fetch to disk cache
-                ScheduleDataRefreshWorker.writeCache(application, currentMonthStart, fetched)
+                ScheduleDataRefreshWorker.writeCache(application, currentFetchStart, fetched)
 
                 remoteEntries = fetched
                 allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
@@ -287,8 +293,7 @@ class AiringScheduleScreenModel(
                 )
             } catch (e: Exception) {
                 if (remoteEntries.isEmpty()) {
-                    val fallback = cache?.takeIf { it.monthStartEpoch == currentMonthStart || it.weekStartEpoch == currentMonthStart }
-                        ?: cache?.takeIf { it.entries.isNotEmpty() }
+                    val fallback = cache?.takeIf { it.entries.isNotEmpty() }
                     if (fallback != null) {
                         remoteEntries = fallback.entries
                     }

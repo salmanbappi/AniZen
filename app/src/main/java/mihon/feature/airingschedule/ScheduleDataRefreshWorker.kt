@@ -53,18 +53,22 @@ class ScheduleDataRefreshWorker(
                 .toLocalDate().atStartOfDay(zone)
             val weekEnd = weekStart.plusDays(7).minusSeconds(1)
 
-            val firstDayOfMonth = now.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay(zone)
-            val lastDayOfMonth = now.with(TemporalAdjusters.lastDayOfMonth()).toLocalDate().atTime(23, 59, 59).atZone(zone)
-            val fetchStart = if (weekStart.isBefore(firstDayOfMonth)) weekStart else firstDayOfMonth
-            val fetchEnd = if (weekEnd.isAfter(lastDayOfMonth)) weekEnd else lastDayOfMonth
+            // Optimize schedule window:
+            // - Past: 1 week past release date (7 days ago, or start of current week, whichever is earlier)
+            // - Future: Focus on upcoming release dates (rolling 30 days ahead from today)
+            val pastWeekStart = now.minusDays(7).toLocalDate().atStartOfDay(zone)
+            val fetchStart = if (weekStart.isBefore(pastWeekStart)) weekStart else pastWeekStart
+            val fetchEnd = now.plusDays(30).toLocalDate().atTime(23, 59, 59).atZone(zone).let {
+                if (weekEnd.isAfter(it)) weekEnd else it
+            }
 
-            val entries = repository.getMonthlySchedule(
+            val entries = repository.getSchedule(
                 fetchStart.toEpochSecond(),
                 fetchEnd.toEpochSecond(),
                 includeAdult = includeAdult,
             )
 
-            writeCache(context, firstDayOfMonth.toEpochSecond(), entries)
+            writeCache(context, fetchStart.toEpochSecond(), entries)
 
             // Re-arm alarms for any anime the user subscribed to "notify every episode" for.
             // Series alarms are only ever scheduled from whichever week is currently loaded in
