@@ -60,6 +60,7 @@ class EpisodeLoader {
                 anime.title,
                 anime.source,
                 skipCache = true,
+                episodeNumber = episode.episodeNumber,
             )
         }
 

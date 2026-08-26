@@ -22,6 +22,7 @@ fun List<Episode>.filterDownloadedEpisodes(anime: Anime): List<Episode> {
             anime.title,
             anime.source,
             false,
+            it.episodeNumber,
         )
     }
 }

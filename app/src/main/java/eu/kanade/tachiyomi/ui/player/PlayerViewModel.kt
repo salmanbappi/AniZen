@@ -1689,6 +1689,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     it.scanlator,
                     anime.title,
                     anime.source,
+                    episodeNumber = it.episode_number.toDouble(),
                 ) ||
                 anime.downloadedFilterRaw == Anime.EPISODE_SHOW_NOT_DOWNLOADED &&
                 downloadManager.isEpisodeDownloaded(
@@ -1696,6 +1697,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     it.scanlator,
                     anime.title,
                     anime.source,
+                    episodeNumber = it.episode_number.toDouble(),
                 ) ||
                 anime.bookmarkedFilterRaw == Anime.EPISODE_SHOW_BOOKMARKED &&
                 !it.bookmark ||

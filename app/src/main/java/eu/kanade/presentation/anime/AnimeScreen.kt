@@ -1399,6 +1399,7 @@ private fun EpisodeItemWrapper(
                             item.episode.scanlator,
                             anime.ogTitle,
                             source,
+                            item.episode.episodeNumber,
                         )
                     }
                     item.fileSize = fileSizeAsync

@@ -159,6 +159,7 @@ class ExternalIntents {
                     animeTitle = anime.title,
                     sourceId = anime.source,
                     skipCache = true,
+                    episodeNumber = episode.episodeNumber,
                 )
             }
 

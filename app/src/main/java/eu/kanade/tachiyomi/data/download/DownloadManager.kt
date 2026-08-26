@@ -188,7 +188,7 @@ class DownloadManager(
      */
     fun buildVideo(source: Source, anime: Anime, episode: Episode): Video {
         val episodeDir =
-            provider.findEpisodeDir(episode.name, episode.scanlator, if (source.isLocal()) anime.url else anime.ogTitle, source)
+            provider.findEpisodeDir(episode.name, episode.scanlator, if (source.isLocal()) anime.url else anime.ogTitle, source, episode.episodeNumber)
 
         val files = if (source.isLocal() && episodeDir?.isFile == true) {
             listOf(episodeDir)
@@ -236,6 +236,7 @@ class DownloadManager(
      * @param animeTitle the title of the anime to query.
      * @param sourceId the id of the source of the episode.
      * @param skipCache whether to skip the directory cache and check in the filesystem.
+     * @param episodeNumber the episode number to fallback to if the name was changed
      */
     fun isEpisodeDownloaded(
         episodeName: String,
@@ -243,10 +244,11 @@ class DownloadManager(
         animeTitle: String,
         sourceId: Long,
         skipCache: Boolean = false,
+        episodeNumber: Double = -1.0,
     ): Boolean {
         val source = sourceManager.getOrStub(sourceId)
         if (source.isLocal() || skipCache) {
-            return provider.findEpisodeDir(episodeName, episodeScanlator, animeTitle, source) != null
+            return provider.findEpisodeDir(episodeName, episodeScanlator, animeTitle, source, episodeNumber) != null
         }
         return cache.isEpisodeDownloaded(
             episodeName,
@@ -254,6 +256,7 @@ class DownloadManager(
             animeTitle,
             sourceId,
             skipCache,
+            episodeNumber,
         )
     }
 

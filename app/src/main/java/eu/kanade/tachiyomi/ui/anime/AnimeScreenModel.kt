@@ -124,6 +124,7 @@ import tachiyomi.domain.episode.interactor.UpdateEpisode
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.episode.model.EpisodeUpdate
 import tachiyomi.domain.episode.service.calculateChapterGap
+import tachiyomi.domain.episode.service.EpisodeRecognition
 import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.episode.service.missingEpisodesCount
 import kotlinx.serialization.json.Json
@@ -1265,7 +1266,16 @@ class AnimeScreenModel(
             val downloaded = if (isLocal) {
                 true
             } else if (downloadedEpisodeDirs.isNotEmpty()) {
-                downloadProvider.getValidEpisodeDirNames(episode.name, episode.scanlator).any { it in downloadedEpisodeDirs }
+                downloadProvider.getValidEpisodeDirNames(episode.name, episode.scanlator).any { it in downloadedEpisodeDirs } ||
+                    (episode.isRecognizedNumber && downloadedEpisodeDirs.any { dirName ->
+                        if (!episode.scanlator.isNullOrBlank()) {
+                            val parsedScanlator = dirName.substringBefore('_', "")
+                            if (parsedScanlator.isNotBlank() && !parsedScanlator.equals(episode.scanlator, ignoreCase = true)) {
+                                return@any false
+                            }
+                        }
+                        EpisodeRecognition.parseEpisodeNumber(anime.ogTitle, dirName) == episode.episodeNumber
+                    })
             } else false
             val downloadState = when {
                 activeDownload != null -> activeDownload.status

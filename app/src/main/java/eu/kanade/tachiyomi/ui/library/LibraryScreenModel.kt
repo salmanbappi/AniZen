@@ -680,6 +680,7 @@ class LibraryScreenModel(
                                 episode.scanlator,
                                 anime.title,
                                 anime.source,
+                                episodeNumber = episode.episodeNumber,
                             )
                     }
                     .let { if (amount != null) it.take(amount) else it }

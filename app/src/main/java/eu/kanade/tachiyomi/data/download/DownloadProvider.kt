@@ -22,6 +22,8 @@ import uy.kohesive.injekt.api.get
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+import tachiyomi.domain.episode.service.EpisodeRecognition
+
 /**
  * This class is used to provide the directories where the downloads should be saved.
  * It uses the following path scheme: /<root downloads dir>/<source name>/<anime>/<episode>
@@ -117,20 +119,40 @@ class DownloadProvider(
      * @param episodeScanlator scanlator of the episode to query
      * @param animeTitle the title of the anime to query.
      * @param source the source of the episode.
+     * @param episodeNumber the episode number to fallback to if the name was changed
      */
     fun findEpisodeDir(
         episodeName: String,
         episodeScanlator: String?,
         animeTitle: String,
         source: Source,
+        episodeNumber: Double = -1.0,
     ): UniFile? {
         val animeDir = findAnimeDir(animeTitle, source)
         if (source.isLocal()) {
             return animeDir?.listFiles().orEmpty().find { it.nameWithoutExtension == episodeName }
         }
-        return getValidEpisodeDirNames(episodeName, episodeScanlator).asSequence()
+        val exact = getValidEpisodeDirNames(episodeName, episodeScanlator).asSequence()
             .mapNotNull { animeDir?.findFile(it) }
             .firstOrNull()
+        if (exact != null) return exact
+
+        if (episodeNumber >= 0.0 && animeDir != null) {
+            val files = animeDir.listFiles().orEmpty()
+            return files.firstOrNull { file ->
+                val name = file.nameWithoutExtension ?: file.name ?: return@firstOrNull false
+                if (name.endsWith(Downloader.TMP_DIR_SUFFIX)) return@firstOrNull false
+                if (!episodeScanlator.isNullOrBlank()) {
+                    val parsedScanlator = name.substringBefore('_', "")
+                    if (parsedScanlator.isNotBlank() && !parsedScanlator.equals(episodeScanlator, ignoreCase = true)) {
+                        return@firstOrNull false
+                    }
+                }
+                val parsedNum = EpisodeRecognition.parseEpisodeNumber(animeTitle, name)
+                parsedNum == episodeNumber
+            }
+        }
+        return null
     }
 
     /**
@@ -154,10 +176,29 @@ class DownloadProvider(
             }
         }
         if (animeDir == null) return null to emptyList()
+        val allFiles = animeDir.listFiles().orEmpty()
         return animeDir to episodes.mapNotNull { episode ->
-            getValidEpisodeDirNames(episode.name, episode.scanlator).asSequence()
+            val exact = getValidEpisodeDirNames(episode.name, episode.scanlator).asSequence()
                 .mapNotNull { animeDir.findFile(it) }
                 .firstOrNull()
+            if (exact != null) return@mapNotNull exact
+
+            if (episode.isRecognizedNumber) {
+                allFiles.firstOrNull { file ->
+                    val name = file.nameWithoutExtension ?: file.name ?: return@firstOrNull false
+                    if (name.endsWith(Downloader.TMP_DIR_SUFFIX)) return@firstOrNull false
+                    if (!episode.scanlator.isNullOrBlank()) {
+                        val parsedScanlator = name.substringBefore('_', "")
+                        if (parsedScanlator.isNotBlank() && !parsedScanlator.equals(episode.scanlator, ignoreCase = true)) {
+                            return@firstOrNull false
+                        }
+                    }
+                    val parsedNum = EpisodeRecognition.parseEpisodeNumber(anime.ogTitle, name)
+                    parsedNum == episode.episodeNumber
+                }
+            } else {
+                null
+            }
         }
     }
 
@@ -254,13 +295,14 @@ class DownloadProvider(
         episodeScanlator: String?,
         animeTitle: String,
         source: Source?,
+        episodeNumber: Double = -1.0,
     ): Long? {
         if (source == null) return null
         return if (source.isLocal()) {
             val (animeDirName, episodeDirName) = episodeUrl?.split('/', limit = 2) ?: return null
             localFileSystem.getBaseDirectory()?.findFile(animeDirName)?.findFile(episodeDirName)?.size()
         } else {
-            findEpisodeDir(episodeName, episodeScanlator, animeTitle, source)?.size()
+            findEpisodeDir(episodeName, episodeScanlator, animeTitle, source, episodeNumber)?.size()
         }
     }
     // <-- AM (FILE_SIZE)
