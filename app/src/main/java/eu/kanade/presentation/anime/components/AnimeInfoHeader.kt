@@ -695,7 +695,7 @@ private fun AnimeContentInfo(
                 SAnime.PUBLISHING_FINISHED.toLong() -> Icons.Outlined.Done
                 SAnime.CANCELLED.toLong() -> Icons.Outlined.Close
                 SAnime.ON_HIATUS.toLong() -> Icons.Outlined.Pause
-                SAnime.UPCOMING.toLong() -> Icons.Outlined.Upcoming
+                SAnime.UPCOMING.toLong() -> Icons.Outlined.DateRange
                 else -> Icons.Outlined.Block
             },
             text = when (status) {
