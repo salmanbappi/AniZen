@@ -151,7 +151,9 @@ internal class ExtensionApi {
     }
 
     private fun ExtensionJsonObject.extractLibVersion(): Double {
-        return version.substringBeforeLast('.').toDouble()
+        return extensionLib?.toDoubleOrNull()
+            ?: version.substringBeforeLast('.').toDoubleOrNull()
+            ?: 0.0
     }
 }
 
@@ -163,9 +165,10 @@ private data class ExtensionJsonObject(
     val lang: String,
     val code: Long,
     val version: String,
-    val nsfw: Int,
+    val nsfw: Int = 0,
     val torrent: Int = 0,
-    val sources: List<ExtensionSourceJsonObject>?,
+    val extensionLib: String? = null,
+    val sources: List<ExtensionSourceJsonObject>? = null,
 )
 
 @Serializable

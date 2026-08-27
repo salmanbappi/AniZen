@@ -105,6 +105,7 @@ fun EditAnimeDialog(
                                 4 -> SAnime.PUBLISHING_FINISHED
                                 5 -> SAnime.CANCELLED
                                 6 -> SAnime.ON_HIATUS
+                                7 -> SAnime.UPCOMING
                                 else -> null
                             }
                         }?.toLong(),
@@ -218,6 +219,7 @@ private fun onViewCreated(
             R.string.publishing_finished,
             R.string.cancelled,
             R.string.on_hiatus,
+            R.string.upcoming,
         ).map { context.getString(it) },
     )
 
@@ -232,6 +234,7 @@ private fun onViewCreated(
                 SAnime.PUBLISHING_FINISHED, 61 -> 4
                 SAnime.CANCELLED, 62 -> 5
                 SAnime.ON_HIATUS, 63 -> 6
+                SAnime.UPCOMING, 64 -> 7
                 else -> 0
             },
         )

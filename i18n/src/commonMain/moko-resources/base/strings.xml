@@ -1082,6 +1082,7 @@
     <string name="publishing_finished">Publishing finished</string>
     <string name="cancelled">Cancelled</string>
     <string name="on_hiatus">On hiatus</string>
+    <string name="upcoming">Upcoming</string>
     <string name="add_to_library">Add to library</string>
     <string name="in_library">In library</string>
     <string name="remove_from_library">Remove from library</string>

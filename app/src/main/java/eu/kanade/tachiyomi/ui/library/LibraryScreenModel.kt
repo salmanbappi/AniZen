@@ -1111,6 +1111,7 @@ class LibraryScreenModel(
                                 R.string.publishing_finished,
                             )
                             SAnime.COMPLETED.toLong() -> context.getString(R.string.completed)
+                            SAnime.UPCOMING.toLong() -> context.getString(R.string.upcoming)
                             else -> context.getString(R.string.unknown)
                         },
                         order = when (it.key) {
@@ -1120,7 +1121,8 @@ class LibraryScreenModel(
                             SAnime.ON_HIATUS.toLong() -> 4
                             SAnime.PUBLISHING_FINISHED.toLong() -> 5
                             SAnime.COMPLETED.toLong() -> 6
-                            else -> 7
+                            SAnime.UPCOMING.toLong() -> 7
+                            else -> 8
                         },
                         flags = 0,
                         hidden = false,

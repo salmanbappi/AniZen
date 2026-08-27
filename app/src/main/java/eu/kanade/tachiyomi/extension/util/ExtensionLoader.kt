@@ -45,8 +45,14 @@ object ExtensionLoader {
     private const val METADATA_HAS_README = "tachiyomi.animeextension.hasReadme"
     private const val METADATA_HAS_CHANGELOG = "tachiyomi.animeextension.hasChangelog"
     private const val METADATA_TORRENT = "tachiyomi.animeextension.torrent"
+
+    private const val METADATA_NAME = "aniyomix.name"
+    private const val METADATA_EXTENSION_LIB = "aniyomix.extensionLib"
+    private const val METADATA_CONTENT_WARNING = "aniyomix.contentWarning"
+    private const val METADATA_IS_TORRENT = "aniyomix.torrent"
+
     const val LIB_VERSION_MIN = 12
-    const val LIB_VERSION_MAX = 16
+    const val LIB_VERSION_MAX = 17
 
     @Suppress("DEPRECATION")
     private val PACKAGE_FLAGS = PackageManager.GET_CONFIGURATIONS or
@@ -242,7 +248,8 @@ object ExtensionLoader {
         val appInfo = pkgInfo.applicationInfo!!
         val pkgName = pkgInfo.packageName
 
-        val extName = pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Aniyomi: ")
+        val extName = appInfo.metaData?.getString(METADATA_NAME)
+            ?: pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Aniyomi: ")
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
 
@@ -252,7 +259,11 @@ object ExtensionLoader {
         }
 
         // Validate lib version
-        val libVersion = versionName.substringBeforeLast('.').toDoubleOrNull()
+        val libVersion = appInfo.metaData?.getInt(METADATA_EXTENSION_LIB)
+            ?.takeUnless { it == 0 }
+            ?.toString()
+            ?.toDouble()
+            ?: versionName.substringBeforeLast('.').toDoubleOrNull()
         if (libVersion == null || libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {
             logcat(LogPriority.WARN) {
                 "Lib version is $libVersion, while only versions " +
@@ -278,23 +289,25 @@ object ExtensionLoader {
             return LoadResult.Untrusted(extension)
         }
 
-        val isNsfw = when (val v = appInfo.metaData?.get(METADATA_NSFW)) {
-            is Int -> v == 1
-            is Boolean -> v
-            is String -> v.toBoolean() || v == "1"
-            else -> false
-        }
+        val isNsfw = (appInfo.metaData?.getInt(METADATA_CONTENT_WARNING) ?: 0) > 0 ||
+            when (val v = appInfo.metaData?.get(METADATA_NSFW)) {
+                is Int -> v == 1
+                is Boolean -> v
+                is String -> v.toBoolean() || v == "1"
+                else -> false
+            }
         if (!loadNsfwSource && isNsfw) {
             logcat(LogPriority.WARN) { "NSFW extension $pkgName not allowed" }
             return LoadResult.Error
         }
 
-        val isTorrent = when (val v = appInfo.metaData?.get(METADATA_TORRENT)) {
-            is Int -> v == 1
-            is Boolean -> v
-            is String -> v.toBoolean() || v == "1"
-            else -> false
-        }
+        val isTorrent = appInfo.metaData?.getBoolean(METADATA_IS_TORRENT) == true ||
+            when (val v = appInfo.metaData?.get(METADATA_TORRENT)) {
+                is Int -> v == 1
+                is Boolean -> v
+                is String -> v.toBoolean() || v == "1"
+                else -> false
+            }
 
         val classLoader = try {
             ChildFirstPathClassLoader(appInfo.sourceDir, null, context.classLoader)

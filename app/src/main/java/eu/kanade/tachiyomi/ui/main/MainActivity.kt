@@ -544,8 +544,8 @@ class MainActivity : BaseActivity() {
                     navigator.popUntilRoot()
                     navigator.push(RestoreBackupScreen(intent.data.toString()))
                 }
-                // Deep link to add anime extension repo
-                else if ((intent.scheme == "anizen" || intent.scheme == "aniyomi" || intent.scheme == "mihon" || intent.scheme == "tachiyomi") && intent.data?.host == "add-repo") {
+                // Deep link to add anime extension repo / extension store
+                else if (intent.isAddExtensionRepoIntent()) {
                     intent.data?.getQueryParameter("url")?.let { repoUrl ->
                         navigator.popUntilRoot()
                         navigator.push(ExtensionReposScreen(repoUrl))
@@ -562,6 +562,12 @@ class MainActivity : BaseActivity() {
 
         ready = true
         return true
+    }
+
+    private fun Intent.isAddExtensionRepoIntent(): Boolean {
+        val validSchemes = setOf("anizen", "aniyomi", "mihon", "tachiyomi")
+        val validHosts = setOf("add-repo", "extension-store")
+        return scheme in validSchemes && data?.host in validHosts
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
