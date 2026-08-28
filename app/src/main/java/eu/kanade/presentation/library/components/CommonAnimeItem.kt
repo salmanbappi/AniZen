@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -192,8 +193,9 @@ internal fun BoxScope.CoverTextOverlay(
                 .weight(1f)
                 .padding(all = 4.dp),
             title = title,
-            style = MaterialTheme.typography.bodyMedium.copy(
+            style = MaterialTheme.typography.titleSmall.copy(
                 color = Color.White,
+                fontWeight = FontWeight.SemiBold,
                 shadow = Shadow(
                     color = Color.Black.copy(alpha = 0.8f),
                     offset = Offset(0f, 2f),
