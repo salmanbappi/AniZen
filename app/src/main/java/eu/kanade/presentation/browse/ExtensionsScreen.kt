@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.GetApp
@@ -52,6 +54,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -71,6 +76,8 @@ import eu.kanade.presentation.components.SOURCE_SEARCH_BOX_HEIGHT
 import eu.kanade.presentation.components.WarningBanner
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
 import eu.kanade.presentation.util.rememberRequestPackageInstallsPermissionState
+import tachiyomi.presentation.core.icons.CustomIcons
+import tachiyomi.presentation.core.icons.Magnet
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionUiModel
@@ -420,8 +427,36 @@ private fun ExtensionItemContent(
     Column(
         modifier = modifier.padding(start = MaterialTheme.padding.medium),
     ) {
+        val text = buildAnnotatedString {
+            if (extension.isTorrent) {
+                appendInlineContent(TORRENT_ICON, "(Torrent)")
+                append(" ")
+            }
+            append(extension.name)
+        }
+
+        val inlineContent = mapOf(
+            Pair(
+                TORRENT_ICON,
+                InlineTextContent(
+                    Placeholder(
+                        width = MaterialTheme.typography.bodyMedium.fontSize,
+                        height = MaterialTheme.typography.bodyMedium.fontSize,
+                        placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = CustomIcons.Magnet,
+                        contentDescription = "(Torrent)",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                },
+            ),
+        )
+
         Text(
-            text = extension.name,
+            text = text,
+            inlineContent = inlineContent,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyMedium,
@@ -645,3 +680,6 @@ private fun ExtensionTrustDialog(
         onDismissRequest = onDismissRequest,
     )
 }
+
+private const val TORRENT_ICON = "torrentIcon"
+
