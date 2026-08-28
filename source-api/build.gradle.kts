@@ -13,6 +13,7 @@ kotlin {
                 api(libs.injekt)
                 api(libs.rxjava)
                 api(libs.jsoup)
+                api(libs.nanohttpd)
 
                 // SY -->
                 api(kotlinx.reflect)

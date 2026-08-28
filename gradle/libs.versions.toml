@@ -78,6 +78,7 @@ moko-core = { module = "dev.icerock.moko:resources", version = "0.26.0" }
 
 timber = "com.jakewharton.timber:timber:5.0.1"
 logcat = "com.squareup.logcat:logcat:0.2.3"
+nanohttpd = "org.nanohttpd:nanohttpd:2.3.1"
 
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
