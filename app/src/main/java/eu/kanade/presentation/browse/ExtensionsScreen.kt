@@ -436,7 +436,6 @@ private fun ExtensionItemContent(
                     imageVector = CustomIcons.Magnet,
                     contentDescription = "(Torrent)",
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
             Text(

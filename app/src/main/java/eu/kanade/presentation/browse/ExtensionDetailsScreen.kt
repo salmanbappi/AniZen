@@ -279,7 +279,6 @@ private fun DetailsHeader(
                         imageVector = CustomIcons.Magnet,
                         contentDescription = "(Torrent)",
                         modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
                 Text(
