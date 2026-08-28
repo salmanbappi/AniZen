@@ -1696,13 +1696,14 @@ class PlayerActivity : BaseActivity() {
         logcat(LogPriority.ERROR) { errorMessage }
         showToast(errorMessage)
 
-        viewModel.setCurrentVideoError()
-
-        if (playerPreferences.switchOnFailure().get()) {
-            if (!viewModel.loadBestVideo()) {
-                runOnUiThread { finish() }
+        if (playerPreferences.switchOnFailure().get() || playerPreferences.selfHealingLinks().get()) {
+            viewModel.viewModelScope.launchIO {
+                if (!viewModel.recoverOrLoadBestVideo()) {
+                    runOnUiThread { finish() }
+                }
             }
         } else {
+            viewModel.setCurrentVideoError()
             viewModel.updateIsLoadingEpisode(false)
             viewModel.isLoading.value = false
             viewModel.setIsStopped(true)

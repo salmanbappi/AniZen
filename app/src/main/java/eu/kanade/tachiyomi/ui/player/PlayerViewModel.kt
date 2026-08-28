@@ -1944,6 +1944,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         getHosterVideoLinksJob?.cancel()
         getHosterVideoLinksJob = viewModelScope.launchIO {
+            lastFailedVideoAttempt = null
             val preloadedVideo = pendingPreloadedVideo
             val preloadedHosterIndex = pendingPreloadedHosterIndex
             val preloadedVideoIndex = pendingPreloadedVideoIndex
@@ -2099,13 +2100,14 @@ class PlayerViewModel @JvmOverloads constructor(
         hosterIndex: Int,
         videoIndex: Int,
         hasFoundPreferredVideo: AtomicBoolean,
+        resumePosition: Long? = null,
     ): Boolean {
         if (!hasFoundPreferredVideo.compareAndSet(false, true)) return false
         if (hosterIndex == -1 && videoIndex == -1 && selectedHosterVideoIndex.value != Pair(-1, -1)) {
             hasFoundPreferredVideo.set(false)
             return false
         }
-        val success = loadVideo(source, video, hosterIndex, videoIndex)
+        val success = loadVideo(source, video, hosterIndex, videoIndex, resumePosition)
         if (!success) {
             hasFoundPreferredVideo.set(false)
         }
@@ -2145,7 +2147,13 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private suspend fun loadVideo(source: AnimeSource?, video: Video, hosterIndex: Int, videoIndex: Int): Boolean {
+    private suspend fun loadVideo(
+        source: AnimeSource?,
+        video: Video,
+        hosterIndex: Int,
+        videoIndex: Int,
+        resumePosition: Long? = null,
+    ): Boolean {
         val selectedHosterState = (_hosterState.value[hosterIndex] as? HosterState.Ready) ?: return false
         updateIsLoadingEpisode(true)
         setIsStopped(false)
@@ -2188,7 +2196,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
                 val newVideo = (hosterState.value[newHosterIdx] as HosterState.Ready).videoList[newVideoIdx]
 
-                return loadVideo(source, newVideo, newHosterIdx, newVideoIdx)
+                return loadVideo(source, newVideo, newHosterIdx, newVideoIdx, resumePosition)
             } else {
                 _selectedHosterVideoIndex.update { _ -> oldSelectedIndex }
                 _hosterState.updateAt(
@@ -2212,7 +2220,7 @@ class PlayerViewModel @JvmOverloads constructor(
             loadThumbnails(resolvedVideo, source)
         }
 
-        activity.setVideo(resolvedVideo)
+        activity.setVideo(resolvedVideo, position = if (resumePosition != null && resumePosition > 5000L) resumePosition else null)
         return true
     }
 
@@ -2228,14 +2236,49 @@ class PlayerViewModel @JvmOverloads constructor(
         )
     }
 
-    fun loadBestVideo(): Boolean {
+    private var lastFailedVideoAttempt: Pair<Int, Int>? = null
+
+    suspend fun recoverOrLoadBestVideo(): Boolean {
+        val source = currentSource.value ?: return false
+        val (hosterIdx, videoIdx) = selectedHosterVideoIndex.value
+        val enableSelfHealing = playerPreferences.selfHealingLinks().get()
+        val currentPlaybackPos = (pos.value * 1000).toLong()
+
+        // 1. Self-Healing: If token expired, try fresh re-resolution once on the current hoster/video
+        if (enableSelfHealing && hosterIdx != -1 && videoIdx != -1 && lastFailedVideoAttempt != Pair(hosterIdx, videoIdx)) {
+            lastFailedVideoAttempt = Pair(hosterIdx, videoIdx)
+            val currentHosterState = (hosterState.value.getOrNull(hosterIdx) as? HosterState.Ready)
+            val currentVid = currentHosterState?.videoList?.getOrNull(videoIdx)
+            if (currentVid != null) {
+                logcat { "Self-Healing: Stream playback failed. Attempting fresh token re-resolve for: ${currentVid.quality}" }
+                try {
+                    val uninitializedVideo = currentVid.copy(initialized = false)
+                    val freshlyResolved = HosterLoader.getResolvedVideo(source, uninitializedVideo)
+                    if (freshlyResolved != null && freshlyResolved.videoUrl.isNotBlank() && freshlyResolved.videoUrl != currentVid.videoUrl) {
+                        logcat { "Self-Healing: Re-resolution successful! Resuming stream..." }
+                        val success = loadVideo(source, freshlyResolved, hosterIdx, videoIdx, resumePosition = currentPlaybackPos)
+                        if (success) return true
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    logcat(LogPriority.WARN, e) { "Self-Healing: Re-resolution failed" }
+                }
+            }
+        }
+
+        // 2. Mark error and cascade to next best video / hoster
+        setCurrentVideoError()
+        return loadBestVideo(resumePosition = currentPlaybackPos)
+    }
+
+    fun loadBestVideo(resumePosition: Long? = null): Boolean {
         val source = currentSource.value ?: return false
         val (hosterIdx, videoIdx) = HosterLoader.selectBestVideo(hosterState.value)
         if (hosterIdx == -1) return false
         val newVideo = (hosterState.value[hosterIdx] as HosterState.Ready).videoList[videoIdx]
         viewModelScope.launchIO {
             try {
-                val success = loadVideo(source, newVideo, hosterIdx, videoIdx)
+                val success = loadVideo(source, newVideo, hosterIdx, videoIdx, resumePosition)
                 if (!success) {
                     updateIsLoadingEpisode(false)
                     isLoading.value = false
@@ -2366,6 +2409,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         _currentEpisode.update { _ -> chosenEpisode }
         updateEpisode(chosenEpisode)
+        lastFailedVideoAttempt = null
         cancelPreload()
 
         return withIOContext {
@@ -2498,7 +2542,7 @@ class PlayerViewModel @JvmOverloads constructor(
     private var lastPreloadFailAt = 0L
 
     private fun isMetaValid(meta: PreloadedMeta) =
-        System.currentTimeMillis() - meta.createdAtMs < 5 * 60_000 // 5 minutes TTL
+        System.currentTimeMillis() - meta.createdAtMs < 3 * 60_000 // 3 minutes TTL
 
     private fun canRetryPreload(): Boolean =
         System.currentTimeMillis() - lastPreloadFailAt > 60_000 // 1 minute backoff
