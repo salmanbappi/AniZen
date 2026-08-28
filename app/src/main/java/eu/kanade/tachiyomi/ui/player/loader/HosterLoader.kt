@@ -69,7 +69,18 @@ class HosterLoader {
             return Pair(-1, -1)
         }
 
-        class EarlyReturnException(val video: Video) : Exception()
+        data class ResolvedVideoResult(
+            val video: Video,
+            val hosterIndex: Int,
+            val videoIndex: Int,
+            val hosterStates: List<HosterState>,
+        )
+
+        class EarlyReturnException(
+            val video: Video,
+            val hosterIndex: Int,
+            val videoIndex: Int,
+        ) : Exception()
 
         /**
          * Return the first loaded and valid "best" video, based on the criteria in the function `selectBestVideo` above.
@@ -82,7 +93,13 @@ class HosterLoader {
             source: AnimeSource,
             hosterList: List<Hoster>,
             defaultSelector: String,
-        ): Video? {
+        ): Video? = resolveDefaultStreamWithResult(source, hosterList, defaultSelector)?.video
+
+        suspend fun resolveDefaultStreamWithResult(
+            source: AnimeSource,
+            hosterList: List<Hoster>,
+            defaultSelector: String,
+        ): ResolvedVideoResult? {
             if (defaultSelector.isBlank()) return null
             val hosterStates = MutableList<HosterState>(hosterList.size) { HosterState.Idle("") }
             return try {
@@ -104,7 +121,9 @@ class HosterLoader {
                         val video = ready.videoList.getOrNull(videoIdx) ?: continue
                         val resolved = getResolvedVideo(source, video)
                         if (resolved?.videoUrl?.isNotEmpty() == true) {
-                            return@withContext resolved
+                            val updatedReady = ready.getChangedAt(videoIdx, resolved, Video.State.READY)
+                            hosterStates[hosterIdx] = updatedReady
+                            return@withContext ResolvedVideoResult(resolved, hosterIdx, videoIdx, hosterStates)
                         }
                     }
                     null
@@ -114,11 +133,14 @@ class HosterLoader {
             }
         }
 
-        suspend fun getBestVideo(source: AnimeSource, hosterList: List<Hoster>): Video? {
+        suspend fun getBestVideo(source: AnimeSource, hosterList: List<Hoster>): Video? =
+            getBestVideoWithResult(source, hosterList)?.video
+
+        suspend fun getBestVideoWithResult(source: AnimeSource, hosterList: List<Hoster>): ResolvedVideoResult? {
             val hosterStates = MutableList<HosterState>(hosterList.size) { HosterState.Idle("") }
 
             return try {
-                withContext<Video?>(Dispatchers.IO) {
+                withContext<ResolvedVideoResult?>(Dispatchers.IO) {
                     hosterList.mapIndexed { hosterIdx, hoster ->
                         async {
                             val hosterState = EpisodeLoader.loadHosterVideos(source, hoster)
@@ -137,8 +159,14 @@ class HosterLoader {
 
                                     val resolvedVideo = getResolvedVideo(source, video)
                                     if (resolvedVideo?.videoUrl?.isNotEmpty() == true) {
+                                        val updatedReady = (hosterStates[hosterIdx] as HosterState.Ready).getChangedAt(
+                                            prefIndex,
+                                            resolvedVideo,
+                                            Video.State.READY,
+                                        )
+                                        hosterStates[hosterIdx] = updatedReady
                                         coroutineContext.cancelChildren()
-                                        throw EarlyReturnException(resolvedVideo)
+                                        throw EarlyReturnException(resolvedVideo, hosterIdx, prefIndex)
                                     }
 
                                     hosterStates[hosterIdx] =
@@ -165,8 +193,14 @@ class HosterLoader {
 
                         val resolvedVideo = getResolvedVideo(source, video)
                         if (resolvedVideo?.videoUrl?.isNotEmpty() == true) {
+                            val updatedReady = (hosterStates[hosterIdx] as HosterState.Ready).getChangedAt(
+                                videoIdx,
+                                resolvedVideo,
+                                Video.State.READY,
+                            )
+                            hosterStates[hosterIdx] = updatedReady
                             coroutineContext.cancelChildren()
-                            return@withContext resolvedVideo
+                            return@withContext ResolvedVideoResult(resolvedVideo, hosterIdx, videoIdx, hosterStates)
                         }
 
                         hosterStates[hosterIdx] =
@@ -184,7 +218,7 @@ class HosterLoader {
                     return@withContext null
                 }
             } catch (e: EarlyReturnException) {
-                e.video
+                ResolvedVideoResult(e.video, e.hosterIndex, e.videoIndex, hosterStates)
             } finally {
                 // Ensure everything is cleaned up
             }
