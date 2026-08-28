@@ -427,40 +427,25 @@ private fun ExtensionItemContent(
     Column(
         modifier = modifier.padding(start = MaterialTheme.padding.medium),
     ) {
-        val text = buildAnnotatedString {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             if (extension.isTorrent) {
-                appendInlineContent(TORRENT_ICON, "(Torrent)")
-                append(" ")
+                Icon(
+                    imageVector = CustomIcons.Magnet,
+                    contentDescription = "(Torrent)",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
-            append(extension.name)
+            Text(
+                text = extension.name,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
-
-        val inlineContent = mapOf(
-            Pair(
-                TORRENT_ICON,
-                InlineTextContent(
-                    Placeholder(
-                        width = MaterialTheme.typography.bodyMedium.fontSize,
-                        height = MaterialTheme.typography.bodyMedium.fontSize,
-                        placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
-                    ),
-                ) {
-                    Icon(
-                        imageVector = CustomIcons.Magnet,
-                        contentDescription = "(Torrent)",
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                },
-            ),
-        )
-
-        Text(
-            text = text,
-            inlineContent = inlineContent,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium,
-        )
 
         // Won't look good but it's not like we can ellipsize overflowing content
         FlowRow(

@@ -322,7 +322,15 @@ object ExtensionLoader {
                 is Boolean -> v
                 is String -> v.toBoolean() || v == "1"
                 else -> false
-            }
+            } ||
+            pkgName.contains("torrent", ignoreCase = true) ||
+            pkgName.contains("stremio", ignoreCase = true) ||
+            pkgName.contains("animetosho", ignoreCase = true) ||
+            pkgName.contains("nyaa", ignoreCase = true) ||
+            extName.contains("torrent", ignoreCase = true) ||
+            extName.contains("stremio", ignoreCase = true) ||
+            extName.contains("animetosho", ignoreCase = true) ||
+            extName.contains("nyaa", ignoreCase = true)
 
         val classLoader = try {
             ChildFirstPathClassLoader(appInfo.sourceDir, null, context.classLoader)

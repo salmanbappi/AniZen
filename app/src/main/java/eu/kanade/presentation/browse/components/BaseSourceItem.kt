@@ -65,37 +65,18 @@ private val defaultContent: @Composable RowScope.(SourceUiModel.Item) -> Unit = 
             .padding(horizontal = MaterialTheme.padding.medium)
             .weight(1f),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val text = buildAnnotatedString {
-                if (item.isTorrent) {
-                    appendInlineContent(TORRENT_ICON, "(Torrent)")
-                    append(" ")
-                }
-                append(item.displayName)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (item.isTorrent) {
+                Icon(
+                    imageVector = CustomIcons.Magnet,
+                    contentDescription = "(Torrent)",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
 
-            val inlineContent = mapOf(
-                Pair(
-                    TORRENT_ICON,
-                    InlineTextContent(
-                        Placeholder(
-                            width = MaterialTheme.typography.bodyMedium.fontSize,
-                            height = MaterialTheme.typography.bodyMedium.fontSize,
-                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
-                        ),
-                    ) {
-                        Icon(
-                            imageVector = CustomIcons.Magnet,
-                            contentDescription = "(Torrent)",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                ),
-            )
-
             Text(
-                text = text,
-                inlineContent = inlineContent,
+                text = item.displayName,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,

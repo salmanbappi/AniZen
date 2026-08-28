@@ -61,6 +61,8 @@ import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.icons.CustomIcons
+import tachiyomi.presentation.core.icons.Magnet
 import tachiyomi.presentation.core.screens.EmptyScreen
 
 @Composable
@@ -268,11 +270,24 @@ private fun DetailsHeader(
                 density = DisplayMetrics.DENSITY_XXXHIGH,
             )
 
-            Text(
-                text = extension.name,
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (extension.isTorrent) {
+                    Icon(
+                        imageVector = CustomIcons.Magnet,
+                        contentDescription = "(Torrent)",
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(
+                    text = extension.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                )
+            }
 
             val strippedPkgName = extension.pkgName.substringAfter(
                 "eu.kanade.tachiyomi.animeextension.",

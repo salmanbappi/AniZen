@@ -19,7 +19,7 @@ val CustomIcons.Magnet: ImageVector
             viewportHeight = 24f,
         ).apply {
             path(
-                fill = SolidColor(Color(0xFF000000)),
+                fill = SolidColor(Color.White),
             ) {
                 moveTo(21.7f, 12.818f)
                 arcToRelative(1.022f, 1.022f, 0f, false, true, 0f, 1.445f)
