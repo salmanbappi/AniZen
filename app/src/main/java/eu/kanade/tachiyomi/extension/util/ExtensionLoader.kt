@@ -310,27 +310,12 @@ object ExtensionLoader {
         }
 
         val isTorrent = appInfo.metaData?.getBoolean(METADATA_IS_TORRENT) == true ||
-            appInfo.metaData?.getBoolean("tachiyomix.torrent") == true ||
-            appInfo.metaData?.getBoolean("aniyomi.animeextension.torrent") == true ||
-            appInfo.metaData?.getBoolean("tachiyomi.animeextension.torrent") == true ||
-            appInfo.metaData?.getInt("aniyomi.animeextension.torrent") == 1 ||
-            appInfo.metaData?.getInt("tachiyomi.animeextension.torrent") == 1 ||
-            appInfo.metaData?.getInt("tachiyomi.torrent") == 1 ||
-            appInfo.metaData?.getInt("aniyomi.torrent") == 1 ||
             when (val v = appInfo.metaData?.get(METADATA_TORRENT)) {
                 is Int -> v == 1
                 is Boolean -> v
                 is String -> v.toBoolean() || v == "1"
                 else -> false
-            } ||
-            pkgName.contains("torrent", ignoreCase = true) ||
-            pkgName.contains("stremio", ignoreCase = true) ||
-            pkgName.contains("animetosho", ignoreCase = true) ||
-            pkgName.contains("nyaa", ignoreCase = true) ||
-            extName.contains("torrent", ignoreCase = true) ||
-            extName.contains("stremio", ignoreCase = true) ||
-            extName.contains("animetosho", ignoreCase = true) ||
-            extName.contains("nyaa", ignoreCase = true)
+            }
 
         val classLoader = try {
             ChildFirstPathClassLoader(appInfo.sourceDir, null, context.classLoader)

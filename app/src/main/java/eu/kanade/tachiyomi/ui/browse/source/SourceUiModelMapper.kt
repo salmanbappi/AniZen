@@ -48,11 +48,7 @@ class SourceUiModelMapper(
             isStub = source.isStub,
             displayName = source.name.ifBlank { source.id.toString() },
             secondaryText = secondaryText,
-            isTorrent = extensionManager.isTorrentSource(source.id) ||
-                source.name.contains("stremio", ignoreCase = true) ||
-                source.name.contains("animetosho", ignoreCase = true) ||
-                source.name.contains("nyaa", ignoreCase = true) ||
-                source.name.contains("torrent", ignoreCase = true),
+            isTorrent = extensionManager.isTorrentSource(source.id),
         )
     }
 

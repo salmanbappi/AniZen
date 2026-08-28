@@ -158,7 +158,7 @@ internal class ExtensionApi {
                     libVersion = it.extractLibVersion(),
                     lang = it.lang,
                     isNsfw = contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW || contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED,
-                    isTorrent = it.torrent == 1 || it.isTorrent || it.pkg.contains("stremio", ignoreCase = true) || it.pkg.contains("animetosho", ignoreCase = true) || it.pkg.contains("nyaa", ignoreCase = true) || it.pkg.contains("torrent", ignoreCase = true) || it.name.contains("torrent", ignoreCase = true),
+                    isTorrent = it.torrent == 1 || it.isTorrent,
                     sources = it.sources?.map(extensionSourceMapper).orEmpty(),
                     apkName = it.apk,
                     iconUrl = "${normalizedRepoUrl}/icon/${it.pkg}.png",
