@@ -261,6 +261,10 @@ class PlayerViewModel @JvmOverloads constructor(
     private val _currentVideo = MutableStateFlow<Video?>(null)
     val currentVideo = _currentVideo.asStateFlow()
 
+    fun updateVideo(video: Video) {
+        _currentVideo.update { video }
+    }
+
     private val _chapters = MutableStateFlow<List<IndexedSegment>>(emptyList())
     val chapters = _chapters.asStateFlow()
     private val _currentChapter = MutableStateFlow<IndexedSegment?>(null)
