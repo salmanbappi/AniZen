@@ -4,6 +4,7 @@ import android.net.Uri
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import okhttp3.Headers
 
 @Serializable
@@ -41,7 +42,7 @@ open class Video(
     val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
-    val memo: String = "",
+    val memo: JsonObject = JsonObject.EMPTY,
 ) {
 
     var type: VideoType = VideoType.VIDEO
@@ -125,7 +126,7 @@ open class Video(
         ffmpegVideoArgs = ffmpegVideoArgs,
         internalData = internalData,
         initialized = initialized,
-        memo = "",
+        memo = JsonObject.EMPTY,
     )
 
     @Transient
@@ -157,7 +158,7 @@ open class Video(
         ffmpegVideoArgs: List<Pair<String, String>> = this.ffmpegVideoArgs,
         internalData: String = this.internalData,
         initialized: Boolean = this.initialized,
-        memo: String = this.memo,
+        memo: JsonObject = this.memo,
     ): Video {
         return Video(
             videoUrl = videoUrl,
@@ -197,7 +198,7 @@ open class Video(
         ffmpegVideoArgs: List<Pair<String, String>> = this.ffmpegVideoArgs,
         internalData: String = this.internalData,
         initialized: Boolean = this.initialized,
-        memo: String = this.memo,
+        memo: JsonObject = this.memo,
         type: VideoType = this.type,
         mimeType: String? = this.mimeType,
         videoPageUrl: String = this.videoPageUrl,
@@ -294,7 +295,7 @@ data class SerializableVideo(
     val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
-    val memo: String = "",
+    val memo: JsonObject = JsonObject.EMPTY,
     val type: VideoType = VideoType.VIDEO,
     var mimeType: String? = null,
     // TODO(1.6): Remove after ext lib bump

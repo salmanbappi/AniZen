@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.torrentServer.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
@@ -12,6 +13,7 @@ data class TorrentRequest(
     val title: String = "",
     val poster: String = "",
     val data: String = "",
+    @SerialName("save_to_db")
     val saveToDb: Boolean = false,
 ) {
     override fun toString(): String {

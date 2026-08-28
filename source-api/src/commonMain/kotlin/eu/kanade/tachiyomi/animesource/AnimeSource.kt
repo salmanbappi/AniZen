@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animesource
 
+import eu.kanade.tachiyomi.animesource.model.AnimeRelation
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
@@ -114,6 +115,13 @@ interface AnimeSource {
     )
     fun fetchVideoList(episode: SEpisode): Observable<List<Video>> =
         throw IllegalStateException("Not used")
+
+    // Lib 17 -->
+    val supportsRelatedAnime: Boolean
+        get() = false
+
+    suspend fun getRelatedAnimeList(anime: SAnime): List<AnimeRelation> = emptyList()
+    // Lib 17 <--
 
     // KMK -->
     /**

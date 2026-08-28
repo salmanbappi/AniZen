@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.animesource.model.SerializableVideo.Companion.toVideo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 open class Hoster(
     val hosterUrl: String = "",
@@ -12,7 +13,7 @@ open class Hoster(
     val videoList: List<Video>? = null,
     val internalData: String = "",
     val lazy: Boolean = false,
-    val memo: String = "",
+    val memo: JsonObject = JsonObject.EMPTY,
 ) {
     @Transient
     @Volatile
@@ -41,7 +42,7 @@ open class Hoster(
         videoList = videoList,
         internalData = internalData,
         lazy = lazy,
-        memo = "",
+        memo = JsonObject.EMPTY,
     )
 
     fun copy(
@@ -50,7 +51,7 @@ open class Hoster(
         videoList: List<Video>? = this.videoList,
         internalData: String = this.internalData,
         lazy: Boolean = this.lazy,
-        memo: String = this.memo,
+        memo: JsonObject = this.memo,
     ): Hoster {
         return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
             it.selected = this.selected
@@ -78,7 +79,7 @@ open class Hoster(
         internalData: String = this.internalData,
         lazy: Boolean = this.lazy,
         selected: Boolean = this.selected,
-        memo: String = this.memo,
+        memo: JsonObject = this.memo,
     ): Hoster {
         return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
             it.selected = selected
@@ -123,7 +124,7 @@ data class SerializableHoster(
     val internalData: String = "",
     val lazy: Boolean = false,
     val selected: Boolean = false,
-    val memo: String = "",
+    val memo: JsonObject = JsonObject.EMPTY,
 ) {
     companion object {
         fun List<Hoster>.serialize(): String =
