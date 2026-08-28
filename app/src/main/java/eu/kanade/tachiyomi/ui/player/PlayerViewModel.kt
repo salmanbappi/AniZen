@@ -2650,7 +2650,7 @@ class PlayerViewModel @JvmOverloads constructor(
                 if (resolvedVideo != null) {
                     logcat { "Preload: Successfully resolved video: ${resolvedVideo.videoUrl.take(50)}..." }
                     if (enableBuffering && resolvedVideo.videoUrl.isNotBlank()) {
-                        // Initiate a HEAD request with proper custom headers to keep the socket warm
+                        // 1. 0-RTT DNS & TLS Session Resumption socket pre-warming for main video stream
                         try {
                             val client = networkHelper.client
                             val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
@@ -2662,9 +2662,37 @@ class PlayerViewModel @JvmOverloads constructor(
                                 .head()
                                 .build()
                             client.newCall(request).execute().use { }
-                            logcat { "Preload: Successfully warmed socket with headers for video." }
+                            logcat { "Preload: Successfully warmed 0-RTT TLS socket for main video." }
                         } catch (e: Exception) {
-                            logcat(LogPriority.WARN, e) { "Preload: Socket warming failed (non-fatal)" }
+                            logcat(LogPriority.WARN, e) { "Preload: Video socket warming failed (non-fatal)" }
+                        }
+
+                        // 2. Subtitle & Font Cache Pre-Warming (libass font cache priming)
+                        if (resolvedVideo.subtitleTracks.isNotEmpty()) {
+                            try {
+                                val client = networkHelper.client
+                                val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
+                                val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
+                                    ?: okhttp3.Headers.Builder()
+
+                                resolvedVideo.subtitleTracks.take(3).forEach { subTrack ->
+                                    if (subTrack.url.startsWith("http")) {
+                                        try {
+                                            val subReq = okhttp3.Request.Builder()
+                                                .url(subTrack.url)
+                                                .headers(headersBuilder.build())
+                                                .head()
+                                                .build()
+                                            client.newCall(subReq).execute().use { }
+                                            logcat { "Preload: Subtitle & font connection primed for ${subTrack.lang}" }
+                                        } catch (_: Exception) {
+                                            // non-fatal
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                logcat(LogPriority.WARN, e) { "Preload: Subtitle pre-warming skipped" }
+                            }
                         }
                     }
                 } else {
