@@ -22,7 +22,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import eu.kanade.tachiyomi.animesource.AnimeSource
+import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.torrentServer.service.TorrentServerService
 import eu.kanade.tachiyomi.network.HttpException
@@ -547,35 +549,55 @@ class Downloader(
                     } ?: HosterLoader.getBestVideo(download.source as AnimeSource, hosters)
                 } ?: throw Exception(context.stringResource(MR.strings.video_list_empty_error))
             }.also { download.video = it }
-            
-            // Pro-Active: Set engine type early for UI and logic
-            if (download.engineType.isBlank()) {
-                download.engineType = detectEngineType(video)
-            }
 
-            // Check again for cancellation after slow network call
-            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-
-            // Download soft subtitles EARLY and make them NON-FATAL
+            var downloadHttpServer: HttpServer? = null
             try {
-                downloadSubtitles(video, sandboxDir, videoFilename)
-            } catch (e: Exception) {
-                logcat(LogPriority.WARN, e) { "Subtitles failed but continuing download: ${e.message}" }
-            }
+                if (video.usesHttpServer() && download.source is AnimeHttpSource) {
+                    val httpSource = download.source as AnimeHttpSource
+                    val port = httpSource.createHttpServer()?.let { server ->
+                        downloadHttpServer = server
+                        server.start()
+                        server.listeningPort
+                    } ?: 0
+                    if (port > 0) {
+                        val rewritten = video.copyHttpServer(port)
+                        download.video = rewritten
+                    }
+                }
 
-            if (download.changeDownloader) {
-                val success = externalDownload(download, animeDir, episodeDirname)
-                if (success) return else throw Exception("Could not open external downloader")
-            }
+                val effectiveVideo = download.video ?: video
 
-            val videoFile = when (download.engineType) {
-                "Torrent" -> torrentDownload(download, sandboxDir, videoFilename)
-                "HLS" -> nativeHlsDownload(download, sandboxDir, videoFilename)
-                "DASH" -> UniFile.fromFile(nativeDashMuxDownload(download, sandboxDir, videoFilename))!!
-                else -> internalDownload(download, sandboxDir, videoFilename)
-            }
+                // Pro-Active: Set engine type early for UI and logic
+                if (download.engineType.isBlank()) {
+                    download.engineType = detectEngineType(effectiveVideo)
+                }
 
-            finalizeDownload(download, videoFile, animeDir, episodeDirname)
+                // Check again for cancellation after slow network call
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+
+                // Download soft subtitles EARLY and make them NON-FATAL
+                try {
+                    downloadSubtitles(effectiveVideo, sandboxDir, videoFilename)
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN, e) { "Subtitles failed but continuing download: ${e.message}" }
+                }
+
+                if (download.changeDownloader) {
+                    val success = externalDownload(download, animeDir, episodeDirname)
+                    if (success) return else throw Exception("Could not open external downloader")
+                }
+
+                val videoFile = when (download.engineType) {
+                    "Torrent" -> torrentDownload(download, sandboxDir, videoFilename)
+                    "HLS" -> nativeHlsDownload(download, sandboxDir, videoFilename)
+                    "DASH" -> UniFile.fromFile(nativeDashMuxDownload(download, sandboxDir, videoFilename))!!
+                    else -> internalDownload(download, sandboxDir, videoFilename)
+                }
+
+                finalizeDownload(download, videoFile, animeDir, episodeDirname)
+            } finally {
+                downloadHttpServer?.stop()
+            }
             
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Download failed" }

@@ -70,8 +70,10 @@ import eu.kanade.presentation.theme.DynamicTachiyomiTheme
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.serialize
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.PlayerData
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
@@ -174,6 +176,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     private var pipReceiver: BroadcastReceiver? = null
+    private var httpServer: HttpServer? = null
 
     val isTv by lazy {
         packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
@@ -377,6 +380,9 @@ class PlayerActivity : BaseActivity() {
     override fun onDestroy() {
         player.isExiting = true
         PlayerStats.reset()
+
+        httpServer?.stop()
+        httpServer = null
 
         audioFocusRequest?.let {
             AudioManagerCompat.abandonAudioFocusRequest(audioManager, it)
@@ -1435,6 +1441,9 @@ class PlayerActivity : BaseActivity() {
                 MPVLib.command(arrayOf("set", "start", "${player.timePos}"))
             }
         }
+        httpServer?.stop()
+        httpServer = null
+
         if (video.videoUrl.startsWith(TorrentServerUtils.hostUrl) ||
             video.videoUrl.startsWith("magnet") ||
             video.videoUrl.endsWith(".torrent")
@@ -1445,7 +1454,26 @@ class PlayerActivity : BaseActivity() {
                 torrentLinkHandler(video.videoUrl, video.quality)
             }
         } else {
-            MPVLib.command(arrayOf("loadfile", parseVideoUrl(video.videoUrl)))
+            launchIO {
+                val httpSource = viewModel.currentSource.value as? AnimeHttpSource
+                var videoUrl: String = video.videoUrl
+                if (video.usesHttpServer() && httpSource != null) {
+                    val port = try {
+                        httpServer = httpSource.createHttpServer()
+                        httpServer?.start()
+                        httpServer?.listeningPort ?: 0
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR, e) { "Failed to start http server" }
+                        return@launchIO
+                    }
+
+                    val newVideo = video.copyHttpServer(port)
+                    videoUrl = newVideo.videoUrl
+                    viewModel.updateVideo(newVideo)
+                }
+
+                MPVLib.command(arrayOf("loadfile", parseVideoUrl(videoUrl)))
+            }
         }
         updateDiscordRPC(exitingPlayer = false)
     }

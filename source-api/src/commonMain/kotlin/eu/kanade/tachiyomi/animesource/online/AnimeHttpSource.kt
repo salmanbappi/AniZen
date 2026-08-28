@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
@@ -442,6 +443,17 @@ abstract class AnimeHttpSource : AnimeCatalogueSource {
      */
     open suspend fun resolveVideo(video: Video): Video? {
         return video
+    }
+
+    /**
+     * Enable the use of a local http server.
+     *
+     * Return an instance of HttpServer. The app will handle starting and closing of the server.
+     *
+     * @since extensions-lib 17
+     */
+    open fun createHttpServer(): HttpServer? {
+        return null
     }
 
     /**

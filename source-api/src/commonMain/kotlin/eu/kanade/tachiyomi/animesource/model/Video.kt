@@ -267,6 +267,35 @@ open class Video(
         }
     }
 
+    fun usesHttpServer(): Boolean {
+        if (localUrl.find(videoUrl) != null) {
+            return true
+        }
+
+        if (audioTracks.any { localUrl.find(it.url) != null }) {
+            return true
+        }
+
+        if (subtitleTracks.any { localUrl.find(it.url) != null }) {
+            return true
+        }
+
+        return false
+    }
+
+    fun copyHttpServer(port: Int): Video {
+        val newHost = "http://localhost:$port"
+        return this.copy(
+            videoUrl = localUrl.replace(videoUrl, newHost),
+            subtitleTracks = subtitleTracks.map {
+                it.copy(url = localUrl.replace(it.url, newHost))
+            },
+            audioTracks = audioTracks.map {
+                it.copy(url = localUrl.replace(it.url, newHost))
+            },
+        )
+    }
+
     enum class State {
         QUEUE,
         LOAD_VIDEO,
@@ -276,6 +305,7 @@ open class Video(
 
     companion object {
         const val MPV_ARGS_TAG = "ANIYOMI_MPV_ARGS"
+        private val localUrl = Regex("""http:\/\/localhost:1(?!\d)""")
     }
 }
 
