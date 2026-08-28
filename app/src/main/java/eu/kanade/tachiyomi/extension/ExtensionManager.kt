@@ -130,6 +130,11 @@ class ExtensionManager(
             ?.name
     }
 
+    fun isTorrentSource(sourceId: Long): Boolean {
+        return installedExtensionsMapFlow.value.values
+            .any { ext -> ext.isTorrent && ext.sources.any { it.id == sourceId } }
+    }
+
     private var availableAnimeExtensionsSourcesData: Map<Long, StubSource> = emptyMap()
 
     private fun setupAvailableAnimeExtensionsSourcesDataMap(
