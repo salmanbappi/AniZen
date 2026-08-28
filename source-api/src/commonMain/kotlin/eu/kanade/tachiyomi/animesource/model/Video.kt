@@ -41,6 +41,7 @@ open class Video(
     val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
+    val memo: String = "",
 ) {
 
     var type: VideoType = VideoType.VIDEO
@@ -121,6 +122,7 @@ open class Video(
         ffmpegVideoArgs: List<Pair<String, String>> = this.ffmpegVideoArgs,
         internalData: String = this.internalData,
         initialized: Boolean = this.initialized,
+        memo: String = this.memo,
     ): Video {
         return Video(
             videoUrl = videoUrl,
@@ -137,6 +139,7 @@ open class Video(
             ffmpegVideoArgs = ffmpegVideoArgs,
             internalData = internalData,
             initialized = initialized,
+            memo = memo,
         ).also {
             it.type = this.type
             it.mimeType = this.mimeType
@@ -159,6 +162,7 @@ open class Video(
         ffmpegVideoArgs: List<Pair<String, String>> = this.ffmpegVideoArgs,
         internalData: String = this.internalData,
         initialized: Boolean = this.initialized,
+        memo: String = this.memo,
         type: VideoType = this.type,
         mimeType: String? = this.mimeType,
         videoPageUrl: String = this.videoPageUrl,
@@ -178,6 +182,7 @@ open class Video(
             ffmpegVideoArgs = ffmpegVideoArgs,
             internalData = internalData,
             initialized = initialized,
+            memo = memo,
         ).also {
             it.type = type
             it.mimeType = mimeType
@@ -213,6 +218,7 @@ data class SerializableVideo(
     val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
+    val memo: String = "",
     val type: VideoType = VideoType.VIDEO,
     var mimeType: String? = null,
     // TODO(1.6): Remove after ext lib bump
@@ -238,6 +244,7 @@ data class SerializableVideo(
                         vid.ffmpegVideoArgs,
                         vid.internalData,
                         vid.initialized,
+                        vid.memo,
                         vid.type,
                         vid.mimeType,
                         vid.videoPageUrl,
@@ -265,6 +272,7 @@ data class SerializableVideo(
                         sVid.ffmpegVideoArgs,
                         sVid.internalData,
                         sVid.initialized,
+                        sVid.memo,
                     ).apply {
                         type = sVid.type
                         mimeType = sVid.mimeType

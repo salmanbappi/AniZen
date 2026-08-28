@@ -467,7 +467,15 @@ private fun ExtensionItemContent(
                     )
                 }
 
-                if (extension !is Extension.Installed && extension.isNsfw) {
+                if (extension.contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED) {
+                    Text(
+                        text = "MIXED",
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                } else if (extension !is Extension.Installed && extension.isNsfw) {
                     Text(
                         text = "18+",
                         color = MaterialTheme.colorScheme.error,

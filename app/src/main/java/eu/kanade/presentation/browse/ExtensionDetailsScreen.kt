@@ -166,7 +166,7 @@ private fun ExtensionDetails(
     onClickSource: (sourceId: Long) -> Unit,
 ) {
     val context = LocalContext.current
-    var showNsfwWarning by remember { mutableStateOf(false) }
+    var showContentWarning by remember { mutableStateOf(false) }
 
     ScrollbarLazyColumn(
         contentPadding = contentPadding,
@@ -189,7 +189,7 @@ private fun ExtensionDetails(
                     Unit
                 }.takeIf { extension.isShared },
                 onClickAgeRating = {
-                    showNsfwWarning = true
+                    showContentWarning = true
                 },
             )
         }
@@ -206,10 +206,11 @@ private fun ExtensionDetails(
             )
         }
     }
-    if (showNsfwWarning) {
-        NsfwWarningDialog(
+    if (showContentWarning) {
+        ContentWarningDialog(
+            contentWarning = extension.contentWarning,
             onClickConfirm = {
-                showNsfwWarning = false
+                showContentWarning = false
             },
         )
     }
@@ -302,17 +303,23 @@ private fun DetailsHeader(
             InfoDivider()
 
             InfoText(
-                modifier = Modifier.weight(if (extension.isNsfw) 1.5f else 1f),
+                modifier = Modifier.weight(if (extension.contentWarning.hasAdultContent) 1.5f else 1f),
                 primaryText = LocaleHelper.getSourceDisplayName(extension.lang, context),
                 secondaryText = stringResource(MR.strings.ext_info_language),
             )
 
-            if (extension.isNsfw) {
+            if (extension.contentWarning.hasAdultContent) {
                 InfoDivider()
 
                 InfoText(
                     modifier = Modifier.weight(1f),
-                    primaryText = stringResource(MR.strings.ext_nsfw_short),
+                    primaryText = stringResource(
+                        if (extension.contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED) {
+                            MR.strings.ext_mixed_short
+                        } else {
+                            MR.strings.ext_nsfw_short
+                        },
+                    ),
                     primaryTextStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Medium,
@@ -442,12 +449,21 @@ private fun SourceSwitchPreference(
 }
 
 @Composable
-private fun NsfwWarningDialog(
+private fun ContentWarningDialog(
+    contentWarning: eu.kanade.tachiyomi.extension.model.ContentWarning,
     onClickConfirm: () -> Unit,
 ) {
     AlertDialog(
         text = {
-            Text(text = stringResource(MR.strings.ext_nsfw_warning))
+            Text(
+                text = stringResource(
+                    if (contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED) {
+                        MR.strings.ext_mixed_warning
+                    } else {
+                        MR.strings.ext_nsfw_warning
+                    },
+                ),
+            )
         },
         confirmButton = {
             TextButton(onClick = onClickConfirm) {

@@ -88,6 +88,11 @@ interface AnimeCatalogueSource : AnimeSource {
     val supportsRelatedAnimes: Boolean get() = false
 
     /**
+     * Whether the source supports related anime (Aniyomi naming).
+     */
+    val supportsRelatedAnime: Boolean get() = supportsRelatedAnimes
+
+    /**
      * Get all the available related animes for an anime.
      * Normally it's not needed to override this method.
      *

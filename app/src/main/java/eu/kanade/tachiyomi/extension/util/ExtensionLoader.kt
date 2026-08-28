@@ -249,6 +249,7 @@ object ExtensionLoader {
         val pkgName = pkgInfo.packageName
 
         val extName = appInfo.metaData?.getString(METADATA_NAME)
+            ?: appInfo.metaData?.getString("tachiyomix.name")
             ?: pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Aniyomi: ")
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
@@ -259,11 +260,18 @@ object ExtensionLoader {
         }
 
         // Validate lib version
-        val libVersion = appInfo.metaData?.getInt(METADATA_EXTENSION_LIB)
-            ?.takeUnless { it == 0 }
-            ?.toString()
-            ?.toDouble()
-            ?: versionName.substringBeforeLast('.').toDoubleOrNull()
+        val libVersion = (
+            appInfo.metaData?.get(METADATA_EXTENSION_LIB)
+                ?: appInfo.metaData?.get("tachiyomix.extensionLib")
+        )?.let {
+            when (it) {
+                is Int -> if (it != 0) it.toDouble() else null
+                is Float -> it.toDouble()
+                is Double -> it
+                is String -> it.toDoubleOrNull()
+                else -> null
+            }
+        } ?: versionName.substringBeforeLast('.').toDoubleOrNull()
         if (libVersion == null || libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {
             logcat(LogPriority.WARN) {
                 "Lib version is $libVersion, while only versions " +
@@ -289,7 +297,7 @@ object ExtensionLoader {
             return LoadResult.Untrusted(extension)
         }
 
-        val isNsfw = (appInfo.metaData?.getInt(METADATA_CONTENT_WARNING) ?: 0) > 0 ||
+        val isNsfw = (appInfo.metaData?.getInt(METADATA_CONTENT_WARNING) ?: appInfo.metaData?.getInt("tachiyomix.contentWarning") ?: 0) > 0 ||
             when (val v = appInfo.metaData?.get(METADATA_NSFW)) {
                 is Int -> v == 1
                 is Boolean -> v
@@ -302,6 +310,7 @@ object ExtensionLoader {
         }
 
         val isTorrent = appInfo.metaData?.getBoolean(METADATA_IS_TORRENT) == true ||
+            appInfo.metaData?.getBoolean("tachiyomix.torrent") == true ||
             when (val v = appInfo.metaData?.get(METADATA_TORRENT)) {
                 is Int -> v == 1
                 is Boolean -> v
@@ -402,6 +411,13 @@ object ExtensionLoader {
             else -> "all"
         }
 
+        val contentWarning = when (appInfo.metaData?.getInt(METADATA_CONTENT_WARNING) ?: appInfo.metaData?.getInt("tachiyomix.contentWarning")) {
+            1 -> eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED
+            2 -> eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW
+            0 -> if (isNsfw) eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW else eu.kanade.tachiyomi.extension.model.ContentWarning.SAFE
+            else -> if (isNsfw) eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW else eu.kanade.tachiyomi.extension.model.ContentWarning.UNSPECIFIED
+        }
+
         val extension = Extension.Installed(
             name = extName,
             pkgName = pkgName,
@@ -419,6 +435,7 @@ object ExtensionLoader {
             icon = appInfo.loadIcon(pkgManager),
             isShared = extensionInfo.isShared,
             signatureHash = signatures.last(),
+            contentWarning = contentWarning,
         )
         return LoadResult.Success(extension)
     }

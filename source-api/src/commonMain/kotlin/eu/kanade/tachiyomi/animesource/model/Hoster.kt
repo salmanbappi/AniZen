@@ -12,6 +12,7 @@ open class Hoster(
     val videoList: List<Video>? = null,
     val internalData: String = "",
     val lazy: Boolean = false,
+    val memo: String = "",
 ) {
     @Transient
     @Volatile
@@ -32,8 +33,9 @@ open class Hoster(
         videoList: List<Video>? = this.videoList,
         internalData: String = this.internalData,
         lazy: Boolean = this.lazy,
+        memo: String = this.memo,
     ): Hoster {
-        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy).also {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
             it.selected = this.selected
         }
     }
@@ -45,8 +47,9 @@ open class Hoster(
         internalData: String = this.internalData,
         lazy: Boolean = this.lazy,
         selected: Boolean = this.selected,
+        memo: String = this.memo,
     ): Hoster {
-        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy).also {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
             it.selected = selected
         }
     }
@@ -74,6 +77,7 @@ data class SerializableHoster(
     val internalData: String = "",
     val lazy: Boolean = false,
     val selected: Boolean = false,
+    val memo: String = "",
 ) {
     companion object {
         fun List<Hoster>.serialize(): String =
@@ -86,6 +90,7 @@ data class SerializableHoster(
                         host.internalData,
                         host.lazy,
                         host.selected,
+                        host.memo,
                     )
                 },
             )
@@ -99,6 +104,7 @@ data class SerializableHoster(
                         sHost.videoList?.toVideoList(),
                         sHost.internalData,
                         sHost.lazy,
+                        sHost.memo,
                     ).apply {
                         selected = sHost.selected
                     }
