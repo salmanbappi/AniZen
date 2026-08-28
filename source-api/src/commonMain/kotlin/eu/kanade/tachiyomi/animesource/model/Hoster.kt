@@ -27,6 +27,23 @@ open class Hoster(
         ERROR,
     }
 
+    // Ext lib 16 constructor
+    @Deprecated("Used only for compatibility with ext lib 16, do not use", level = DeprecationLevel.HIDDEN)
+    constructor(
+        hosterUrl: String = "",
+        hosterName: String = "",
+        videoList: List<Video>? = null,
+        internalData: String = "",
+        lazy: Boolean = false,
+    ) : this(
+        hosterUrl = hosterUrl,
+        hosterName = hosterName,
+        videoList = videoList,
+        internalData = internalData,
+        lazy = lazy,
+        memo = "",
+    )
+
     fun copy(
         hosterUrl: String = this.hosterUrl,
         hosterName: String = this.hosterName,
@@ -36,6 +53,20 @@ open class Hoster(
         memo: String = this.memo,
     ): Hoster {
         return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
+            it.selected = this.selected
+        }
+    }
+
+    // Ext lib 16 copy hoster
+    @Deprecated("Used only for compatibility with ext lib 16, do not use", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        hosterUrl: String = this.hosterUrl,
+        hosterName: String = this.hosterName,
+        videoList: List<Video>? = this.videoList,
+        internalData: String = this.internalData,
+        lazy: Boolean = this.lazy,
+    ): Hoster {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, this.memo).also {
             it.selected = this.selected
         }
     }
@@ -50,6 +81,21 @@ open class Hoster(
         memo: String = this.memo,
     ): Hoster {
         return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
+            it.selected = selected
+        }
+    }
+
+    // Ext lib 16 copy hoster with selected
+    @Deprecated("Used only for compatibility with ext lib 16, do not use", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        hosterUrl: String = this.hosterUrl,
+        hosterName: String = this.hosterName,
+        videoList: List<Video>? = this.videoList,
+        internalData: String = this.internalData,
+        lazy: Boolean = this.lazy,
+        selected: Boolean = this.selected,
+    ): Hoster {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, this.memo).also {
             it.selected = selected
         }
     }
