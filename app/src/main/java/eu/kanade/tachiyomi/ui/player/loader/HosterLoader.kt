@@ -69,6 +69,29 @@ class HosterLoader {
             return Pair(-1, -1)
         }
 
+        /**
+         * Rank hosters using a reliability score based on readiness, preferred streams, and error counts.
+         */
+        fun rankHosters(hosterStates: List<HosterState>): List<Int> {
+            return hosterStates.indices
+                .sortedByDescending { idx ->
+                    val state = hosterStates.getOrNull(idx)
+                    when (state) {
+                        is HosterState.Ready -> {
+                            val hasPreferred = state.videoList.any { it.preferred }
+                            val hasValidUrls = state.videoList.any { it.videoUrl.isNotBlank() }
+                            var score = 100
+                            if (hasPreferred) score += 50
+                            if (hasValidUrls) score += 30
+                            score - (state.videoState.count { it == Video.State.ERROR } * 40)
+                        }
+                        is HosterState.Loading -> 20
+                        is HosterState.Idle -> 10
+                        is HosterState.Error, null -> -100
+                    }
+                }
+        }
+
         data class ResolvedVideoResult(
             val video: Video,
             val hosterIndex: Int,

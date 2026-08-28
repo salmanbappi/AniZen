@@ -1457,11 +1457,12 @@ class PlayerViewModel @JvmOverloads constructor(
     private val preciseSeek = gesturePreferences.playerSmoothSeek().get()
     private val showSeekBar = gesturePreferences.showSeekBar().get()
 
-    private fun seekToWithText(seekValue: Int, text: String?) {
-        _isSeekingForwards.value = seekValue > 0
+    private fun seekToWithText(seekValue: Int, text: String?, forcePrecise: Boolean = false) {
+        val isForward = seekValue >= pos.value.toInt()
+        _isSeekingForwards.value = isForward
         _doubleTapSeekAmount.value = seekValue - pos.value.toInt()
         _seekText.update { _ -> text }
-        seekTo(seekValue, preciseSeek)
+        seekTo(seekValue, precise = if (forcePrecise) true else preciseSeek)
         if (showSeekBar) showSeekBar()
     }
 
@@ -1949,10 +1950,12 @@ class PlayerViewModel @JvmOverloads constructor(
             val preloadedHosterIndex = pendingPreloadedHosterIndex
             val preloadedVideoIndex = pendingPreloadedVideoIndex
             val preloadedStates = pendingPreloadedHosterStates
+            val preloadedStartPos = pendingPreloadedStartPosMs
             pendingPreloadedVideo = null
             pendingPreloadedHosterIndex = -1
             pendingPreloadedVideoIndex = -1
             pendingPreloadedHosterStates = null
+            pendingPreloadedStartPosMs = null
 
             if (preloadedStates != null) {
                 _hosterState.value = preloadedStates
@@ -1974,8 +1977,15 @@ class PlayerViewModel @JvmOverloads constructor(
             }
 
             if (preloadedVideo != null && preloadedHosterIndex >= 0 && preloadedVideoIndex >= 0 && hosterIndex == -1) {
-                logcat { "Preload: Immediate playback handoff for pre-resolved stream" }
-                tryAcquireAndLoadVideo(source, preloadedVideo, preloadedHosterIndex, preloadedVideoIndex, hasFoundPreferredVideo)
+                logcat { "Preload: Immediate playback handoff for pre-resolved stream (startPos: ${preloadedStartPos?.div(1000)}s)" }
+                tryAcquireAndLoadVideo(
+                    source = source,
+                    video = preloadedVideo,
+                    hosterIndex = preloadedHosterIndex,
+                    videoIndex = preloadedVideoIndex,
+                    hasFoundPreferredVideo = hasFoundPreferredVideo,
+                    resumePosition = preloadedStartPos,
+                )
             }
 
             val defaultSelector = if (hosterIndex == -1) {
@@ -2410,6 +2420,7 @@ class PlayerViewModel @JvmOverloads constructor(
         _currentEpisode.update { _ -> chosenEpisode }
         updateEpisode(chosenEpisode)
         lastFailedVideoAttempt = null
+        skippedSegments.clear()
         cancelPreload()
 
         return withIOContext {
@@ -2447,6 +2458,7 @@ class PlayerViewModel @JvmOverloads constructor(
                 pendingPreloadedHosterIndex = meta?.hosterIndex ?: -1
                 pendingPreloadedVideoIndex = meta?.videoIndex ?: -1
                 pendingPreloadedHosterStates = meta?.hosterStates
+                pendingPreloadedStartPosMs = meta?.startPositionMs
                 _nextEpisodeState.value = PreloadState.None
                 preloadedMeta = null
             }
@@ -2493,7 +2505,7 @@ class PlayerViewModel @JvmOverloads constructor(
             downloadNextEpisodes()
         }
 
-        // Preload next episode URL (Phase 1)
+        // Dynamic Lead-Time Preload Engine (EWMA Predictor)
         val preloadMode = playerPreferences.preloadMode().get()
         val performanceProfile = decoderPreferences.performanceProfile().get()
         val canPreloadPerformance = when (performanceProfile) {
@@ -2515,7 +2527,12 @@ class PlayerViewModel @JvmOverloads constructor(
         val networkThrottlingEnabled = playerPreferences.networkAwareThrottling().get()
         val isStruggling = isLoading.value && networkThrottlingEnabled
 
-        if (currentProgress > 0.80 && !isStruggling && activity.player.paused != true && 
+        // Calculate dynamic lead-time: clamp between 30s and 90s based on predicted resolution latency
+        val predictedLeadSeconds = ((ewmaResolutionTimeMs / 1000f) * 3.5f + 25f).coerceIn(30f, 90f)
+        val remainingSeconds = (totalSeconds - seconds) / 1000.0
+        val isWithinLeadWindow = remainingSeconds <= predictedLeadSeconds || currentProgress > 0.85
+
+        if (isWithinLeadWindow && !isStruggling && activity.player.paused != true && 
             nextEpisodeState.value == PreloadState.None && shouldPreload) {
             preloadNextEpisodeMetadata()
         }
@@ -2528,6 +2545,7 @@ class PlayerViewModel @JvmOverloads constructor(
         val video: Video? = null,
         val hosterIndex: Int = -1,
         val videoIndex: Int = -1,
+        val startPositionMs: Long? = null,
         val createdAtMs: Long = System.currentTimeMillis(),
     )
 
@@ -2538,8 +2556,18 @@ class PlayerViewModel @JvmOverloads constructor(
     private var pendingPreloadedHosterIndex: Int = -1
     private var pendingPreloadedVideoIndex: Int = -1
     private var pendingPreloadedHosterStates: List<HosterState>? = null
+    private var pendingPreloadedStartPosMs: Long? = null
     private var preloadJob: Job? = null
     private var lastPreloadFailAt = 0L
+
+    // EWMA Network & Resolution Latency Predictor for Preload Lead-Time (Initial default: 4.0s)
+    private var ewmaResolutionTimeMs = 4000f
+
+    private fun updateEwmaResolutionTime(measuredTimeMs: Long) {
+        val clampedTime = measuredTimeMs.toFloat().coerceIn(800f, 25000f)
+        ewmaResolutionTimeMs = (0.3f * clampedTime) + (0.7f * ewmaResolutionTimeMs)
+        logcat { "Preload EWMA: Updated predicted resolution latency: ${ewmaResolutionTimeMs.toInt()}ms" }
+    }
 
     private fun isMetaValid(meta: PreloadedMeta) =
         System.currentTimeMillis() - meta.createdAtMs < 3 * 60_000 // 3 minutes TTL
@@ -2552,6 +2580,7 @@ class PlayerViewModel @JvmOverloads constructor(
         pendingPreloadedHosterIndex = -1
         pendingPreloadedVideoIndex = -1
         pendingPreloadedHosterStates = null
+        pendingPreloadedStartPosMs = null
         preloadJob?.cancel()
         preloadJob = null
     }
@@ -2575,6 +2604,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         _nextEpisodeState.value = PreloadState.MetadataLoading
         logcat { "Preload: Starting for episode=$nextEpisodeId" }
+        val startTime = System.currentTimeMillis()
         preloadJob = viewModelScope.launchIO {
             try {
                 val anime = currentAnime.value ?: return@launchIO
@@ -2640,6 +2670,25 @@ class PlayerViewModel @JvmOverloads constructor(
                 } else {
                     logcat { "Preload: Hoster list ready without stream pre-resolution." }
                 }
+
+                // Pre-calculate AniSkip intro skip position for next episode if auto-skip is enabled
+                var preloadedStartPosMs: Long? = null
+                if (introSkipEnabled && autoSkip && playerPreferences.aniSkipEnabled().get()) {
+                    try {
+                        val nextEpNumber = nextEpisode.episode_number.toInt()
+                        val stamps = getAniSkipStampsForEpisode(anime.id, nextEpNumber, 1440L)
+                        val opStamp = stamps?.firstOrNull { it.type == ChapterType.Opening && it.start <= 5.0 }
+                        if (opStamp != null) {
+                            preloadedStartPosMs = ((opStamp.end + 0.5f) * 1000L).toLong()
+                            logcat { "Preload: Pre-calculated intro skip start position at ${preloadedStartPosMs / 1000}s" }
+                        }
+                    } catch (e: Exception) {
+                        logcat(LogPriority.WARN, e) { "Preload: AniSkip pre-positioning skipped" }
+                    }
+                }
+
+                val elapsed = System.currentTimeMillis() - startTime
+                updateEwmaResolutionTime(elapsed)
                 
                 preloadedMeta = PreloadedMeta(
                     episodeId = nextEpisodeId,
@@ -2648,6 +2697,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     video = resolvedVideo,
                     hosterIndex = resolvedResult?.hosterIndex ?: -1,
                     videoIndex = resolvedResult?.videoIndex ?: -1,
+                    startPositionMs = preloadedStartPosMs,
                 )
                 _nextEpisodeState.value = if (resolvedVideo != null) PreloadState.BufferReady else PreloadState.MetadataReady
                 logcat { "Preload: Ready for episode=$nextEpisodeId (State: ${_nextEpisodeState.value})" }
@@ -2981,32 +3031,36 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     /**
+     * Helper to fetch AniSkip timestamps for an anime and episode number.
+     */
+    suspend fun getAniSkipStampsForEpisode(animeId: Long, episodeNumber: Int, duration: Long): List<TimeStamp>? {
+        val trackerManager = Injekt.get<TrackerManager>()
+        val tracks = getTracks.await(animeId)
+        if (tracks.isEmpty()) return null
+
+        for (track in tracks) {
+            val tracker = trackerManager.get(track.trackerId)
+            val malId = when (tracker) {
+                is MyAnimeList -> track.remoteId
+                is Anilist -> AniSkipApi().getMalIdFromAL(track.remoteId)
+                else -> null
+            }
+            if (malId != null) {
+                return AniSkipApi().getResult(malId.toInt(), episodeNumber.toString(), duration)
+            }
+        }
+        return null
+    }
+
+    /**
      * Returns the response of the AniSkipApi for this episode.
      * just works if tracking is enabled.
      */
     suspend fun aniSkipResponse(playerDuration: Int?): List<TimeStamp>? {
         val animeId = currentAnime.value?.id ?: return null
-        val trackerManager = Injekt.get<TrackerManager>()
-        var malId: Long?
         val episodeNumber = currentEpisode.value?.episode_number?.toInt() ?: return null
-        if (getTracks.await(animeId).isEmpty()) {
-            logcat { "AniSkip: No tracks found for anime $animeId" }
-            return null
-        }
-
-        getTracks.await(animeId).map { track ->
-            val tracker = trackerManager.get(track.trackerId)
-            malId = when (tracker) {
-                is MyAnimeList -> track.remoteId
-                is Anilist -> AniSkipApi().getMalIdFromAL(track.remoteId)
-                else -> null
-            }
-            val duration = playerDuration ?: return null
-            return malId?.let {
-                AniSkipApi().getResult(it.toInt(), episodeNumber, duration.toLong())
-            }
-        }
-        return null
+        val duration = playerDuration?.toLong() ?: return null
+        return getAniSkipStampsForEpisode(animeId, episodeNumber, duration)
     }
 
     val introSkipEnabled = playerPreferences.enableSkipIntro().get()
@@ -3015,6 +3069,9 @@ class PlayerViewModel @JvmOverloads constructor(
 
     private val defaultWaitingTime = playerPreferences.waitingTimeIntroSkip().get()
     var waitingSkipIntro = defaultWaitingTime
+
+    // Hysteresis dead-zone tracker to prevent backwards seek bounce on chapter boundaries
+    private val skippedSegments = mutableSetOf<String>()
 
     fun setChapter(position: Float) {
         getCurrentChapter(position)?.let { (chapterIndex, chapter) ->
@@ -3030,9 +3087,22 @@ class PlayerViewModel @JvmOverloads constructor(
                 _skipIntroText.update { _ -> null }
                 waitingSkipIntro = defaultWaitingTime
             } else {
-                val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
+                val segmentKey = "${chapter.name}_${chapter.start.toInt()}"
+                val isAlreadySkipped = segmentKey in skippedSegments
+
+                // Determine true target after this segment: next chapter start, or end of episode if last chapter
+                val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start
+                    ?: duration.value.takeIf { it > 0f }
+                    ?: (pos.value + 85f)
+
+                // Add hysteresis boundary offset (+0.5s) to guarantee landing cleanly past the intro
+                val targetSeekPos = (nextChapterPos + 0.5f).coerceAtMost(duration.value.takeIf { it > 0f } ?: Float.MAX_VALUE)
 
                 if (netflixStyle) {
+                    if (isAlreadySkipped) {
+                        _skipIntroText.update { _ -> null }
+                        return
+                    }
                     // show a toast with the seconds before the skip
                     if (waitingSkipIntro == defaultWaitingTime) {
                         activity.showToast(
@@ -3043,13 +3113,17 @@ class PlayerViewModel @JvmOverloads constructor(
                             )}",
                         )
                     }
-                    showSkipIntroButton(chapter, nextChapterPos, waitingSkipIntro)
+                    showSkipIntroButton(chapter, targetSeekPos, waitingSkipIntro, segmentKey)
                     waitingSkipIntro--
                 } else if (autoSkip) {
-                    seekToWithText(
-                        seekValue = nextChapterPos.toInt(),
-                        text = activity.stringResource(MR.strings.player_intro_skipped, chapter.name),
-                    )
+                    if (!isAlreadySkipped) {
+                        skippedSegments.add(segmentKey)
+                        seekToWithText(
+                            seekValue = targetSeekPos.toInt(),
+                            text = activity.stringResource(MR.strings.player_intro_skipped, chapter.name),
+                            forcePrecise = true,
+                        )
+                    }
                 } else {
                     updateSkipIntroButton(chapter.chapterType)
                 }
@@ -3070,14 +3144,16 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private fun showSkipIntroButton(chapter: IndexedSegment, nextChapterPos: Float, waitingTime: Int) {
+    private fun showSkipIntroButton(chapter: IndexedSegment, nextChapterPos: Float, waitingTime: Int, segmentKey: String? = null) {
         if (waitingTime > -1) {
             if (waitingTime > 0) {
                 _skipIntroText.update { _ -> activity.stringResource(MR.strings.player_aniskip_dontskip) }
             } else {
+                if (segmentKey != null) skippedSegments.add(segmentKey)
                 seekToWithText(
                     seekValue = nextChapterPos.toInt(),
                     text = activity.stringResource(MR.strings.player_aniskip_skip, chapter.name),
+                    forcePrecise = true,
                 )
             }
         } else {
@@ -3094,11 +3170,18 @@ class PlayerViewModel @JvmOverloads constructor(
                 return
             }
 
-            val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
+            val segmentKey = "${chapter.name}_${chapter.start.toInt()}"
+            skippedSegments.add(segmentKey)
+
+            val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start
+                ?: duration.value.takeIf { it > 0f }
+                ?: (pos.value + 85f)
+            val targetSeekPos = (nextChapterPos + 0.5f).coerceAtMost(duration.value.takeIf { it > 0f } ?: Float.MAX_VALUE)
 
             seekToWithText(
-                seekValue = nextChapterPos.toInt(),
+                seekValue = targetSeekPos.toInt(),
                 text = activity.stringResource(MR.strings.player_aniskip_skip, chapter.name),
+                forcePrecise = true,
             )
         }
     }
