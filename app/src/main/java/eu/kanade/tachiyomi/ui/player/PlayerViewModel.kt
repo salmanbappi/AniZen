@@ -3102,7 +3102,7 @@ class PlayerViewModel @JvmOverloads constructor(
                 else -> null
             }
             if (malId != null) {
-                return AniSkipApi().getResult(malId.toInt(), episodeNumber.toString(), duration)
+                return AniSkipApi().getResult(malId.toInt(), episodeNumber, duration)
             }
         }
         return null

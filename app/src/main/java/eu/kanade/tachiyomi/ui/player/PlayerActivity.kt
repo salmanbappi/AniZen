@@ -1474,8 +1474,8 @@ class PlayerActivity : BaseActivity() {
 
                 // Atomic Audio-File Injection: If separate external audio tracks exist, mount them at loadfile time
                 val externalAudio = video.audioTracks.firstOrNull()?.url
-                if (!externalAudio.isNullOrBlank()) {
-                    val parsedAudioUrl = parseVideoUrl(externalAudio)
+                val parsedAudioUrl = parseVideoUrl(externalAudio)
+                if (!parsedAudioUrl.isNullOrBlank()) {
                     MPVLib.setOptionString("audio-file", parsedAudioUrl)
                     logcat { "Player: Mounted atomic audio-file at loadfile time: $parsedAudioUrl" }
                 } else {
