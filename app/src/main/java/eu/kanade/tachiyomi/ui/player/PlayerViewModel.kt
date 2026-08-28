@@ -2694,6 +2694,34 @@ class PlayerViewModel @JvmOverloads constructor(
                                 logcat(LogPriority.WARN, e) { "Preload: Subtitle pre-warming skipped" }
                             }
                         }
+
+                        // 3. External Audio Socket Pre-Warming
+                        if (resolvedVideo.audioTracks.isNotEmpty()) {
+                            try {
+                                val client = networkHelper.client
+                                val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
+                                val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
+                                    ?: okhttp3.Headers.Builder()
+
+                                resolvedVideo.audioTracks.take(2).forEach { audioTrack ->
+                                    if (audioTrack.url.startsWith("http")) {
+                                        try {
+                                            val audioReq = okhttp3.Request.Builder()
+                                                .url(audioTrack.url)
+                                                .headers(headersBuilder.build())
+                                                .head()
+                                                .build()
+                                            client.newCall(audioReq).execute().use { }
+                                            logcat { "Preload: Audio track connection primed for ${audioTrack.lang}" }
+                                        } catch (_: Exception) {
+                                            // non-fatal
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                logcat(LogPriority.WARN, e) { "Preload: Audio pre-warming skipped" }
+                            }
+                        }
                     }
                 } else {
                     logcat { "Preload: Hoster list ready without stream pre-resolution." }
