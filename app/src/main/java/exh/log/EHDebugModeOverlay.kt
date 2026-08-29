@@ -32,7 +32,9 @@ fun InterpolationStatsOverlay() {
             PlayerStats.estimatedVfFps.value = MPVLib.getPropertyDouble("estimated-vf-fps") ?: 0.0
             PlayerStats.videoParamsFps.value = MPVLib.getPropertyDouble("video-params/fps") ?: 0.0
             PlayerStats.containerFps.value = MPVLib.getPropertyDouble("container-fps") ?: 0.0
-            PlayerStats.displayFps.value = MPVLib.getPropertyDouble("display-fps") ?: 0.0
+            PlayerStats.displayFps.value = MPVLib.getPropertyDouble("override-display-fps")
+                ?: MPVLib.getPropertyDouble("display-fps")
+                ?: 0.0
             PlayerStats.estimatedDisplayFps.value = MPVLib.getPropertyDouble("estimated-display-fps") ?: 0.0
 
             PlayerStats.isInterpolating.value = MPVLib.getPropertyBoolean("interpolation") ?: false
@@ -40,7 +42,7 @@ fun InterpolationStatsOverlay() {
             PlayerStats.tscale.value = MPVLib.getPropertyString("tscale") ?: ""
             PlayerStats.delayedFrames.value = MPVLib.getPropertyInt("vo-delayed-frame-count")?.toLong() ?: 0L
             PlayerStats.mistime.value = MPVLib.getPropertyDouble("mistime") ?: 0.0
-            PlayerStats.voPasses.value = MPVLib.getPropertyInt("vo-passes")?.toLong() ?: 0L
+            PlayerStats.voPasses.value = (MPVLib.getPropertyString("vo-passes")?.toLongOrNull() ?: 0L)
 
             PlayerStats.hwdec.value = MPVLib.getPropertyString("hwdec-current") ?: ""
             PlayerStats.videoW.value = MPVLib.getPropertyInt("video-params/w")?.toLong() ?: 0L

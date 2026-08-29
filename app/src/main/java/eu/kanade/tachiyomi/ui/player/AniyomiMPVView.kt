@@ -212,14 +212,23 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         }
 
         if (isSmoothMotion) {
+            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                context.display
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager?.defaultDisplay
+            }
+            val detectedRefreshRate = display?.refreshRate?.takeIf { it > 0 } ?: 60f
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+
             MPVLib.setOptionString("video-sync", "display-resample")
             MPVLib.setOptionString("interpolation", "yes")
             MPVLib.setOptionString("correct-pts", "yes")
             MPVLib.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
-            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            if (fpsLimit > 0) {
-                MPVLib.setOptionString("display-fps", fpsLimit.toString())
-            }
+            MPVLib.setOptionString("display-fps", targetFps.toString())
+            MPVLib.setOptionString("override-display-fps", targetFps.toString())
         } else {
             MPVLib.setOptionString("video-sync", "audio")
             MPVLib.setOptionString("interpolation", "no")
@@ -282,6 +291,21 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         pendingVideoToPlay?.let { (vid, pos) ->
             pendingVideoToPlay = null
         }
+        if (decoderPreferences.smoothMotion().get()) {
+            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                context.display
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager?.defaultDisplay
+            }
+            val detectedRefreshRate = display?.refreshRate?.takeIf { it > 0 } ?: 60f
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+
+            MPVLib.setPropertyDouble("display-fps", targetFps)
+            MPVLib.setPropertyDouble("override-display-fps", targetFps)
+        }
         advancedPreferences.playerStatisticsPage().get().let {
             if (it in 1..5) {
                 MPVLib.command(arrayOf("script-binding", "stats/display-stats-toggle"))
@@ -339,6 +363,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         "interpolation" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
         "video-sync" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "tscale" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
+        "display-fps" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
+        "override-display-fps" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
+        "estimated-display-fps" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
         "user-data/current-anime/intro-length" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
         "user-data/aniyomi/show_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "user-data/aniyomi/show_seek_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,

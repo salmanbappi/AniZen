@@ -952,7 +952,7 @@ class PlayerActivity : BaseActivity() {
             "fps" -> if (PlayerStats.videoParamsFps.value == 0.0) PlayerStats.videoParamsFps.value = value
             "video-out-params/fps" -> PlayerStats.videoOutParamsFps.value = value
             "container-fps" -> PlayerStats.containerFps.value = value
-            "display-fps" -> PlayerStats.displayFps.value = value
+            "display-fps", "override-display-fps" -> PlayerStats.displayFps.value = value
             "estimated-display-fps" -> PlayerStats.estimatedDisplayFps.value = value
             "mistime" -> PlayerStats.mistime.value = value
             "video-params/aspect" -> if (isPipSupportedAndEnabled) runOnUiThread { runCatching { setPictureInPictureParams(createPipParams()) } }
