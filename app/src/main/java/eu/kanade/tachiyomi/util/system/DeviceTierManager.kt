@@ -10,13 +10,22 @@ object DeviceTierManager {
     fun getTier(context: Context): Tier {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val performanceClass = Build.VERSION.MEDIA_PERFORMANCE_CLASS
+            if (performanceClass >= Build.VERSION_CODES.TIRAMISU) return Tier.HIGH
+            if (performanceClass >= Build.VERSION_CODES.S) return Tier.MID
+        }
+
+        val actManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        if (actManager != null) {
+            val memoryInfo = ActivityManager.MemoryInfo()
+            actManager.getMemoryInfo(memoryInfo)
+            val totalRamGb = memoryInfo.totalMem / (1024.0 * 1024.0 * 1024.0)
             return when {
-                performanceClass >= Build.VERSION_CODES.TIRAMISU -> Tier.HIGH // MPC 33+ (Android 13+)
-                performanceClass >= Build.VERSION_CODES.S -> Tier.MID         // MPC 31 (Android 12)
+                totalRamGb >= 7.0 -> Tier.HIGH
+                totalRamGb >= 3.5 -> Tier.MID
                 else -> Tier.LOW
             }
         }
 
-        return Tier.LOW
+        return Tier.MID
     }
 }

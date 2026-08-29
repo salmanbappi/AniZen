@@ -89,7 +89,6 @@ import eu.kanade.tachiyomi.util.lang.byteSize
 import eu.kanade.tachiyomi.util.lang.takeBytes
 import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.storage.cacheImageDir
-import eu.kanade.tachiyomi.util.system.DeviceTierManager
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
@@ -2505,21 +2504,12 @@ class PlayerViewModel @JvmOverloads constructor(
             downloadNextEpisodes()
         }
 
-        // Dynamic Lead-Time Preload Engine (EWMA Predictor)
+        // Preload next episode metadata & stream
         val preloadMode = playerPreferences.preloadMode().get()
-        val performanceProfile = decoderPreferences.performanceProfile().get()
-        val canPreloadPerformance = when (performanceProfile) {
-            PlayerEfficiency.MaxPerformance -> true
-            PlayerEfficiency.PowerSaver -> false
-            PlayerEfficiency.Balanced -> true
-            PlayerEfficiency.Automatic -> DeviceTierManager.getTier(activity) != DeviceTierManager.Tier.LOW
-        }
-
-        // Hierarchy: PreloadMode (Explicit Intent) > PerformanceProfile (Global) > Tier (Default)
         val shouldPreload = when (preloadMode) {
             PreloadMode.Off -> false
-            PreloadMode.Always -> true // User explicitly wants it Always
-            PreloadMode.WifiOnly -> activity.isConnectedToWifi() && canPreloadPerformance
+            PreloadMode.Always -> true
+            PreloadMode.WifiOnly -> activity.isConnectedToWifi()
             else -> false
         }
 
@@ -2527,10 +2517,8 @@ class PlayerViewModel @JvmOverloads constructor(
         val networkThrottlingEnabled = playerPreferences.networkAwareThrottling().get()
         val isStruggling = isLoading.value && networkThrottlingEnabled
 
-        // Calculate dynamic lead-time: clamp between 30s and 90s based on predicted resolution latency
-        val predictedLeadSeconds = ((ewmaResolutionTimeMs / 1000f) * 3.5f + 25f).coerceIn(30f, 90f)
         val remainingSeconds = (totalSeconds - seconds) / 1000.0
-        val isWithinLeadWindow = remainingSeconds <= predictedLeadSeconds || currentProgress > 0.85
+        val isWithinLeadWindow = currentProgress > 0.75 || remainingSeconds <= 180.0
 
         if (isWithinLeadWindow && !isStruggling && activity.player.paused != true && 
             nextEpisodeState.value == PreloadState.None && shouldPreload) {
@@ -2570,7 +2558,7 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     private fun isMetaValid(meta: PreloadedMeta) =
-        System.currentTimeMillis() - meta.createdAtMs < 3 * 60_000 // 3 minutes TTL
+        System.currentTimeMillis() - meta.createdAtMs < 5 * 60_000 // 5 minutes TTL
 
     private fun canRetryPreload(): Boolean =
         System.currentTimeMillis() - lastPreloadFailAt > 60_000 // 1 minute backoff
@@ -2647,102 +2635,6 @@ class PlayerViewModel @JvmOverloads constructor(
                 }
 
                 val resolvedVideo = resolvedResult?.video
-                if (resolvedVideo != null) {
-                    logcat { "Preload: Successfully resolved video: ${resolvedVideo.videoUrl.take(50)}..." }
-                    if (enableBuffering && resolvedVideo.videoUrl.isNotBlank()) {
-                        // 1. 0-RTT DNS & TLS Session Resumption socket pre-warming for main video stream
-                        try {
-                            val client = networkHelper.client
-                            val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
-                            val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
-                                ?: okhttp3.Headers.Builder()
-                            val request = okhttp3.Request.Builder()
-                                .url(resolvedVideo.videoUrl)
-                                .headers(headersBuilder.build())
-                                .head()
-                                .build()
-                            client.newCall(request).execute().use { }
-                            logcat { "Preload: Successfully warmed 0-RTT TLS socket for main video." }
-                        } catch (e: Exception) {
-                            logcat(LogPriority.WARN, e) { "Preload: Video socket warming failed (non-fatal)" }
-                        }
-
-                        // 2. Subtitle & Font Cache Pre-Warming (libass font cache priming)
-                        if (resolvedVideo.subtitleTracks.isNotEmpty()) {
-                            try {
-                                val client = networkHelper.client
-                                val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
-                                val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
-                                    ?: okhttp3.Headers.Builder()
-
-                                resolvedVideo.subtitleTracks.take(3).forEach { subTrack ->
-                                    if (subTrack.url.startsWith("http")) {
-                                        try {
-                                            val subReq = okhttp3.Request.Builder()
-                                                .url(subTrack.url)
-                                                .headers(headersBuilder.build())
-                                                .head()
-                                                .build()
-                                            client.newCall(subReq).execute().use { }
-                                            logcat { "Preload: Subtitle & font connection primed for ${subTrack.lang}" }
-                                        } catch (_: Exception) {
-                                            // non-fatal
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                logcat(LogPriority.WARN, e) { "Preload: Subtitle pre-warming skipped" }
-                            }
-                        }
-
-                        // 3. External Audio Socket Pre-Warming
-                        if (resolvedVideo.audioTracks.isNotEmpty()) {
-                            try {
-                                val client = networkHelper.client
-                                val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
-                                val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
-                                    ?: okhttp3.Headers.Builder()
-
-                                resolvedVideo.audioTracks.take(2).forEach { audioTrack ->
-                                    if (audioTrack.url.startsWith("http")) {
-                                        try {
-                                            val audioReq = okhttp3.Request.Builder()
-                                                .url(audioTrack.url)
-                                                .headers(headersBuilder.build())
-                                                .head()
-                                                .build()
-                                            client.newCall(audioReq).execute().use { }
-                                            logcat { "Preload: Audio track connection primed for ${audioTrack.lang}" }
-                                        } catch (_: Exception) {
-                                            // non-fatal
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                logcat(LogPriority.WARN, e) { "Preload: Audio pre-warming skipped" }
-                            }
-                        }
-                    }
-                } else {
-                    logcat { "Preload: Hoster list ready without stream pre-resolution." }
-                }
-
-                // Pre-calculate AniSkip intro skip position for next episode if auto-skip is enabled
-                var preloadedStartPosMs: Long? = null
-                if (introSkipEnabled && autoSkip && playerPreferences.aniSkipEnabled().get()) {
-                    try {
-                        val nextEpNumber = nextEpisode.episode_number.toInt()
-                        val stamps = getAniSkipStampsForEpisode(anime.id, nextEpNumber, 1440L)
-                        val opStamp = stamps?.firstOrNull { it.type == ChapterType.Opening && it.start <= 5.0 }
-                        if (opStamp != null) {
-                            preloadedStartPosMs = ((opStamp.end + 0.5f) * 1000L).toLong()
-                            logcat { "Preload: Pre-calculated intro skip start position at ${preloadedStartPosMs / 1000}s" }
-                        }
-                    } catch (e: Exception) {
-                        logcat(LogPriority.WARN, e) { "Preload: AniSkip pre-positioning skipped" }
-                    }
-                }
-
                 val elapsed = System.currentTimeMillis() - startTime
                 updateEwmaResolutionTime(elapsed)
                 
@@ -2753,10 +2645,73 @@ class PlayerViewModel @JvmOverloads constructor(
                     video = resolvedVideo,
                     hosterIndex = resolvedResult?.hosterIndex ?: -1,
                     videoIndex = resolvedResult?.videoIndex ?: -1,
-                    startPositionMs = preloadedStartPosMs,
+                    startPositionMs = null,
                 )
                 _nextEpisodeState.value = if (resolvedVideo != null) PreloadState.BufferReady else PreloadState.MetadataReady
                 logcat { "Preload: Ready for episode=$nextEpisodeId (State: ${_nextEpisodeState.value})" }
+
+                // Asynchronous background pre-warming & AniSkip without blocking readiness
+                if (resolvedVideo != null) {
+                    viewModelScope.launchIO {
+                        if (enableBuffering && resolvedVideo.videoUrl.isNotBlank()) {
+                            // 1. 0-RTT DNS & TLS Session Resumption socket pre-warming for main video stream
+                            try {
+                                val client = networkHelper.client
+                                val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
+                                val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
+                                    ?: okhttp3.Headers.Builder()
+                                val request = okhttp3.Request.Builder()
+                                    .url(resolvedVideo.videoUrl)
+                                    .headers(headersBuilder.build())
+                                    .head()
+                                    .build()
+                                client.newCall(request).execute().use { }
+                                logcat { "Preload: Successfully warmed 0-RTT TLS socket for main video." }
+                            } catch (e: Exception) {
+                                logcat(LogPriority.WARN, e) { "Preload: Video socket warming failed (non-fatal)" }
+                            }
+
+                            // 2. Subtitle & Font Cache Pre-Warming
+                            if (resolvedVideo.subtitleTracks.isNotEmpty()) {
+                                try {
+                                    val client = networkHelper.client
+                                    val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
+                                    val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
+                                        ?: okhttp3.Headers.Builder()
+
+                                    resolvedVideo.subtitleTracks.take(3).forEach { subTrack ->
+                                        if (subTrack.url.startsWith("http")) {
+                                            try {
+                                                val subReq = okhttp3.Request.Builder()
+                                                    .url(subTrack.url)
+                                                    .headers(headersBuilder.build())
+                                                    .head()
+                                                    .build()
+                                                client.newCall(subReq).execute().use { }
+                                            } catch (_: Exception) { }
+                                        }
+                                    }
+                                } catch (_: Exception) { }
+                            }
+                        }
+
+                        // 3. Pre-calculate AniSkip intro skip position
+                        if (introSkipEnabled && autoSkip && playerPreferences.aniSkipEnabled().get()) {
+                            try {
+                                val nextEpNumber = nextEpisode.episode_number.toInt()
+                                val stamps = getAniSkipStampsForEpisode(anime.id, nextEpNumber, 1440L)
+                                val opStamp = stamps?.firstOrNull { it.type == ChapterType.Opening && it.start <= 5.0 }
+                                if (opStamp != null) {
+                                    val preloadedStartPosMs = ((opStamp.end + 0.5f) * 1000L).toLong()
+                                    preloadedMeta = preloadedMeta?.copy(startPositionMs = preloadedStartPosMs)
+                                    logcat { "Preload: Pre-calculated intro skip start position at ${preloadedStartPosMs / 1000}s" }
+                                }
+                            } catch (e: Exception) {
+                                logcat(LogPriority.WARN, e) { "Preload: AniSkip pre-positioning skipped" }
+                            }
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 logcat(LogPriority.WARN, e) { "Preload: Failed for episode=$nextEpisodeId" }
                 lastPreloadFailAt = System.currentTimeMillis()
