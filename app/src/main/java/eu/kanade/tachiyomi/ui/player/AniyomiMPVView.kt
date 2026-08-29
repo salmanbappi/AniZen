@@ -205,7 +205,18 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
             Debanding.GPU -> MPVLib.setOptionString("deband", "yes")
         }
 
-        MPVLib.setOptionString("video-sync", "audio")
+        if (decoderPreferences.smoothMotion().get()) {
+            MPVLib.setOptionString("video-sync", "display-resample")
+            MPVLib.setOptionString("interpolation", "yes")
+            MPVLib.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+            if (fpsLimit > 0) {
+                MPVLib.setOptionString("display-fps", fpsLimit.toString())
+            }
+        } else {
+            MPVLib.setOptionString("video-sync", "audio")
+            MPVLib.setOptionString("interpolation", "no")
+        }
 
         if (decoderPreferences.useYUV420P().get()) {
             MPVLib.setOptionString("vf", "format=yuv420p")
