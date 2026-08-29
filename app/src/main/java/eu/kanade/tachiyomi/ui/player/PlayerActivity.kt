@@ -1482,7 +1482,7 @@ class PlayerActivity : BaseActivity() {
                     MPVLib.setOptionString("audio-file", "")
                 }
 
-                MPVLib.command(arrayOf("loadfile", parseVideoUrl(videoUrl)))
+                MPVLib.command(arrayOf("loadfile", parseVideoUrl(videoUrl) ?: videoUrl))
             }
         }
         updateDiscordRPC(exitingPlayer = false)
@@ -1533,7 +1533,8 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun parseVideoUrl(videoUrl: String?): String? {
-        return Uri.parse(videoUrl).resolveUri(this)
+        if (videoUrl.isNullOrBlank()) return null
+        return runCatching { Uri.parse(videoUrl).resolveUri(this) }.getOrNull()
             ?: videoUrl
     }
 
