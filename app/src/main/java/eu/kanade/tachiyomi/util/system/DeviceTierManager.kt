@@ -23,11 +23,12 @@ object DeviceTierManager {
         try {
             val memInfoFile = File("/proc/meminfo")
             if (memInfoFile.exists()) {
-                memInfoFile.forEachLine { line ->
-                    if (line.startsWith("MemTotal:")) {
-                        val kb = line.replace(Regex("[^0-9]"), "").toDoubleOrNull()
-                        if (kb != null && kb > 0) return kb / (1024.0 * 1024.0)
-                    }
+                val memLine = memInfoFile.useLines { lines ->
+                    lines.firstOrNull { it.startsWith("MemTotal:") }
+                }
+                if (memLine != null) {
+                    val kb = memLine.filter { it.isDigit() }.toDoubleOrNull()
+                    if (kb != null && kb > 0) return kb / (1024.0 * 1024.0)
                 }
             }
         } catch (_: Exception) {
