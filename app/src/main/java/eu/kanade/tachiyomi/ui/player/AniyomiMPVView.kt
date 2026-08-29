@@ -189,7 +189,13 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         
         MPVLib.setPropertyBoolean("pause", true)
         MPVLib.setOptionString("profile", "fast")
-        MPVLib.setOptionString("hwdec", if (decoderPreferences.tryHWDecoding().get()) "mediacodec,mediacodec-copy" else "no")
+        val isSmoothMotion = decoderPreferences.smoothMotion().get()
+        val defaultHwdec = if (decoderPreferences.tryHWDecoding().get()) {
+            if (isSmoothMotion) "mediacodec-copy" else "mediacodec,mediacodec-copy"
+        } else {
+            "no"
+        }
+        MPVLib.setOptionString("hwdec", defaultHwdec)
         
         // Gated Defaults with HQ toggle
         val isHighQuality = decoderPreferences.highQualityScaling().get()
@@ -205,9 +211,10 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
             Debanding.GPU -> MPVLib.setOptionString("deband", "yes")
         }
 
-        if (decoderPreferences.smoothMotion().get()) {
+        if (isSmoothMotion) {
             MPVLib.setOptionString("video-sync", "display-resample")
             MPVLib.setOptionString("interpolation", "yes")
+            MPVLib.setOptionString("correct-pts", "yes")
             MPVLib.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
             if (fpsLimit > 0) {
@@ -329,6 +336,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         "eof-reached" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
         "hwdec-current" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "hwdec" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
+        "interpolation" to MPVLib.mpvFormat.MPV_FORMAT_FLAG,
+        "video-sync" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
+        "tscale" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "user-data/current-anime/intro-length" to MPVLib.mpvFormat.MPV_FORMAT_INT64,
         "user-data/aniyomi/show_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "user-data/aniyomi/show_seek_text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
