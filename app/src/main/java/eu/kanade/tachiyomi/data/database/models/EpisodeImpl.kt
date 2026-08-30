@@ -2,6 +2,8 @@
 
 package eu.kanade.tachiyomi.data.database.models
 
+import kotlinx.serialization.json.JsonObject
+
 class EpisodeImpl : Episode {
 
     override var id: Long? = null
@@ -25,6 +27,8 @@ class EpisodeImpl : Episode {
     override var summary: String? = null
 
     override var preview_url: String? = null
+
+    override var memo: JsonObject = JsonObject.EMPTY
 
     override var last_second_seen: Long = 0
 
