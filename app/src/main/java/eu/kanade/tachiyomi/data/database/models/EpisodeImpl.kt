@@ -2,6 +2,7 @@
 
 package eu.kanade.tachiyomi.data.database.models
 
+import eu.kanade.tachiyomi.animesource.model.EMPTY
 import kotlinx.serialization.json.JsonObject
 
 class EpisodeImpl : Episode {
