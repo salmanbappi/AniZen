@@ -47,6 +47,20 @@ abstract class AnimeHttpSource : AnimeCatalogueSource {
     abstract val baseUrl: String
 
     /**
+     * Returns the base (home) URL of the website as a string.
+     *
+     * This is typically the root address that serves as the main entry point
+     * to the site's content.
+     *
+     * This method is used in the browse screen to determine the URL
+     * opened when tapping "Open in WebView".
+     *
+     * @since extensions-lib 17
+     * @return The website's home page URL. Defaults to [baseUrl].
+     */
+    open fun getHomeUrl(): String = baseUrl
+
+    /**
      * Version id used to generate the source id. If the site completely changes and urls are
      * incompatible, you may increase this value and it'll be considered as a new source.
      */

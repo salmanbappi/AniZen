@@ -777,7 +777,12 @@ class AnimeScreenModel(
         val state = successState ?: return
         try {
             withIOContext {
-                val networkAnime = state.source.getAnimeDetails(state.anime.toSAnime())
+                val networkAnime = state.source.getAnimeEpisodeUpdate(
+                    anime = state.anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = true,
+                    fetchEpisodes = false,
+                ).anime
                 updateAnime.awaitUpdateFromSource(state.anime, networkAnime, manualFetch)
             }
         } catch (e: Throwable) {
@@ -947,14 +952,30 @@ class AnimeScreenModel(
                         // 3. Official Related (Source Provided)
                         launch {
                             try {
-                                getRelatedAnime.subscribe(anime).collect { (_, animes) ->
-                                    if (animes.isNotEmpty()) {
-                                        kotlinx.coroutines.coroutineScope {
-                                            val domainAnimes = animes
-                                                .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
-                                                .awaitAll()
-                                                .mapNotNull { getAnime.await(it.id) }
+                                if (source.supportsRelatedAnime) {
+                                    // extensions-lib 17 related entries API
+                                    val relations = source.getRelatedAnimeList(anime.toSAnime())
+                                    if (relations.isNotEmpty()) {
+                                        val domainAnimes = relations
+                                            .flatMap { it.animes }
+                                            .distinctBy { it.url }
+                                            .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                            .awaitAll()
+                                            .mapNotNull { getAnime.await(it.id) }
+                                        if (domainAnimes.isNotEmpty()) {
                                             updateSection(SuggestionSection.Type.Source, domainAnimes)
+                                        }
+                                    }
+                                } else {
+                                    getRelatedAnime.subscribe(anime).collect { (_, animes) ->
+                                        if (animes.isNotEmpty()) {
+                                            kotlinx.coroutines.coroutineScope {
+                                                val domainAnimes = animes
+                                                    .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                                    .awaitAll()
+                                                    .mapNotNull { getAnime.await(it.id) }
+                                                updateSection(SuggestionSection.Type.Source, domainAnimes)
+                                            }
                                         }
                                     }
                                 }
@@ -1162,7 +1183,12 @@ class AnimeScreenModel(
             val fetchWindow = fetchInterval.getWindow(java.time.ZonedDateTime.now())
             try {
                 val source = sourceManager.getOrStub(anime.source)
-                val episodes = source.getEpisodeList(anime.toSAnime())
+                val episodes = source.getAnimeEpisodeUpdate(
+                    anime = anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 syncEpisodesWithSource.await(episodes, anime, source, false, fetchWindow)
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
@@ -1290,7 +1316,12 @@ class AnimeScreenModel(
         val state = successState ?: return
         try {
             withIOContext {
-                val seasons = state.source.getSeasonList(state.anime.toSAnime())
+                val seasons = state.source.getAnimeSeasonUpdate(
+                    anime = state.anime.toSAnime(),
+                    seasons = emptyList(),
+                    fetchDetails = false,
+                    fetchSeasons = true,
+                ).seasons
 
                 val newSeasons = syncSeasonsWithSource.await(
                     seasons,
@@ -1325,7 +1356,12 @@ class AnimeScreenModel(
 
         try {
             withIOContext {
-                val episodes = state.source.getEpisodeList(state.anime.toSAnime())
+                val episodes = state.source.getAnimeEpisodeUpdate(
+                    anime = state.anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 val newEpisodes = syncEpisodesWithSource.await(episodes, state.anime, state.source, manualFetch)
                 if (manualFetch) downloadNewEpisodes(newEpisodes)
             }
@@ -1367,7 +1403,12 @@ class AnimeScreenModel(
         if (episodes.isEmpty()) {
             val source = sourceManager.getOrStub(season.anime.source)
             try {
-                val fetched = source.getEpisodeList(season.anime.toSAnime())
+                val fetched = source.getAnimeEpisodeUpdate(
+                    anime = season.anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 syncEpisodesWithSource.await(fetched, season.anime, source, false)
                 episodes = getAnimeAndEpisodesAndSeasons.awaitEpisodes(season.anime.id)
             } catch (e: Exception) {

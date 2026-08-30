@@ -160,7 +160,12 @@ class MigrationListScreenModel(
 
             if (result != null && result.first.thumbnailUrl == null) {
                 try {
-                    val newAnime = sourceManager.getOrStub(result.first.source).getAnimeDetails(result.first.toSAnime())
+                    val newAnime = sourceManager.getOrStub(result.first.source).getAnimeEpisodeUpdate(
+                        anime = result.first.toSAnime(),
+                        episodes = emptyList(),
+                        fetchDetails = true,
+                        fetchEpisodes = false,
+                    ).anime
                     updateAnime.awaitUpdateFromSource(result.first, newAnime, manualFetch = true)
                 } catch (e: CancellationException) {
                     throw e
@@ -200,7 +205,12 @@ class MigrationListScreenModel(
 
             val localAnime = networkToLocalAnime.await(searchResult)
             try {
-                val episodes = source.getEpisodeList(localAnime.toSAnime())
+                val episodes = source.getAnimeEpisodeUpdate(
+                    anime = localAnime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 syncEpisodesWithSource.await(episodes, localAnime, source)
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
@@ -237,7 +247,12 @@ class MigrationListScreenModel(
                 val anime = getAnime.await(target) ?: return@async null
                 try {
                     val source = sourceManager.get(anime.source)!!
-                    val episodes = source.getEpisodeList(anime.toSAnime())
+                    val episodes = source.getAnimeEpisodeUpdate(
+                        anime = anime.toSAnime(),
+                        episodes = emptyList(),
+                        fetchDetails = false,
+                        fetchEpisodes = true,
+                    ).episodes
                     syncEpisodesWithSource.await(episodes, anime, source)
                 } catch (_: Exception) {
                     return@async null
@@ -253,7 +268,12 @@ class MigrationListScreenModel(
             }
 
             try {
-                val newAnime = sourceManager.getOrStub(result.source).getAnimeDetails(result.toSAnime())
+                val newAnime = sourceManager.getOrStub(result.source).getAnimeEpisodeUpdate(
+                    anime = result.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = true,
+                    fetchEpisodes = false,
+                ).anime
                 updateAnime.awaitUpdateFromSource(result, newAnime, manualFetch = true)
             } catch (e: CancellationException) {
                 throw e

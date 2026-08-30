@@ -118,7 +118,14 @@ class ScheduleRefreshWorker(
             }.take(MAX_MATCHING_ANIME_PER_SOURCE)
 
             for (anime in matchingAnime) {
-                val episodes = runCatching { source.getEpisodeList(anime) }.getOrNull().orEmpty()
+                val episodes = runCatching {
+                    source.getAnimeEpisodeUpdate(
+                        anime = anime,
+                        episodes = emptyList(),
+                        fetchDetails = false,
+                        fetchEpisodes = true,
+                    ).episodes
+                }.getOrNull().orEmpty()
                 for (episode in episodes) {
                     if (episode.date_upload <= 0L) continue
                     if (!isSimulcastSubEpisode(episode)) continue

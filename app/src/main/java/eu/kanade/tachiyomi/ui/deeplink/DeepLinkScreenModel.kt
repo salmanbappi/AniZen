@@ -65,7 +65,12 @@ class DeepLinkScreenModel(
         val localEpisode = getEpisodeByUrlAndAnimeId.await(sEpisode.url, anime.id)
 
         return if (localEpisode == null) {
-            val sourceEpisodes = source.getEpisodeList(anime.toSAnime())
+            val sourceEpisodes = source.getAnimeEpisodeUpdate(
+                anime = anime.toSAnime(),
+                episodes = emptyList(),
+                fetchDetails = false,
+                fetchEpisodes = true,
+            ).episodes
             val newEpisodes = syncEpisodesWithSource.await(sourceEpisodes, anime, source, false)
             newEpisodes.find { it.url == sEpisode.url }
         } else {

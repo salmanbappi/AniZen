@@ -58,7 +58,12 @@ class MigrateAnimeUseCase(
         val flags = presetFlags ?: MigrationFlag.fromBit(sourcePreferences.migrationFlags().get())
 
         try {
-            val episodes = targetSource.getEpisodeList(target.toSAnime())
+            val episodes = targetSource.getAnimeEpisodeUpdate(
+                anime = target.toSAnime(),
+                episodes = emptyList(),
+                fetchDetails = false,
+                fetchEpisodes = true,
+            ).episodes
 
             try {
                 syncEpisodesWithSource.await(episodes, target, targetSource)
