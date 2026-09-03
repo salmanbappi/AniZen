@@ -325,40 +325,52 @@ data object LibraryTab : Tab {
                             getAnimeLibraryForPage = { page ->
                                 if (!state.searchQuery.isNullOrEmpty()) {
                                     val displayItems = mutableListOf<eu.kanade.tachiyomi.ui.library.LibraryDisplayItem>()
-                                    // An anime can belong to several categories, so it can appear once per
-                                    // category in the search results. Deduplicate by anime id to keep the
-                                    // grid keys (library-grid-<anime id>) unique.
+                                    // Search mode shows matches from all categories in one flattened grid.
+                                    // An anime can belong to several categories and a folder can contain
+                                    // anime from several categories, so each anime (grid key
+                                    // library-grid-<anime id>) and each folder (grid key
+                                    // library-folder-<folder id>) must be emitted exactly once to keep the
+                                    // LazyGrid keys unique. A category header is only added when the
+                                    // category actually contributes an item.
                                     val seenAnimeIds = mutableSetOf<Long>()
+                                    val seenFolderIds = mutableSetOf<Long>()
                                     state.categories.forEach { cat ->
                                         val catItems = state.library[cat] ?: emptyList()
-                                        if (catItems.isNotEmpty()) {
-                                            displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Header(cat.visualName(context)))
-                                            val processedFolderIds = mutableSetOf<Long>()
-                                            val grouped = catItems.groupBy { it.libraryAnime.folderId }
-                                            for (item in catItems) {
-                                                if (!seenAnimeIds.add(item.libraryAnime.anime.id)) {
-                                                    // Already shown under a previous category, skip it
-                                                    continue
-                                                }
-                                                if (!collapseFolders) {
-                                                    displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                                } else {
-                                                    val folderId = item.libraryAnime.folderId
-                                                    if (folderId == null) {
-                                                        displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                                    } else if (processedFolderIds.add(folderId)) {
-                                                        val folder = state.folders.find { it.id == folderId }
-                                                        val folderItems = grouped[folderId] ?: emptyList()
-                                                        if (folder != null) {
-                                                            folderItems.forEach { seenAnimeIds.add(it.libraryAnime.anime.id) }
-                                                            displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder(folder, folderItems))
-                                                        } else {
-                                                            displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                                            processedFolderIds.remove(folderId)
-                                                        }
-                                                    }
-                                                }
+                                        val categoryItems = mutableListOf<eu.kanade.tachiyomi.ui.library.LibraryDisplayItem>()
+                                        val processedFolderIds = mutableSetOf<Long>()
+                                        for (item in catItems) {
+                                            if (!seenAnimeIds.add(item.libraryAnime.anime.id)) {
+                                                // Already shown under a previous category or inside a folder
+                                                continue
                                             }
+                                            val folderId = item.libraryAnime.folderId
+                                            val showFolder = collapseFolders && folderId != null && folderId !in seenFolderIds
+                                            if (!showFolder || !processedFolderIds.add(folderId)) {
+                                                // Folders disabled, anime not in a folder, or this folder was
+                                                // already emitted: show the anime on its own.
+                                                categoryItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
+                                                continue
+                                            }
+                                            val folder = state.folders.find { it.id == folderId }
+                                            if (folder == null) {
+                                                // Folder record no longer exists; keep the anime visible
+                                                processedFolderIds.remove(folderId)
+                                                categoryItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
+                                                continue
+                                            }
+                                            // A folder can span categories: collect all of its search hits so
+                                            // it renders once without dropping members that only match in
+                                            // another category.
+                                            val folderItems = state.categories
+                                                .flatMap { otherCat -> state.library[otherCat].orEmpty() }
+                                                .filter { it.libraryAnime.folderId == folderId }
+                                            folderItems.forEach { seenAnimeIds.add(it.libraryAnime.anime.id) }
+                                            seenFolderIds.add(folderId)
+                                            categoryItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder(folder, folderItems))
+                                        }
+                                        if (categoryItems.isNotEmpty()) {
+                                            displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Header(cat.visualName(context)))
+                                            displayItems.addAll(categoryItems)
                                         }
                                     }
                                     displayItems.toImmutableList()
