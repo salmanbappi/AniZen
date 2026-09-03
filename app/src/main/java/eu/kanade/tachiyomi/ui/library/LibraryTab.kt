@@ -325,6 +325,10 @@ data object LibraryTab : Tab {
                             getAnimeLibraryForPage = { page ->
                                 if (!state.searchQuery.isNullOrEmpty()) {
                                     val displayItems = mutableListOf<eu.kanade.tachiyomi.ui.library.LibraryDisplayItem>()
+                                    // An anime can belong to several categories, so it can appear once per
+                                    // category in the search results. Deduplicate by anime id to keep the
+                                    // grid keys (library-grid-<anime id>) unique.
+                                    val seenAnimeIds = mutableSetOf<Long>()
                                     state.categories.forEach { cat ->
                                         val catItems = state.library[cat] ?: emptyList()
                                         if (catItems.isNotEmpty()) {
@@ -332,6 +336,10 @@ data object LibraryTab : Tab {
                                             val processedFolderIds = mutableSetOf<Long>()
                                             val grouped = catItems.groupBy { it.libraryAnime.folderId }
                                             for (item in catItems) {
+                                                if (!seenAnimeIds.add(item.libraryAnime.anime.id)) {
+                                                    // Already shown under a previous category, skip it
+                                                    continue
+                                                }
                                                 if (!collapseFolders) {
                                                     displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
                                                 } else {
@@ -342,6 +350,7 @@ data object LibraryTab : Tab {
                                                         val folder = state.folders.find { it.id == folderId }
                                                         val folderItems = grouped[folderId] ?: emptyList()
                                                         if (folder != null) {
+                                                            folderItems.forEach { seenAnimeIds.add(it.libraryAnime.anime.id) }
                                                             displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder(folder, folderItems))
                                                         } else {
                                                             displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
