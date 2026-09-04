@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.anime.components.AnimeCover
+import eu.kanade.presentation.anime.components.CoverSettings
 import eu.kanade.presentation.browse.components.SourceIcon
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.BadgeGroup
@@ -115,23 +116,33 @@ fun AnimeCompactGridItem(
         onLongClick = onLongClick,
         modifier = modifier,
     ) {
-        val (entry, ratio) = AnimeCover.getEntry(coverData.animeId, usePanoramaOverride = usePanorama)
-        val coverBlock: @Composable BoxScope.() -> Unit = remember(entry, coverData, ratio, isSelected, coverAlpha) {
-            {
-                entry(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
-                            this.compositingStrategy = CompositingStrategy.ModulateAlpha
-                        },
-                    data = coverData,
-                    ratio = ratio,
-                    shape = RectangleShape, // Optimization: Parent clips
-                    shouldExtractColor = true,
-                )
+        // Resolved once: `getEntry` needs it to pick Book vs Panorama, and the cover needs it
+        // to decide whether measuring the loaded image's aspect ratio is worth observing.
+        val panorama = usePanorama ?: CoverSettings.panoramaCover
+        val (entry, ratio) = AnimeCover.getEntry(coverData.animeId, usePanoramaOverride = panorama)
+        val coverBlock: @Composable BoxScope.() -> Unit =
+            remember(entry, coverData, ratio, isSelected, coverAlpha, panorama) {
+                {
+                    entry(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
+                                this.compositingStrategy = CompositingStrategy.ModulateAlpha
+                            },
+                        data = coverData,
+                        ratio = ratio,
+                        shape = RectangleShape, // Optimization: Parent clips
+                        // The library grid never reads the vibrant colour (only the entry
+                        // screen and the player do), and extracting it forces a GPU->CPU
+                        // bitmap readback per cover plus a load-state observer that recomposes
+                        // this cell on every load transition. Colours are extracted when an
+                        // entry is opened instead.
+                        shouldExtractColor = false,
+                        measureRatio = panorama,
+                    )
+                }
             }
-        }
         val contentBlock: @Composable BoxScope.() -> Unit = remember(title, onClickContinueWatching) {
             {
                 if (title != null) {
@@ -243,23 +254,27 @@ fun AnimeComfortableGridItem(
         onLongClick = onLongClick,
         modifier = modifier,
     ) {
-        val (entry, ratio) = AnimeCover.getEntry(coverData.animeId, usePanoramaOverride = usePanorama)
-        val coverBlock: @Composable BoxScope.() -> Unit = remember(entry, coverData, ratio, isSelected, coverAlpha) {
-            {
-                entry(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
-                            this.compositingStrategy = CompositingStrategy.ModulateAlpha
-                        },
-                    data = coverData,
-                    ratio = ratio,
-                    shape = RectangleShape, // Optimization: Parent clips
-                    shouldExtractColor = true,
-                )
+        val panorama = usePanorama ?: CoverSettings.panoramaCover
+        val (entry, ratio) = AnimeCover.getEntry(coverData.animeId, usePanoramaOverride = panorama)
+        val coverBlock: @Composable BoxScope.() -> Unit =
+            remember(entry, coverData, ratio, isSelected, coverAlpha, panorama) {
+                {
+                    entry(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
+                                this.compositingStrategy = CompositingStrategy.ModulateAlpha
+                            },
+                        data = coverData,
+                        ratio = ratio,
+                        shape = RectangleShape, // Optimization: Parent clips
+                        // See AnimeCompactGridItem: no colour extraction for library items.
+                        shouldExtractColor = false,
+                        measureRatio = panorama,
+                    )
+                }
             }
-        }
         val contentBlock: @Composable BoxScope.() -> Unit = remember(onClickContinueWatching) {
             {
                 if (onClickContinueWatching != null) {
@@ -470,9 +485,10 @@ fun AnimeListItem(
             .padding(horizontal = 16.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val panorama = usePanorama ?: CoverSettings.panoramaCover
         val (entry, ratio) = AnimeCover.getEntry(
             coverData.animeId,
-            usePanoramaOverride = usePanorama,
+            usePanoramaOverride = panorama,
         )
         entry(
             modifier = Modifier
@@ -483,6 +499,7 @@ fun AnimeListItem(
                 },
             data = coverData,
             ratio = ratio,
+            measureRatio = panorama,
         )
         Text(
             text = title,

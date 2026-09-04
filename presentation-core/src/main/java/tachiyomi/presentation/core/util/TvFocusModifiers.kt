@@ -21,9 +21,28 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
+ * Whether this device is driven by a D-pad / remote.
+ *
+ * The focus-highlight modifiers below only do anything on such a device, but they are applied
+ * to every grid cell and list row. Checking a plain flag *before* entering [composed] keeps
+ * the touch-device path free of the per-item `Animatable` + `LaunchedEffect` +
+ * `onFocusChanged` node that `composed {}` would otherwise materialize for each item.
+ *
+ * Set once from `App.onCreate`; defaults to false so a missed initialization degrades to
+ * "no focus highlight" rather than to a slow scroll.
+ */
+object TvDevice {
+    @Volatile
+    var isTv: Boolean = false
+}
+
+/**
  * Universal focus highlight modifier.
  * - By default (borderWidth = 0.dp, focusedScale = 1.0f): Uses clean Komikku / Material 3 container surface tint.
  * - When borderWidth > 0.dp or focusedScale > 1.0f: Renders high-contrast glowing theme outline & animated scale (used for Anime Cards & Setup).
+ *
+ * No-op on touch devices: nothing can take D-pad focus there, so the highlight would never
+ * be drawn anyway.
  */
 fun Modifier.tvFocusHighlight(
     shape: Shape = RoundedCornerShape(12.dp),
@@ -32,49 +51,52 @@ fun Modifier.tvFocusHighlight(
     focusedScale: Float = 1.0f,
     focusedBackgroundAlpha: Float = 0.12f,
     onFocusChange: ((Boolean) -> Unit)? = null,
-): Modifier = composed {
-    var isFocused by remember { mutableStateOf(false) }
-    val borderColor = focusedBorderColor ?: MaterialTheme.colorScheme.primary
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused && focusedScale > 1f) focusedScale else 1f,
-        animationSpec = tween(durationMillis = 150),
-        label = "tvFocusScale",
-    )
+): Modifier {
+    if (!TvDevice.isTv) return this
+    return composed {
+        var isFocused by remember { mutableStateOf(false) }
+        val borderColor = focusedBorderColor ?: MaterialTheme.colorScheme.primary
+        val scale by animateFloatAsState(
+            targetValue = if (isFocused && focusedScale > 1f) focusedScale else 1f,
+            animationSpec = tween(durationMillis = 150),
+            label = "tvFocusScale",
+        )
 
-    this
-        .onFocusChanged { state ->
-            isFocused = state.isFocused
-            onFocusChange?.invoke(state.isFocused)
-        }
-        .then(
-            if (focusedScale > 1f) {
-                Modifier.scale(scale)
-            } else {
-                Modifier
-            },
-        )
-        .then(
-            if (isFocused) {
-                Modifier.drawBehind {
-                    val outline = shape.createOutline(size, layoutDirection, this)
-                    if (focusedBackgroundAlpha > 0f) {
-                        drawOutline(
-                            outline = outline,
-                            color = borderColor.copy(alpha = focusedBackgroundAlpha),
-                        )
+        this
+            .onFocusChanged { state ->
+                isFocused = state.isFocused
+                onFocusChange?.invoke(state.isFocused)
+            }
+            .then(
+                if (focusedScale > 1f) {
+                    Modifier.scale(scale)
+                } else {
+                    Modifier
+                },
+            )
+            .then(
+                if (isFocused) {
+                    Modifier.drawBehind {
+                        val outline = shape.createOutline(size, layoutDirection, this)
+                        if (focusedBackgroundAlpha > 0f) {
+                            drawOutline(
+                                outline = outline,
+                                color = borderColor.copy(alpha = focusedBackgroundAlpha),
+                            )
+                        }
+                        if (borderWidth > 0.dp) {
+                            drawOutline(
+                                outline = outline,
+                                color = borderColor,
+                                style = Stroke(width = borderWidth.toPx()),
+                            )
+                        }
                     }
-                    if (borderWidth > 0.dp) {
-                        drawOutline(
-                            outline = outline,
-                            color = borderColor,
-                            style = Stroke(width = borderWidth.toPx()),
-                        )
-                    }
-                }
-            } else {
-                Modifier
-            },
-        )
+                } else {
+                    Modifier
+                },
+            )
+    }
 }
 
 /**

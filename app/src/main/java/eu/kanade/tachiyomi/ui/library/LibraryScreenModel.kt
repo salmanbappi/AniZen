@@ -892,20 +892,31 @@ class LibraryScreenModel(
         }
     }
 
+    /**
+     * These are called from composition (including from inside the library pager, once per
+     * page per recomposition). [asState] is not free: `PreferenceMutableState.init` starts a
+     * `preference.changes()` collector on [screenModelScope], and that flow registers a
+     * `SharedPreferences.OnSharedPreferenceChangeListener`. Returning a fresh instance each
+     * call therefore leaked a listener per recomposition — permanently, since the scope
+     * lives as long as the screen — and every later preference write then fanned out to all
+     * of them. Creating each state once fixes the leak and keeps the returned value stable.
+     */
+    private val displayModeState by lazy {
+        libraryPreferences.displayMode().asState(screenModelScope)
+    }
+    private val portraitColumnsState by lazy {
+        libraryPreferences.portraitColumns().asState(screenModelScope)
+    }
+    private val landscapeColumnsState by lazy {
+        libraryPreferences.landscapeColumns().asState(screenModelScope)
+    }
+
     fun getDisplayMode(): PreferenceMutableState<LibraryDisplayMode> {
-        return libraryPreferences.displayMode().asState(screenModelScope)
+        return displayModeState
     }
 
     fun getColumnsPreferenceForCurrentOrientation(isLandscape: Boolean): PreferenceMutableState<Int> {
-        return (
-            if (isLandscape) {
-                libraryPreferences.landscapeColumns()
-            } else {
-                libraryPreferences.portraitColumns()
-            }
-            ).asState(
-            screenModelScope,
-        )
+        return if (isLandscape) landscapeColumnsState else portraitColumnsState
     }
 
     suspend fun getRandomAnimelibItemForCurrentCategory(): LibraryItem? {

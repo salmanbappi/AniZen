@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -36,7 +37,6 @@ import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -46,8 +46,6 @@ import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.presentation.core.components.SkeletonItem
 import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import tachiyomi.domain.anime.model.AnimeCover as DomainMangaCover
 
 enum class AnimeCover(val ratio: Float) {
@@ -81,19 +79,132 @@ enum class AnimeCover(val ratio: Float) {
         size: Size = Size.Normal,
         scale: ContentScale = ContentScale.Crop,
         ratio: Float = this.ratio,
-        shouldExtractColor: Boolean = true,
+        shouldExtractColor: Boolean = false,
+        /**
+         * Whether this cover's aspect ratio needs to be measured, i.e. whether panorama mode
+         * is in effect for it. Defaults to the global preference; pass the resolved value
+         * when a screen can force panorama on or off independently.
+         */
+        measureRatio: Boolean = CoverSettings.panoramaCover,
         // KMK <--
     ) {
         val context = LocalContext.current
-        val animatedTransitions = remember { Injekt.get<UiPreferences>().animatedTransitions().get() }
-        
+        val animatedTransitions = CoverSettings.animatedTransitions
+
+        // Only covers that actually need the load state pay for observing it. Panorama mode
+        // does need it (picking Book vs Panorama depends on the measured aspect ratio, which
+        // only the loaded image provides), but measuring is just width/height — no bitmap.
+        //
+        // Everything else — the library grid with panorama off, which is the default —
+        // renders placeholder and error through Coil's own painters, so a load completing
+        // never recomposes the item. Observing state where nobody needs it used to recompose
+        // every visible cell on every load transition during a scroll.
+        val observeState = shouldExtractColor || measureRatio || onCoverLoaded != null
+
+        if (observeState) {
+            CoverWithState(
+                data = data,
+                modifier = modifier,
+                contentDescription = contentDescription,
+                shape = shape,
+                onClick = onClick,
+                alpha = alpha,
+                bgColor = bgColor,
+                tint = tint,
+                onCoverLoaded = onCoverLoaded,
+                size = size,
+                scale = scale,
+                ratio = ratio,
+                shouldExtractColor = shouldExtractColor,
+                measureRatio = measureRatio,
+                animatedTransitions = animatedTransitions,
+            )
+            return
+        }
+
+        Box(
+            modifier = modifier
+                .aspectRatio(ratio)
+                .then(
+                    if (shape != RectangleShape) {
+                        Modifier.graphicsLayer {
+                            this.shape = shape
+                            clip = true
+                        }
+                    } else {
+                        Modifier
+                    },
+                )
+                .then(
+                    if (onClick != null) {
+                        Modifier.clickable(
+                            role = Role.Button,
+                            onClick = onClick,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            AsyncImage(
+                model = remember(data, animatedTransitions) {
+                    ImageRequest.Builder(context)
+                        .data(data)
+                        .precision(coil3.size.Precision.INEXACT)
+                        .crossfade(animatedTransitions)
+                        .build()
+                },
+                contentDescription = contentDescription,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (alpha < 1f) {
+                            Modifier.graphicsLayer { this.alpha = alpha }
+                        } else {
+                            Modifier
+                        },
+                    ),
+                contentScale = scale,
+                // Placeholder rather than a background modifier: the loaded cover is cropped
+                // to fill, so a background would just be permanent overdraw behind it.
+                placeholder = coverPlaceholderPainter(bgColor),
+                error = CoverErrorPainter.get(context),
+            )
+        }
+    }
+
+    /**
+     * The state-observing implementation, used by covers that need the loaded image: the
+     * entry details header (palette seed), any caller passing [onCoverLoaded], and — when
+     * panorama mode is on — list/grid items that must measure the cover's aspect ratio.
+     */
+    @Composable
+    private fun CoverWithState(
+        data: Any?,
+        modifier: Modifier,
+        contentDescription: String,
+        shape: Shape,
+        onClick: (() -> Unit)?,
+        alpha: Float,
+        bgColor: Color?,
+        @ColorInt tint: Int?,
+        onCoverLoaded: ((DomainMangaCover, result: AsyncImagePainter.State.Success) -> Unit)?,
+        size: Size,
+        scale: ContentScale,
+        ratio: Float,
+        shouldExtractColor: Boolean,
+        measureRatio: Boolean,
+        animatedTransitions: Boolean,
+    ) {
+        val context = LocalContext.current
+
         var state by remember(data) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
         val isSuccess = state is AsyncImagePainter.State.Success
         val isError = state is AsyncImagePainter.State.Error
 
         val scope = rememberCoroutineScope()
-        LaunchedEffect(state, data, shouldExtractColor) {
-            if (!shouldExtractColor && onCoverLoaded == null) return@LaunchedEffect
+        LaunchedEffect(state, data, shouldExtractColor, measureRatio) {
+            if (!shouldExtractColor && !measureRatio && onCoverLoaded == null) return@LaunchedEffect
             val currentState = state
             if (currentState is AsyncImagePainter.State.Success) {
                 val cover = when (data) {
@@ -101,11 +212,12 @@ enum class AnimeCover(val ratio: Float) {
                     is DomainMangaCover -> data
                     else -> null
                 }
-                if (cover != null && shouldExtractColor) {
+                if (cover != null && (shouldExtractColor || measureRatio)) {
                     // Skip the extraction coroutine entirely when a current version of both
                     // color and ratio is already cached: zero main-thread work per cover
                     // during a fast fling over a large category.
-                    val hasCachedColor = CoverColorObserver.get(cover.animeId, cover.lastModified) != null
+                    val hasCachedColor = !shouldExtractColor ||
+                        CoverColorObserver.get(cover.animeId, cover.lastModified) != null
                     val hasCachedRatio = CoverColorObserver.getRatio(cover.animeId, cover.lastModified) != null
                     if (!hasCachedColor || !hasCachedRatio) {
                         scope.launch {
@@ -222,8 +334,7 @@ enum class AnimeCover(val ratio: Float) {
 
         @Composable
         fun getRatio(animeId: Long): Float {
-            val usePanorama = remember { Injekt.get<UiPreferences>().panoramaCover().get() }
-            if (!usePanorama) return Book.ratio
+            if (!CoverSettings.panoramaCover) return Book.ratio
 
             return remember(animeId) {
                 CoverColorObserver.ratios.value[animeId] ?: Book.ratio
@@ -232,9 +343,8 @@ enum class AnimeCover(val ratio: Float) {
 
         @Composable
         fun getEntry(animeId: Long, usePanoramaOverride: Boolean? = null): Pair<AnimeCover, Float> {
-            val globalUsePanorama = remember { Injekt.get<UiPreferences>().panoramaCover().get() }
-            val usePanorama = usePanoramaOverride ?: globalUsePanorama
-            
+            val usePanorama = usePanoramaOverride ?: CoverSettings.panoramaCover
+
             if (!usePanorama) return Book to Book.ratio
 
             val ratio = remember(animeId) {
@@ -245,6 +355,16 @@ enum class AnimeCover(val ratio: Float) {
                 val entry = if (ratio > RatioSwitchToPanorama) Panorama else Book
                 entry to ratio
             }
+        }
+
+        /**
+         * Solid placeholder shown until the cover is drawn. The default colour reuses one
+         * shared painter so a screenful of covers allocates none.
+         */
+        @Composable
+        private fun coverPlaceholderPainter(bgColor: Color?): ColorPainter {
+            if (bgColor == null) return DefaultCoverPlaceholder
+            return remember(bgColor) { ColorPainter(bgColor) }
         }
     }
 }
@@ -302,3 +422,6 @@ internal const val RatioSwitchToPanorama = 1.1f
 
 internal val CoverPlaceholderColor = Color(0x1F888888)
 internal val CoverPlaceholderOnBgColor = Color(0x8F888888)
+
+/** Shared placeholder painter for the default cover background colour. */
+private val DefaultCoverPlaceholder = ColorPainter(CoverPlaceholderColor)
