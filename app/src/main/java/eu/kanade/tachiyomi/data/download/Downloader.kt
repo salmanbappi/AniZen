@@ -537,8 +537,13 @@ class Downloader(
             download.status = Download.State.DOWNLOADING
             notifyProgress(download)
             val video = retry {
-                download.video ?: run {
-                    val hosters = EpisodeLoader.getHosters(download.episode, download.anime, download.source as AnimeSource)
+                download.video?.takeIf { it.videoUrl.isRemote() } ?: run {
+                    val hosters = EpisodeLoader.getHosters(
+                        download.episode,
+                        download.anime,
+                        download.source as AnimeSource,
+                        allowDownloaded = false,
+                    )
                     val defaultSelector = eu.kanade.tachiyomi.ui.player.utils.DefaultStreamPreferenceStore(
                         Injekt.get<eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences>()
                     ).getEffectiveSelector(download.anime.id)
@@ -795,9 +800,12 @@ class Downloader(
     private suspend fun internalDownload(download: Download, sandboxDir: File, filename: String): UniFile {
         val video = download.video!!
         
-        // Scheme Validation: OkHttp only supports http/https
+        // Scheme Validation: this engine fetches over OkHttp, so only http(s) is usable. A local
+        // URI here means the video resolved to an existing download instead of the source's stream.
         if (!video.videoUrl.startsWith("http", ignoreCase = true)) {
-            throw IllegalArgumentException("Unsupported URL scheme: ${video.videoUrl.substringBefore(":")}")
+            throw IllegalArgumentException(
+                "Cannot download from non-HTTP URL (scheme: ${video.videoUrl.substringBefore(":")})",
+            )
         }
 
         val client = networkHelper.downloadClient
@@ -1473,6 +1481,17 @@ class Downloader(
 }
 
 private const val MIN_DISK_SPACE = 200L * 1024 * 1024
+
+/**
+ * Schemes the download engines can actually fetch. `content://` and `file://` URIs point at a
+ * local copy (produced by [DownloadManager.buildVideo] for already-downloaded episodes) and are
+ * never valid download inputs.
+ */
+internal fun String.isRemote(): Boolean {
+    return startsWith("http", ignoreCase = true) ||
+        startsWith("magnet:", ignoreCase = true) ||
+        endsWith(".torrent", ignoreCase = true)
+}
 
 object BufferPool {
     private val pool = java.util.concurrent.ArrayBlockingQueue<ByteArray>(128)
