@@ -413,13 +413,18 @@ class DownloadCache(
                                     when {
                                         // Ignore incomplete downloads
                                         it.name?.endsWith(Downloader.TMP_DIR_SUFFIX) == true -> null
-                                        // MP4 files
-                                        it.isFile && it.extension == "mp4" -> it.nameWithoutExtension
-                                        // MKV files
-                                        it.isFile && it.extension == "mkv" -> it.nameWithoutExtension
-                                        // Folder of videos
-                                        it.isDirectory -> it.name
-                                        // Anything else is irrelevant
+                                        // A file/folder counts only when it contains a realistically sized video.
+                                        // Failed external handoffs leave empty folders; misclassified HLS responses
+                                        // can leave tiny playlist text files carrying an MP4/MKV extension.
+                                        it.isFile &&
+                                            it.extension?.lowercase() in setOf("mp4", "mkv") &&
+                                            it.length() >= MIN_VALID_VIDEO_BYTES -> it.nameWithoutExtension
+                                        it.isDirectory && it.listFiles().orEmpty().any { child ->
+                                            child.isFile &&
+                                                child.extension?.lowercase() in setOf("mp4", "mkv") &&
+                                                child.length() >= MIN_VALID_VIDEO_BYTES
+                                        } -> it.name
+                                        // Anything else is incomplete/irrelevant
                                         else -> null
                                     }
                                 }
@@ -480,6 +485,8 @@ class DownloadCache(
         }
     }
 }
+
+private const val MIN_VALID_VIDEO_BYTES = 1024L * 1024L
 
 /**
  * Class to store the files under the root downloads directory.

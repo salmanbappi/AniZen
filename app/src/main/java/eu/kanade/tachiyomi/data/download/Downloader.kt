@@ -480,8 +480,10 @@ class Downloader(
     private fun detectEngineType(video: Video): String {
         return when {
             video.videoUrl.startsWith("magnet") || video.videoUrl.endsWith(".torrent") -> "Torrent"
-            video.videoUrl.contains(".m3u8") || 
-            video.videoUrl.contains("/oppai/") || 
+            video.videoUrl.contains(".m3u8", ignoreCase = true) ||
+            // Hanime's signed HLS endpoint is extensionless: /hls/{id}/{token}
+            video.videoUrl.contains("/hls/", ignoreCase = true) ||
+            video.videoUrl.contains("/oppai/") ||
             video.videoUrl.contains("/proxy/oppai/") -> "HLS"
             video.videoUrl.contains(".mpd") || 
             (video.videoUrl.contains("/playback/") && !video.videoUrl.contains(".mp4")) || 
@@ -572,10 +574,9 @@ class Downloader(
 
                 val effectiveVideo = download.video ?: video
 
-                // Pro-Active: Set engine type early for UI and logic
-                if (download.engineType.isBlank()) {
-                    download.engineType = detectEngineType(effectiveVideo)
-                }
+                // Recompute after every resolution. A restored/retried download may retain an
+                // engine selected for an old URL (for example, Normal before a Hanime HLS URL).
+                download.engineType = detectEngineType(effectiveVideo)
 
                 // Check again for cancellation after slow network call
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
@@ -597,6 +598,11 @@ class Downloader(
                     "HLS" -> nativeHlsDownload(download, sandboxDir, videoFilename)
                     "DASH" -> UniFile.fromFile(nativeDashMuxDownload(download, sandboxDir, videoFilename))!!
                     else -> internalDownload(download, sandboxDir, videoFilename)
+                }
+
+                if (videoFile.length() <= 0L) {
+                    videoFile.delete()
+                    throw IOException("Downloaded video is empty")
                 }
 
                 finalizeDownload(download, videoFile, animeDir, episodeDirname)
@@ -986,6 +992,9 @@ class Downloader(
             val playlistRes = client.newCall(Request.Builder().url(playlistUrl).headers(headers).build()).execute()
             if (!playlistRes.isSuccessful) throw IOException("Failed to fetch playlist: ${playlistRes.code}")
             lines = playlistRes.body?.string()?.lines() ?: emptyList()
+            if (lines.none { it.trimStart().startsWith("#EXTM3U") }) {
+                throw IOException("Hanime returned an invalid HLS playlist")
+            }
 
             val isMaster = lines.any { it.startsWith("#EXT-X-STREAM-INF") }
             if (isMaster) {
@@ -1130,7 +1139,8 @@ class Downloader(
             val episodeName = download.episode.name
             val filename = DiskUtil.buildValidFilename("$animeTitle - $episodeName") + ".mp4"
 
-            // Create the episode directory so external downloader can save inside it
+            // Preserve the external downloader's per-episode target directory. The download cache
+            // now ignores this directory until it actually contains a video file.
             val episodeDir = animeDir.createDirectory(episodeDirname)
             val dirPath = episodeDir?.filePath ?: animeDir.filePath
 
@@ -1232,8 +1242,9 @@ class Downloader(
                 context.startActivity(chooser)
             }
             
-            // Explicitly remove from queue after successful handoff
-            download.status = Download.State.DOWNLOADED
+            // A successful intent handoff is not a completed Anizen download. The external app has
+            // only accepted the request, so do not show a downloaded checkmark or cache an empty dir.
+            download.status = Download.State.NOT_DOWNLOADED
             _queueState.update { it - download }
             store.remove(download)
             notifier.dismissProgress(download)

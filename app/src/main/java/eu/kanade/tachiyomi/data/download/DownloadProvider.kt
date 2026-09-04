@@ -134,12 +134,13 @@ class DownloadProvider(
         }
         val exact = getValidEpisodeDirNames(episodeName, episodeScanlator).asSequence()
             .mapNotNull { animeDir?.findFile(it) }
-            .firstOrNull()
+            .firstOrNull { it.hasPlayableVideo() }
         if (exact != null) return exact
 
         if (episodeNumber >= 0.0 && animeDir != null) {
             val files = animeDir.listFiles().orEmpty()
             return files.firstOrNull { file ->
+                if (!file.hasPlayableVideo()) return@firstOrNull false
                 val name = file.nameWithoutExtension ?: file.name ?: return@firstOrNull false
                 if (name.endsWith(Downloader.TMP_DIR_SUFFIX)) return@firstOrNull false
                 if (!episodeScanlator.isNullOrBlank()) {
@@ -153,6 +154,24 @@ class DownloadProvider(
             }
         }
         return null
+    }
+
+    /**
+     * A directory alone is not a completed download. External downloaders and failed attempts can
+     * leave empty directories behind, while an incorrectly classified HLS playlist can leave a tiny
+     * text file with an MKV extension. Require a realistically sized video before exposing it as
+     * downloaded.
+     */
+    private fun UniFile.hasPlayableVideo(): Boolean {
+        if (isFile) {
+            val extension = name?.substringAfterLast('.', "")?.lowercase()
+            return extension in setOf("mp4", "mkv") && length() >= MIN_VALID_VIDEO_BYTES
+        }
+        if (!isDirectory) return false
+        return listFiles().orEmpty().any { child ->
+            val extension = child.name?.substringAfterLast('.', "")?.lowercase()
+            child.isFile && extension in setOf("mp4", "mkv") && child.length() >= MIN_VALID_VIDEO_BYTES
+        }
     }
 
     /**
@@ -306,4 +325,8 @@ class DownloadProvider(
         }
     }
     // <-- AM (FILE_SIZE)
+
+    companion object {
+        private const val MIN_VALID_VIDEO_BYTES = 1024L * 1024L
+    }
 }
