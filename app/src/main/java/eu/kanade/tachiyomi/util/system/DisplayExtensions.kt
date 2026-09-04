@@ -3,7 +3,9 @@ package eu.kanade.tachiyomi.util.system
 import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
+import android.hardware.display.DisplayManager
 import android.os.Build
+import android.view.Display
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import uy.kohesive.injekt.Injekt
@@ -78,3 +80,48 @@ fun Context.isNavigationBarNeedsScrim(): Boolean {
     return Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
         InternalResourceHelper.getBoolean(this, "config_navBarNeedsScrim", true)
 }
+
+/**
+ * Enables the highest supported refresh rate mode for the window.
+ * Ensures 90Hz / 120Hz / 144Hz displays run at peak fluidity immediately
+ * upon launching the app, preventing the initial 60Hz scroll lag.
+ */
+fun Activity.enableHighRefreshRate() {
+    try {
+        val window = window ?: return
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        } ?: return
+
+        val supportedModes = display.supportedModes ?: return
+        if (supportedModes.isEmpty()) return
+
+        val currentMode = display.mode
+        val highestRefreshRateMode = supportedModes
+            .filter { it.physicalWidth == currentMode.physicalWidth && it.physicalHeight == currentMode.physicalHeight }
+            .maxByOrNull { it.refreshRate }
+            ?: supportedModes.maxByOrNull { it.refreshRate }
+
+        highestRefreshRateMode?.let { mode ->
+            val params = window.attributes
+            var updated = false
+            if (params.preferredDisplayModeId != mode.modeId) {
+                params.preferredDisplayModeId = mode.modeId
+                updated = true
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
+                params.preferredRefreshRate = mode.refreshRate
+                updated = true
+            }
+            if (updated) {
+                window.attributes = params
+            }
+        }
+    } catch (_: Exception) {
+        // Gracefully ignore on devices that do not permit display mode switching
+    }
+}
+
