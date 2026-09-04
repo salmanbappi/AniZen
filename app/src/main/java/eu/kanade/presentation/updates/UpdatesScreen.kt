@@ -75,6 +75,7 @@ fun UpdateScreen(
     onMultiDeleteClicked: (List<UpdatesItem>) -> Unit,
     onUpdateSelected: (UpdatesItem, UpdatesScreenModel.UpdateSelectionOptions) -> Unit,
     onOpenEpisode: (UpdatesItem, altPlayer: Boolean) -> Unit,
+    onOpenSchedule: () -> Unit,
     navigateUp: (() -> Unit)?,
 ) {
     val uiPreferences = remember { Injekt.get<UiPreferences>() }
@@ -91,6 +92,7 @@ fun UpdateScreen(
         topBar = { scrollBehavior ->
             UpdatesAppBar(
                 onUpdateLibrary = { onUpdateLibrary() },
+                onOpenSchedule = onOpenSchedule,
                 actionModeCounter = state.selected.size,
                 onSelectAll = { onSelectAll(true) },
                 onInvertSelection = { onInvertSelection() },
@@ -191,6 +193,7 @@ fun UpdateScreen(
 @Composable
 private fun UpdatesAppBar(
     onUpdateLibrary: () -> Unit,
+    onOpenSchedule: () -> Unit,
     // For action mode
     actionModeCounter: Int,
     onSelectAll: () -> Unit,
@@ -214,6 +217,11 @@ private fun UpdatesAppBar(
             )
             AppBarActions(
                 persistentListOf(
+                    AppBar.Action(
+                        title = stringResource(MR.strings.label_schedule_short),
+                        icon = Icons.Outlined.CalendarMonth,
+                        onClick = onOpenSchedule,
+                    ),
                     AppBar.Action(
                         title = stringResource(MR.strings.action_update_library),
                         icon = Icons.Outlined.Refresh,

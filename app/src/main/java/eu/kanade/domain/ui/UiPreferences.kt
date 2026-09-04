@@ -54,18 +54,21 @@ class UiPreferences(
     // Keep the default bottom bar compact while making the schedule available from More.
     fun navStyle() = preferenceStore.getEnum("bottom_rail_nav_style", NavStyle.MOVE_SCHEDULE_TO_MORE)
 
+    // The schedule is opened from the Updates app bar instead of being a nav tab,
+    // so any "schedule" references persisted by older installs are stripped while
+    // reading the stored nav config.
     fun bottomNavTabs() = preferenceStore.getObject(
         "bottom_nav_tabs_v2",
         NavItem.defaultTabs,
         { it.joinToString(",") },
-        { it.split(",").filter { id -> id.isNotBlank() } },
+        { it.split(",").filter { id -> id.isNotBlank() && id != NavItem.SCHEDULE.id } },
     )
 
     fun bottomNavHiddenTabs() = preferenceStore.getObject(
         "bottom_nav_hidden_tabs",
         NavPresets.DEFAULT.hiddenTabs,
         { it.joinToString(",") },
-        { it.split(",").filter { id -> id.isNotBlank() } },
+        { it.split(",").filter { id -> id.isNotBlank() && id != NavItem.SCHEDULE.id } },
     )
 
     fun bottomNavBehaviors() = preferenceStore.getObject(

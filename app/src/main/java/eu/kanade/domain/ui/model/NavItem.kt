@@ -180,7 +180,6 @@ object NavConfigValidator {
         NavItem.FEED.id,
         NavItem.UPDATES.id,
         NavItem.HISTORY.id,
-        NavItem.SCHEDULE.id,
         NavItem.BROWSE.id,
         NavItem.MORE.id,
     )
@@ -188,6 +187,11 @@ object NavConfigValidator {
     fun validate(config: NavConfig): NavConfig {
         var visible = config.visibleTabs.distinct().filter { NavItem.fromId(it) != null }.toMutableList()
         var hidden = config.hiddenTabs.distinct().filter { NavItem.fromId(it) != null }.toMutableList()
+
+        // The schedule is opened from the Updates app bar instead of being a nav
+        // tab; drop stale references so stored configs self-clean on write.
+        visible.remove(NavItem.SCHEDULE.id)
+        hidden.remove(NavItem.SCHEDULE.id)
 
         hidden.removeAll(visible.toSet())
 
@@ -232,7 +236,7 @@ object NavConfigValidator {
 object NavPresets {
     val DEFAULT = NavConfig(
         visibleTabs = persistentListOf(NavItem.LIBRARY.id, NavItem.UPDATES.id, NavItem.HISTORY.id, NavItem.BROWSE.id, NavItem.MORE.id),
-        hiddenTabs = persistentListOf(NavItem.FEED.id, NavItem.SCHEDULE.id)
+        hiddenTabs = persistentListOf(NavItem.FEED.id)
     )
 
     val MINIMAL = NavConfig(

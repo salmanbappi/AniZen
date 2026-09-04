@@ -54,15 +54,34 @@ class AiringScheduleRepository {
         start: Long,
         end: Long,
         includeAdult: Boolean = false,
+    ): List<AiringScheduleEntry> = getScheduleIncremental(start, end, includeAdult) { _, _ -> }
+
+    /**
+     * Fetches the schedule from AniList page by page, invoking [onPage] for every non-empty
+     * page as soon as it lands so callers can publish partial results to the UI and let it
+     * "fill in" progressively instead of blocking on the whole multi-page fetch. The callback
+     * runs inside the pagination loop (on an IO dispatcher) and is awaited before the next
+     * page is requested, so publishes stay strictly ordered.
+     *
+     * Returns the complete, page-ordered list — identical to what [getSchedule] returns.
+     */
+    suspend fun getScheduleIncremental(
+        start: Long,
+        end: Long,
+        includeAdult: Boolean = false,
+        onPage: suspend (entries: List<AiringScheduleEntry>, hasNextPage: Boolean) -> Unit,
     ): List<AiringScheduleEntry> {
         return withIOContext {
             var page = 1
             val allEntries = mutableListOf<AiringScheduleEntry>()
             var hasNextPage = true
-            while (hasNextPage && page <= 30) {
+            while (hasNextPage && page <= MAX_PAGES) {
                 val result = fetchPageWithRetry(start, end, page, includeAdult)
                 allEntries.addAll(result.entries)
                 hasNextPage = result.hasNextPage
+                if (result.entries.isNotEmpty()) {
+                    onPage(result.entries, hasNextPage)
+                }
                 page++
                 if (hasNextPage) {
                     // Small courtesy delay between paginated requests so we don't look like a
@@ -180,6 +199,7 @@ class AiringScheduleRepository {
 
         // Transient errors worth retrying: 429 (rate limited), 500, 502/503/504, and Cloudflare 52x codes.
         private val RETRYABLE_HTTP_CODES = setOf(429, 500, 502, 503, 504, 520, 521, 522, 524)
+        private const val MAX_PAGES = 30
         private const val MAX_RETRIES = 5
         private const val BASE_DELAY_MS = 1000L
         private const val MAX_DELAY_MS = 20_000L

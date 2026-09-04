@@ -4,10 +4,14 @@ import android.app.Application
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.source.service.SourcePreferences
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mihon.feature.airingschedule.components.BellNotifyState
 import mihon.feature.airingschedule.notification.ScheduleNotifications
 import tachiyomi.core.common.util.lang.withIOContext
@@ -40,6 +44,7 @@ class AiringScheduleScreenModel(
     private var remoteEntries: List<AiringScheduleEntry> = emptyList()
     private var libraryPredictedEntries: List<AiringScheduleEntry> = emptyList()
     private var hasLoaded = false
+    private var fetchJob: Job? = null
 
     init {
         loadSchedule()
@@ -203,7 +208,10 @@ class AiringScheduleScreenModel(
     }
 
     fun loadSchedule(forceRefresh: Boolean = false) {
-        screenModelScope.launch {
+        // Cancel any still-running fetch (e.g. the user hit retry while a cold-open stream was
+        // still filling in) so only the newest request drives the UI.
+        fetchJob?.cancel()
+        fetchJob = screenModelScope.launch {
             val zone = ZoneId.systemDefault()
             val now = ZonedDateTime.now(zone)
             val weekStart = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -257,18 +265,45 @@ class AiringScheduleScreenModel(
                 )
             }
 
-            // 2. Fetch live data from AniList
-            if (allEntries.isEmpty()) {
-                mutableState.update { it.copy(isLoading = true, error = null) }
+            // 2. Fetch live data from AniList.
+            val includeAdult = schedulePrefs.showAdultContent().get()
+            val delays = if (schedulePrefs.uploadDelayEnabled().get()) {
+                uploadDelayTracker.getDelays()
+            } else {
+                emptyMap()
             }
+            val weekStartDate = weekStart.toLocalDate()
+            val weekEndDate = weekEnd.toLocalDate()
 
             try {
-                val includeAdult = schedulePrefs.showAdultContent().get()
-                val fetched = repository.getSchedule(
-                    fetchStart.toEpochSecond(),
-                    fetchEnd.toEpochSecond(),
-                    includeAdult = includeAdult,
-                )
+                val fetched = if (allEntries.isEmpty()) {
+                    // Nothing on screen yet (no usable cache and no library predictions) — the
+                    // first-ever-open case. Stream every AniList page into the UI as it lands so
+                    // rows appear within the first second and the schedule slowly fills in,
+                    // instead of sitting behind a blank loader for the whole paginated fetch.
+                    // A previously cancelled stream may have left partial pages behind; reset
+                    // so the new stream can't double up with stale data.
+                    remoteEntries = emptyList()
+                    allEntries = emptyList()
+                    mutableState.update { it.copy(isLoading = false, isRefreshing = true, error = null) }
+                    repository.getScheduleIncremental(
+                        start = fetchStart.toEpochSecond(),
+                        end = fetchEnd.toEpochSecond(),
+                        includeAdult = includeAdult,
+                        onPage = { page, _ ->
+                            appendPageAndPublish(page, delays, weekStartDate, weekEndDate)
+                        },
+                    )
+                } else {
+                    // Content is already on screen (stale cache or library predictions): fetch
+                    // everything in the background and swap atomically at the end, avoiding
+                    // visible churn in day counts and rows while it refreshes.
+                    repository.getSchedule(
+                        fetchStart.toEpochSecond(),
+                        fetchEnd.toEpochSecond(),
+                        includeAdult = includeAdult,
+                    )
+                }
 
                 // Persist live fetch to disk cache
                 ScheduleDataRefreshWorker.writeCache(application, currentFetchStart, fetched)
@@ -277,20 +312,17 @@ class AiringScheduleScreenModel(
                 allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
                 hasLoaded = true
 
-                val delays = if (schedulePrefs.uploadDelayEnabled().get()) {
-                    uploadDelayTracker.getDelays()
-                } else {
-                    emptyMap()
-                }
-
                 rescheduleSeriesAlarms()
 
-                applyFilters(
+                publishScheduleView(
                     entries = allEntries,
                     delays = delays,
-                    weekStart = weekStart.toLocalDate(),
-                    weekEnd = weekEnd.toLocalDate(),
+                    weekStart = weekStartDate,
+                    weekEnd = weekEndDate,
+                    refreshing = false,
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (remoteEntries.isEmpty()) {
                     val fallback = cache?.takeIf { it.entries.isNotEmpty() }
@@ -301,17 +333,83 @@ class AiringScheduleScreenModel(
                 allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
                 if (allEntries.isNotEmpty()) {
                     hasLoaded = true
-                    applyFilters(
+                    publishScheduleView(
                         entries = allEntries,
-                        delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
-                        weekStart = weekStart.toLocalDate(),
-                        weekEnd = weekEnd.toLocalDate(),
+                        delays = delays,
+                        weekStart = weekStartDate,
+                        weekEnd = weekEndDate,
+                        refreshing = false,
                     )
                 } else {
-                    mutableState.update { it.copy(isLoading = false, error = e.message) }
+                    mutableState.update { it.copy(isLoading = false, isRefreshing = false, error = e.message) }
                 }
             }
         }
+    }
+
+    /**
+     * Appends one freshly fetched AniList page and republishes the schedule view so the UI
+     * fills in progressively during a cold (streamed) load. Invoked from inside the
+     * repository's pagination loop on its IO dispatcher: shared model state is captured on
+     * the main thread, the heavy merge/filter/grouping runs on a background dispatcher, and
+     * only the resulting view lands back on the main thread.
+     */
+    private suspend fun appendPageAndPublish(
+        page: List<AiringScheduleEntry>,
+        delays: Map<String, Long>,
+        weekStartDate: LocalDate,
+        weekEndDate: LocalDate,
+    ) {
+        val (remote, predicted, config) = withContext(Dispatchers.Main) {
+            remoteEntries = remoteEntries + page
+            Triple(remoteEntries, libraryPredictedEntries, snapshotFilterConfig())
+        }
+        val (merged, view) = withContext(Dispatchers.Default) {
+            // Merging is O(remote x predicted) with expensive title matching for large
+            // libraries — keep it off the main thread so pages never stall composition.
+            val merged = mergeEntries(remote, predicted)
+            val view = computeScheduleView(merged, delays, weekStartDate, weekEndDate, config)
+            merged to view
+        }
+        withContext(Dispatchers.Main) {
+            allEntries = merged
+            hasLoaded = true
+            publishState(
+                view = view,
+                config = config,
+                delays = delays,
+                weekStart = weekStartDate,
+                weekEnd = weekEndDate,
+                refreshing = true,
+            )
+        }
+    }
+
+    /**
+     * Recomputes the filtered/grouped schedule view with the heavy per-entry work on a
+     * background dispatcher, then publishes the result on the main thread. Used by the fetch
+     * completion paths of [loadSchedule]; interactive filter changes go through the
+     * synchronous [applyFilters] instead so their update lands within the same frame.
+     */
+    private suspend fun publishScheduleView(
+        entries: List<AiringScheduleEntry>,
+        delays: Map<String, Long>,
+        weekStart: LocalDate?,
+        weekEnd: LocalDate?,
+        refreshing: Boolean,
+    ) {
+        val config = snapshotFilterConfig()
+        val view = withContext(Dispatchers.Default) {
+            computeScheduleView(entries, delays, weekStart, weekEnd, config)
+        }
+        publishState(
+            view = view,
+            config = config,
+            delays = delays,
+            weekStart = weekStart,
+            weekEnd = weekEnd,
+            refreshing = refreshing,
+        )
     }
 
     /**
@@ -383,30 +481,136 @@ class AiringScheduleScreenModel(
         zone: ZoneId,
         weekStartDate: LocalDate? = null,
         weekEndDate: LocalDate? = null,
-    ): Map<DayOfWeek, List<AiringScheduleEntry>> = entries.filter { entry ->
-        if (weekStartDate == null || weekEndDate == null) return@filter true
-        val delay = mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
-            entry = entry,
-            delays = delays,
-            manualDelayMinutes = manualDelayMinutes,
-            librarySourcesByTitle = librarySourcesByTitle,
+    ): Map<DayOfWeek, List<AiringScheduleEntry>> {
+        // Single pass over the entries: the upload delay is resolved exactly once per entry
+        // (title normalization against the user's library makes it the most expensive step of
+        // the pipeline) instead of once for the week-window check and again for grouping.
+        val grouped = LinkedHashMap<DayOfWeek, MutableList<AiringScheduleEntry>>()
+        for (entry in entries) {
+            val delay = mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
+                entry = entry,
+                delays = delays,
+                manualDelayMinutes = manualDelayMinutes,
+                librarySourcesByTitle = librarySourcesByTitle,
+                pinnedSources = pinnedSources,
+                favoriteSources = favoriteIds,
+            )
+            val airTime = mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, delay)
+            val entryDate = ZonedDateTime.ofInstant(Instant.ofEpochSecond(airTime), zone).toLocalDate()
+            if (weekStartDate != null && weekEndDate != null) {
+                if (entryDate.isBefore(weekStartDate) || entryDate.isAfter(weekEndDate)) continue
+            }
+            grouped.getOrPut(entryDate.dayOfWeek) { mutableListOf() }.add(entry)
+        }
+        return grouped
+    }
+
+    /**
+     * Snapshot of every preference/state value the filtering pipeline reads, taken on the main
+     * thread so the entry-heavy computation can safely run on a background dispatcher.
+     */
+    private data class FilterConfig(
+        val showOnlyFavorites: Boolean,
+        val favoriteIds: Set<String>,
+        val showAdult: Boolean,
+        val pinnedSources: Set<String>,
+        val hideAired: Boolean,
+        val selectedFormats: Set<String>,
+        val manualDelayMinutes: Long?,
+        val libraryAnimeTitles: Set<String>,
+        val librarySourcesByTitle: Map<String, Set<String>>,
+        val libraryAnimeIdByTitle: Map<String, Long>,
+        val configuredSources: Set<String>,
+    )
+
+    private fun snapshotFilterConfig(): FilterConfig {
+        val favoriteIds = schedulePrefs.favoriteSourceIds().get()
+        val pinnedSources = sourcePreferences.pinnedSources().get()
+        return FilterConfig(
+            showOnlyFavorites = schedulePrefs.showOnlyFavoriteSources().get(),
+            favoriteIds = favoriteIds,
+            showAdult = schedulePrefs.showAdultContent().get(),
             pinnedSources = pinnedSources,
-            favoriteSources = favoriteIds,
+            hideAired = mutableState.value.hideAired,
+            selectedFormats = mutableState.value.selectedFormats,
+            manualDelayMinutes = computeManualDelayMinutes(),
+            libraryAnimeTitles = mutableState.value.libraryAnimeTitles,
+            librarySourcesByTitle = mutableState.value.librarySourcesByTitle,
+            libraryAnimeIdByTitle = mutableState.value.libraryAnimeIdByTitle,
+            // Source filters should apply for either favourite or pinned sources — a user who
+            // only pins sources from Browse (without also marking them "favourite" here) still
+            // expects "show only my sources" to work.
+            configuredSources = favoriteIds + pinnedSources,
         )
-        val airTime = mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, delay)
-        val entryDate = ZonedDateTime.ofInstant(Instant.ofEpochSecond(airTime), zone).toLocalDate()
-        !entryDate.isBefore(weekStartDate) && !entryDate.isAfter(weekEndDate)
-    }.groupBy { entry ->
-        val delay = mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
-            entry = entry,
+    }
+
+    /** The computed schedule view: filtered entries plus their delay-adjusted day grouping. */
+    private data class ScheduleView(
+        val filtered: List<AiringScheduleEntry>,
+        val grouped: Map<DayOfWeek, List<AiringScheduleEntry>>,
+    )
+
+    private fun computeScheduleView(
+        entries: List<AiringScheduleEntry>,
+        delays: Map<String, Long>,
+        weekStart: LocalDate?,
+        weekEnd: LocalDate?,
+        config: FilterConfig,
+    ): ScheduleView {
+        val filtered = filterEntries(
+            entries = entries,
+            showAdult = config.showAdult,
+            showOnlyFavorites = config.showOnlyFavorites,
+            hideAired = config.hideAired,
+            selectedFormats = config.selectedFormats,
+            configuredSources = config.configuredSources,
+            libraryAnimeTitles = config.libraryAnimeTitles,
+            librarySourcesByTitle = config.librarySourcesByTitle,
+            libraryAnimeIdByTitle = config.libraryAnimeIdByTitle,
+        )
+        val grouped = groupByDelayAdjustedDay(
+            entries = filtered,
+            librarySourcesByTitle = config.librarySourcesByTitle,
+            manualDelayMinutes = config.manualDelayMinutes,
             delays = delays,
-            manualDelayMinutes = manualDelayMinutes,
-            librarySourcesByTitle = librarySourcesByTitle,
-            pinnedSources = pinnedSources,
-            favoriteSources = favoriteIds,
+            pinnedSources = config.pinnedSources,
+            favoriteIds = config.favoriteIds,
+            zone = ZoneId.systemDefault(),
+            weekStartDate = weekStart,
+            weekEndDate = weekEnd,
         )
-        val airTime = mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, delay)
-        ZonedDateTime.ofInstant(Instant.ofEpochSecond(airTime), zone).dayOfWeek
+        return ScheduleView(filtered, grouped)
+    }
+
+    private fun publishState(
+        view: ScheduleView,
+        config: FilterConfig,
+        delays: Map<String, Long>,
+        weekStart: LocalDate?,
+        weekEnd: LocalDate?,
+        refreshing: Boolean,
+    ) {
+        val titleLang = schedulePrefs.titleLanguage().get()
+        mutableState.update {
+            it.copy(
+                isLoading = false,
+                isRefreshing = refreshing,
+                scheduleByDay = view.grouped,
+                allFilteredEntries = view.filtered,
+                viewMode = schedulePrefs.viewMode().get(),
+                weekStartDate = weekStart,
+                weekEndDate = weekEnd,
+                titleLanguage = titleLang,
+                sourceDelays = delays,
+                manualDelayMinutes = config.manualDelayMinutes,
+                favoriteSourceIds = config.favoriteIds,
+                pinnedSourceIds = config.pinnedSources,
+                onlyFavorites = config.showOnlyFavorites,
+                showAdult = config.showAdult,
+                notifyOnceMediaIds = schedulePrefs.notifyOnceMediaIds().get(),
+                notifySeriesMediaIds = schedulePrefs.notifySeriesMediaIds().get(),
+            )
+        }
     }
 
     private fun applyFilters(
@@ -415,64 +619,18 @@ class AiringScheduleScreenModel(
         weekStart: LocalDate? = mutableState.value.weekStartDate,
         weekEnd: LocalDate? = mutableState.value.weekEndDate,
     ) {
-        val showOnlyFavorites = schedulePrefs.showOnlyFavoriteSources().get()
-        val favoriteIds = schedulePrefs.favoriteSourceIds().get()
-        val showAdult = schedulePrefs.showAdultContent().get()
-        val titleLang = schedulePrefs.titleLanguage().get()
-        val pinnedSources = sourcePreferences.pinnedSources().get()
-        val librarySourcesByTitle = mutableState.value.librarySourcesByTitle
-        val libraryAnimeTitles = mutableState.value.libraryAnimeTitles
-        val libraryAnimeIdByTitle = mutableState.value.libraryAnimeIdByTitle
-        val hideAired = mutableState.value.hideAired
-        val selectedFormats = mutableState.value.selectedFormats
-        val manualDelayMinutes = computeManualDelayMinutes()
-        // Source filters should apply for either favourite or pinned sources — a user who
-        // only pins sources from Browse (without also marking them "favourite" here) still
-        // expects "show only my sources" to work.
-        val configuredSources = favoriteIds + pinnedSources
-
-        val filtered = filterEntries(
-            entries = entries,
-            showAdult = showAdult,
-            showOnlyFavorites = showOnlyFavorites,
-            hideAired = hideAired,
-            selectedFormats = selectedFormats,
-            configuredSources = configuredSources,
-            libraryAnimeTitles = libraryAnimeTitles,
-            librarySourcesByTitle = librarySourcesByTitle,
-            libraryAnimeIdByTitle = libraryAnimeIdByTitle,
-        )
-        val grouped = groupByDelayAdjustedDay(
-            entries = filtered,
-            librarySourcesByTitle = librarySourcesByTitle,
-            manualDelayMinutes = manualDelayMinutes,
+        val config = snapshotFilterConfig()
+        val view = computeScheduleView(entries, delays, weekStart, weekEnd, config)
+        publishState(
+            view = view,
+            config = config,
             delays = delays,
-            pinnedSources = pinnedSources,
-            favoriteIds = favoriteIds,
-            zone = ZoneId.systemDefault(),
-            weekStartDate = weekStart,
-            weekEndDate = weekEnd,
+            weekStart = weekStart,
+            weekEnd = weekEnd,
+            // Preserve the streaming indicator: interactive filter changes can land while a
+            // cold open is still filling in.
+            refreshing = mutableState.value.isRefreshing,
         )
-
-        mutableState.update {
-            it.copy(
-                isLoading = false,
-                scheduleByDay = grouped,
-                allFilteredEntries = filtered,
-                viewMode = schedulePrefs.viewMode().get(),
-                weekStartDate = weekStart,
-                weekEndDate = weekEnd,
-                titleLanguage = titleLang,
-                sourceDelays = delays,
-                manualDelayMinutes = manualDelayMinutes,
-                favoriteSourceIds = favoriteIds,
-                pinnedSourceIds = pinnedSources,
-                onlyFavorites = showOnlyFavorites,
-                showAdult = showAdult,
-                notifyOnceMediaIds = schedulePrefs.notifyOnceMediaIds().get(),
-                notifySeriesMediaIds = schedulePrefs.notifySeriesMediaIds().get(),
-            )
-        }
     }
 
     fun setFilterOnlyFavorites(value: Boolean) {
@@ -591,6 +749,8 @@ class AiringScheduleScreenModel(
 
     data class State(
         val isLoading: Boolean = true,
+        /** True while a cold (first-ever) load is still streaming AniList pages into the UI. */
+        val isRefreshing: Boolean = false,
         val scheduleByDay: Map<DayOfWeek, List<AiringScheduleEntry>> = emptyMap(),
         val allFilteredEntries: List<AiringScheduleEntry> = emptyList(),
         val viewMode: SchedulePreferences.ViewMode = SchedulePreferences.ViewMode.WEEKLY,
