@@ -61,6 +61,7 @@ import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.GLUtil
 import eu.kanade.tachiyomi.util.system.WebViewUtil
+import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
@@ -148,6 +149,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             Injekt.get<eu.kanade.tachiyomi.data.cache.ChapterCache>()
             Injekt.get<eu.kanade.tachiyomi.data.cache.CoverCache>()
             Injekt.get<CustomAnimeRepository>()
+
+            // Warm the cover color/ratio cache so the first library scroll is already
+            // smooth instead of extracting + measuring on the fly (KMK).
+            CoverColorObserver.load()
             
             // Dismiss stuck downloader notifications
             val downloadManager = Injekt.get<DownloadManager>()
@@ -297,6 +302,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     override fun onStop(owner: LifecycleOwner) {
         SecureActivityDelegate.onApplicationStopped()
+
+        // Persist any cover colors/ratios extracted but not yet flushed by the debounce.
+        CoverColorObserver.flush()
 
         DiscordRPCService.stop(applicationContext)
     }

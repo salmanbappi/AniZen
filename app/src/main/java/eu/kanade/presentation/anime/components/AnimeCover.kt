@@ -102,12 +102,19 @@ enum class AnimeCover(val ratio: Float) {
                     else -> null
                 }
                 if (cover != null && shouldExtractColor) {
-                    scope.launch {
-                        eu.kanade.tachiyomi.util.system.CoverColorExtractor.extract(
-                            cover = cover,
-                            state = currentState,
-                            extractColor = shouldExtractColor,
-                        )
+                    // Skip the extraction coroutine entirely when a current version of both
+                    // color and ratio is already cached: zero main-thread work per cover
+                    // during a fast fling over a large category.
+                    val hasCachedColor = CoverColorObserver.get(cover.animeId, cover.lastModified) != null
+                    val hasCachedRatio = CoverColorObserver.getRatio(cover.animeId, cover.lastModified) != null
+                    if (!hasCachedColor || !hasCachedRatio) {
+                        scope.launch {
+                            eu.kanade.tachiyomi.util.system.CoverColorExtractor.extract(
+                                cover = cover,
+                                state = currentState,
+                                extractColor = shouldExtractColor,
+                            )
+                        }
                     }
                 }
                 if (data is Anime) onCoverLoaded?.invoke(data.asAnimeCover(), currentState)
