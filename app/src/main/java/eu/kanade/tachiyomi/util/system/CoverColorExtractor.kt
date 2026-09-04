@@ -10,10 +10,12 @@ import coil3.BitmapImage
 import coil3.asDrawable
 import coil3.compose.AsyncImagePainter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import tachiyomi.domain.anime.model.AnimeCover
+import tachiyomi.presentation.core.util.ScrollActivity
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -49,7 +51,16 @@ object CoverColorExtractor {
         if (!extractColor) return@withContext
         if (CoverColorObserver.get(cover.animeId, cover.lastModified) != null) return@withContext
 
+        // Palette generation needs a *software* copy of the bitmap, and for a hardware
+        // bitmap that copy is a GPU->CPU readback: the most expensive thing this function
+        // does, and the one that stalls rendering mid-fling. Waiting for the scroll to
+        // settle means a cover the user flings past gets disposed (cancelling this
+        // coroutine) instead of paying that cost for something no longer on screen.
+        ScrollActivity.awaitIdle()
+        ensureActive()
+
         val color = extractionPermits.withPermit {
+            ensureActive()
             val originalBitmap = when (image) {
                 is BitmapImage -> image.bitmap
                 else -> image.asDrawable(context.resources).toBitmap()

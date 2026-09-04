@@ -39,7 +39,6 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.anime.components.LibraryBottomActionMenu
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
-import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.library.DeleteLibraryAnimeDialog
 import eu.kanade.presentation.library.LibrarySettingsDialog
 import eu.kanade.presentation.library.components.FolderContextMenu
@@ -139,6 +138,9 @@ data object LibraryTab : Tab {
 
         val snackbarHostState = remember { SnackbarHostState() }
 
+        // Category headers in search results need a Context to resolve the system category's
+        // name; the screen model builds the list without one, so it is resolved here.
+        val defaultCategoryTitle = stringResource(MR.strings.label_default)
 
         val onClickRefresh: (Category?) -> Boolean = { category ->
             // SY -->
@@ -187,7 +189,7 @@ data object LibraryTab : Tab {
                 topBar = { scrollBehavior ->
                     val title = state.getToolbarTitle(
                         defaultTitle = defaultTitle,
-                        defaultCategoryTitle = stringResource(MR.strings.label_default),
+                        defaultCategoryTitle = defaultCategoryTitle,
                         page = screenModel.activeCategoryIndex,
                     )
                     val tabVisible = state.showCategoryTabs && state.categories.isNotEmpty() && (state.categories.size > 1 || !state.categories.first().isSystemCategory)
@@ -323,84 +325,15 @@ data object LibraryTab : Tab {
                                 folderLongClickItem = folderItem
                             },
                             getAnimeLibraryForPage = { page ->
-                                if (!state.searchQuery.isNullOrEmpty()) {
-                                    val displayItems = mutableListOf<eu.kanade.tachiyomi.ui.library.LibraryDisplayItem>()
-                                    // Search mode shows matches from all categories in one flattened grid.
-                                    // An anime can belong to several categories and a folder can contain
-                                    // anime from several categories, so each anime (grid key
-                                    // library-grid-<anime id>) and each folder (grid key
-                                    // library-folder-<folder id>) must be emitted exactly once to keep the
-                                    // LazyGrid keys unique. A category header is only added when the
-                                    // category actually contributes an item.
-                                    val seenAnimeIds = mutableSetOf<Long>()
-                                    val seenFolderIds = mutableSetOf<Long>()
-                                    state.categories.forEach { cat ->
-                                        val catItems = state.library[cat] ?: emptyList()
-                                        val categoryItems = mutableListOf<eu.kanade.tachiyomi.ui.library.LibraryDisplayItem>()
-                                        val processedFolderIds = mutableSetOf<Long>()
-                                        for (item in catItems) {
-                                            if (!seenAnimeIds.add(item.libraryAnime.anime.id)) {
-                                                // Already shown under a previous category or inside a folder
-                                                continue
-                                            }
-                                            val folderId = item.libraryAnime.folderId
-                                            val showFolder = collapseFolders && folderId != null && folderId !in seenFolderIds
-                                            if (!showFolder || !processedFolderIds.add(folderId)) {
-                                                // Folders disabled, anime not in a folder, or this folder was
-                                                // already emitted: show the anime on its own.
-                                                categoryItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                                continue
-                                            }
-                                            val folder = state.folders.find { it.id == folderId }
-                                            if (folder == null) {
-                                                // Folder record no longer exists; keep the anime visible
-                                                processedFolderIds.remove(folderId)
-                                                categoryItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                                continue
-                                            }
-                                            // A folder can span categories: collect all of its search hits so
-                                            // it renders once without dropping members that only match in
-                                            // another category.
-                                            val folderItems = state.categories
-                                                .flatMap { otherCat -> state.library[otherCat].orEmpty() }
-                                                .filter { it.libraryAnime.folderId == folderId }
-                                            folderItems.forEach { seenAnimeIds.add(it.libraryAnime.anime.id) }
-                                            seenFolderIds.add(folderId)
-                                            categoryItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder(folder, folderItems))
-                                        }
-                                        if (categoryItems.isNotEmpty()) {
-                                            displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Header(cat.visualName(context)))
-                                            displayItems.addAll(categoryItems)
-                                        }
-                                    }
-                                    displayItems.toImmutableList()
-                                } else {
-                                    val items = state.getAnimelibItemsByPage(page)
-                                    if (!collapseFolders) {
-                                        items.map { eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(it) }.toImmutableList()
-                                    } else {
-                                        val displayItems = mutableListOf<eu.kanade.tachiyomi.ui.library.LibraryDisplayItem>()
-                                        val processedFolderIds = mutableSetOf<Long>()
-                                        val grouped = items.groupBy { it.libraryAnime.folderId }
-        
-                                        for (item in items) {
-                                            val folderId = item.libraryAnime.folderId
-                                            if (folderId == null) {
-                                                displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                            } else if (processedFolderIds.add(folderId)) {
-                                                val folder = state.folders.find { it.id == folderId }
-                                                val folderItems = grouped[folderId] ?: emptyList()
-                                                if (folder != null) {
-                                                    displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder(folder, folderItems))
-                                                } else {
-                                                    displayItems.add(eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Anime(item))
-                                                    processedFolderIds.remove(folderId)
-                                                }
-                                            }
-                                        }
-                                        displayItems.toImmutableList()
-                                    }
-                                }
+                                // Built and memoized in the screen model so a recomposition
+                                // never rebuilds the list (which would force
+                                // LazyVerticalGrid to rebuild its item provider).
+                                screenModel.getDisplayItemsForPage(
+                                    libraryState = state,
+                                    page = page,
+                                    collapseFolders = collapseFolders,
+                                    defaultCategoryTitle = defaultCategoryTitle,
+                                )
                             },
                         )
                     }

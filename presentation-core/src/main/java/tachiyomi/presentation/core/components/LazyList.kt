@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
+import tachiyomi.presentation.core.util.TrackScrollActivity
 import tachiyomi.presentation.core.util.drawVerticalScrollbar
 
 /**
@@ -68,6 +69,9 @@ fun FastScrollLazyColumn(
     userScrollEnabled: Boolean = true,
     content: LazyListScope.() -> Unit,
 ) {
+    // Lets deferred work (e.g. cover palette extraction) stay off the CPU during a fling.
+    TrackScrollActivity { state.isScrollInProgress }
+
     VerticalFastScroller(
         listState = state,
         modifier = modifier,

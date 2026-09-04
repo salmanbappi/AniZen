@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import tachiyomi.presentation.core.util.TrackScrollActivity
 
 @Composable
 fun FastScrollLazyVerticalGrid(
@@ -34,6 +35,9 @@ fun FastScrollLazyVerticalGrid(
     userScrollEnabled: Boolean = true,
     content: LazyGridScope.() -> Unit,
 ) {
+    // Lets deferred work (e.g. cover palette extraction) stay off the CPU during a fling.
+    TrackScrollActivity { state.isScrollInProgress }
+
     VerticalGridFastScroller(
         state = state,
         columns = columns,

@@ -75,6 +75,7 @@ import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.history.interactor.GetNextEpisodes
 import tachiyomi.domain.library.model.LibraryAnime
 import tachiyomi.domain.library.model.LibraryDisplayMode
+import tachiyomi.domain.library.model.LibraryFolder
 import tachiyomi.domain.library.model.LibraryGroup
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
@@ -131,6 +132,78 @@ class LibraryScreenModel(
     var activeCategoryIndex: Int by libraryPreferences.lastUsedCategory().asState(
         screenModelScope,
     )
+
+    /**
+     * Memoized [LibraryDisplayItem] lists, keyed by page and by the settings that change the
+     * shape of the list.
+     *
+     * The grid list used to be built inline in the library composable, so *every*
+     * recomposition of the page re-ran the folder grouping and handed `LazyVerticalGrid` a
+     * brand new list instance — which makes it rebuild its item provider and re-diff every
+     * key, on the frame it is trying to scroll. Caching here ties the work to the data: one
+     * build per data change per page, and a cheap map hit for everything else.
+     *
+     * Only the three [State] fields the output actually depends on take part in
+     * invalidation, and the two collections are compared by *identity*: they are rebuilt
+     * wholesale whenever the library reloads, and comparing them structurally would itself
+     * be an O(library) walk on the caller's thread. Unrelated state updates (selection,
+     * dialogs, download progress) therefore keep the cached lists, so the grid is not
+     * re-provided while the user is selecting items.
+     */
+    private val displayItemsCache = HashMap<DisplayItemsKey, ImmutableList<LibraryDisplayItem>>()
+    private var cachedLibrary: AnimeLibraryMap? = null
+    private var cachedFolders: List<LibraryFolder>? = null
+    private var cachedSearchQuery: String? = null
+
+    private data class DisplayItemsKey(
+        val page: Int,
+        val collapseFolders: Boolean,
+        val defaultCategoryTitle: String,
+    )
+
+    /**
+     * The rows to render for [page] of [libraryState].
+     *
+     * [libraryState] is passed in rather than read from [state] so the result always matches
+     * the state the caller is currently composing with.
+     *
+     * @param defaultCategoryTitle localized name of the system category; resolved by the
+     *   caller because it needs a Context, and part of the key so a locale change cannot
+     *   serve a stale header.
+     */
+    fun getDisplayItemsForPage(
+        libraryState: State,
+        page: Int,
+        collapseFolders: Boolean,
+        defaultCategoryTitle: String,
+    ): ImmutableList<LibraryDisplayItem> {
+        val searchQuery = libraryState.searchQuery
+        val key = DisplayItemsKey(
+            // Search flattens every category into a single page, so the page index is not
+            // part of the identity of the result.
+            page = if (searchQuery.isNullOrEmpty()) page else 0,
+            collapseFolders = collapseFolders,
+            defaultCategoryTitle = defaultCategoryTitle,
+        )
+        return synchronized(displayItemsCache) {
+            if (cachedLibrary !== libraryState.library ||
+                cachedFolders !== libraryState.folders ||
+                cachedSearchQuery != searchQuery
+            ) {
+                cachedLibrary = libraryState.library
+                cachedFolders = libraryState.folders
+                cachedSearchQuery = searchQuery
+                displayItemsCache.clear()
+            }
+            displayItemsCache.getOrPut(key) {
+                libraryState.buildDisplayItemsForPage(
+                    page = page,
+                    collapseFolders = collapseFolders,
+                    defaultCategoryTitle = defaultCategoryTitle,
+                )
+            }
+        }
+    }
 
     init {
         screenModelScope.launchIO {
@@ -1266,6 +1339,125 @@ class LibraryScreenModel(
 
         fun getAnimelibItemsByPage(page: Int): List<LibraryItem> {
             return library.values.elementAtOrNull(page).orEmpty()
+        }
+
+        /**
+         * The rows to render for [page]: anime, folder tiles when [collapseFolders] is on,
+         * and category headers while searching.
+         *
+         * Callers should go through [LibraryScreenModel.getDisplayItemsForPage], which
+         * memoizes the result across state updates that cannot change it.
+         *
+         * @param defaultCategoryTitle localized name for the system category, resolved by the
+         *   caller because it needs a Context.
+         */
+        fun buildDisplayItemsForPage(
+            page: Int,
+            collapseFolders: Boolean,
+            defaultCategoryTitle: String,
+        ): ImmutableList<LibraryDisplayItem> {
+            return if (!searchQuery.isNullOrEmpty()) {
+                buildSearchDisplayItems(collapseFolders, defaultCategoryTitle)
+            } else {
+                buildCategoryDisplayItems(page, collapseFolders)
+            }
+        }
+
+        /**
+         * Search mode shows matches from all categories in one flattened grid. An anime can
+         * belong to several categories and a folder can contain anime from several
+         * categories, so each anime (grid key `library-grid-<anime id>`) and each folder
+         * (grid key `library-folder-<folder id>`) must be emitted exactly once to keep the
+         * LazyGrid keys unique. A category header is only added when the category actually
+         * contributes an item.
+         */
+        private fun buildSearchDisplayItems(
+            collapseFolders: Boolean,
+            defaultCategoryTitle: String,
+        ): ImmutableList<LibraryDisplayItem> {
+            val displayItems = mutableListOf<LibraryDisplayItem>()
+            val seenAnimeIds = mutableSetOf<Long>()
+            val seenFolderIds = mutableSetOf<Long>()
+
+            // Folder members are looked up per folder id; grouping once keeps this linear
+            // instead of re-scanning every category for each folder that is emitted.
+            // Deduped by anime id because an anime in several categories would otherwise
+            // appear twice inside the folder.
+            val itemsByFolderId: Map<Long, List<LibraryItem>> by lazy {
+                library.values.flatten()
+                    .fastDistinctBy { it.libraryAnime.anime.id }
+                    .fastFilter { it.libraryAnime.folderId != null }
+                    .groupBy { it.libraryAnime.folderId!! }
+            }
+            val foldersById = folders.associateBy { it.id }
+
+            categories.fastForEach { cat ->
+                val catItems = library[cat] ?: emptyList()
+                val categoryItems = mutableListOf<LibraryDisplayItem>()
+                val processedFolderIds = mutableSetOf<Long>()
+                for (item in catItems) {
+                    if (!seenAnimeIds.add(item.libraryAnime.anime.id)) {
+                        // Already shown under a previous category or inside a folder
+                        continue
+                    }
+                    val folderId = item.libraryAnime.folderId
+                    val folder = if (collapseFolders && folderId != null && folderId !in seenFolderIds) {
+                        foldersById[folderId]
+                    } else {
+                        null
+                    }
+                    if (folderId == null || folder == null || !processedFolderIds.add(folderId)) {
+                        // Folders disabled, anime not in a folder, folder record gone, or this
+                        // folder was already emitted: show the anime on its own.
+                        categoryItems.add(LibraryDisplayItem.Anime(item))
+                        continue
+                    }
+                    // A folder can span categories: collect all of its search hits so it
+                    // renders once without dropping members that only match in another
+                    // category.
+                    val folderItems = itemsByFolderId[folderId].orEmpty()
+                    folderItems.fastForEach { seenAnimeIds.add(it.libraryAnime.anime.id) }
+                    seenFolderIds.add(folderId)
+                    categoryItems.add(LibraryDisplayItem.Folder(folder, folderItems))
+                }
+                if (categoryItems.isNotEmpty()) {
+                    val label = if (cat.isSystemCategory) defaultCategoryTitle else cat.name
+                    displayItems.add(LibraryDisplayItem.Header(label))
+                    displayItems.addAll(categoryItems)
+                }
+            }
+            return displayItems.toImmutableList()
+        }
+
+        private fun buildCategoryDisplayItems(
+            page: Int,
+            collapseFolders: Boolean,
+        ): ImmutableList<LibraryDisplayItem> {
+            val items = getAnimelibItemsByPage(page)
+            if (!collapseFolders) {
+                return items.fastMap { LibraryDisplayItem.Anime(it) }.toImmutableList()
+            }
+
+            val displayItems = mutableListOf<LibraryDisplayItem>()
+            val processedFolderIds = mutableSetOf<Long>()
+            val grouped = items.groupBy { it.libraryAnime.folderId }
+            val foldersById = folders.associateBy { it.id }
+
+            for (item in items) {
+                val folderId = item.libraryAnime.folderId
+                if (folderId == null) {
+                    displayItems.add(LibraryDisplayItem.Anime(item))
+                } else if (processedFolderIds.add(folderId)) {
+                    val folder = foldersById[folderId]
+                    if (folder != null) {
+                        displayItems.add(LibraryDisplayItem.Folder(folder, grouped[folderId] ?: emptyList()))
+                    } else {
+                        displayItems.add(LibraryDisplayItem.Anime(item))
+                        processedFolderIds.remove(folderId)
+                    }
+                }
+            }
+            return displayItems.toImmutableList()
         }
 
         fun getAnimeCountForCategory(category: Category): Int? {
