@@ -76,7 +76,11 @@ class AiringScheduleScreenModel(
                 }
 
                 libraryPredictedEntries = predicted
-                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
+                // Merge off the main thread: with a full remote set this is the most
+                // expensive step of the pipeline (title matching against every entry).
+                allEntries = withContext(Dispatchers.Default) {
+                    mergeEntries(remoteEntries, predicted)
+                }
 
                 mutableState.update {
                     it.copy(
@@ -167,13 +171,25 @@ class AiringScheduleScreenModel(
         if (remote.isEmpty()) return predicted
         if (predicted.isEmpty()) return remote
 
+        // Bucket remote entries by epoch day so each predicted entry only inspects the
+        // ±3-day window the duplicate check actually cares about instead of scanning the
+        // entire (multi-week) remote set. Combined with the memoized title keys this keeps
+        // a full merge in the tens-of-milliseconds range even for large libraries, which
+        // matters because the cold-open stream re-merges after every AniList page.
+        val remoteByDay = remote.groupBy { it.airingAt / SECONDS_PER_DAY }
+
         val nonDuplicatePredicted = predicted.filter { pred ->
-            val isAlreadyInRemote = remote.any { rem ->
-                val timeDiffSec = kotlin.math.abs(rem.airingAt - pred.airingAt)
-                timeDiffSec < 3 * 86400L && mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(
-                    pred.titleUserPreferred,
-                    mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(rem),
-                )
+            val predDay = pred.airingAt / SECONDS_PER_DAY
+            val isAlreadyInRemote = (-DEDUPE_WINDOW_DAYS..DEDUPE_WINDOW_DAYS).any { offset ->
+                val bucket = remoteByDay[predDay + offset].orEmpty()
+                bucket.any { rem ->
+                    val timeDiffSec = kotlin.math.abs(rem.airingAt - pred.airingAt)
+                    timeDiffSec < DEDUPE_WINDOW_DAYS * SECONDS_PER_DAY &&
+                        mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(
+                            pred.titleUserPreferred,
+                            mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(rem),
+                        )
+                }
             }
             !isAlreadyInRemote
         }
@@ -241,13 +257,19 @@ class AiringScheduleScreenModel(
 
             if (cachedEntries != null && !forceRefresh) {
                 remoteEntries = cachedEntries
-                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
+                // Merge + compute off the main thread so a warm open never blocks first
+                // paint; publishScheduleView runs the heavy filtering on a background
+                // dispatcher and only the finished view lands on main.
+                allEntries = withContext(Dispatchers.Default) {
+                    mergeEntries(cachedEntries, libraryPredictedEntries)
+                }
                 hasLoaded = true
-                applyFilters(
+                publishScheduleView(
                     entries = allEntries,
                     delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
                     weekStart = weekStart.toLocalDate(),
                     weekEnd = weekEnd.toLocalDate(),
+                    refreshing = false,
                 )
                 // If cache is fresh (< 12 hours old), skip network fetch
                 if (isCacheValid) {
@@ -257,11 +279,12 @@ class AiringScheduleScreenModel(
             } else if (allEntries.isEmpty() && libraryPredictedEntries.isNotEmpty()) {
                 allEntries = libraryPredictedEntries
                 hasLoaded = true
-                applyFilters(
+                publishScheduleView(
                     entries = allEntries,
                     delays = if (schedulePrefs.uploadDelayEnabled().get()) uploadDelayTracker.getDelays() else emptyMap(),
                     weekStart = weekStart.toLocalDate(),
                     weekEnd = weekEnd.toLocalDate(),
+                    refreshing = false,
                 )
             }
 
@@ -309,7 +332,13 @@ class AiringScheduleScreenModel(
                 ScheduleDataRefreshWorker.writeCache(application, currentFetchStart, fetched)
 
                 remoteEntries = fetched
-                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
+                // Final merge off the main thread: this coroutine runs on
+                // Dispatchers.Main.immediate, and an inline merge with a large library can
+                // block input dispatch for seconds — straight into an ANR once the stream
+                // finishes, which reads as "the app crashed" on low-end devices.
+                allEntries = withContext(Dispatchers.Default) {
+                    mergeEntries(remoteEntries, libraryPredictedEntries)
+                }
                 hasLoaded = true
 
                 rescheduleSeriesAlarms()
@@ -330,7 +359,11 @@ class AiringScheduleScreenModel(
                         remoteEntries = fallback.entries
                     }
                 }
-                allEntries = mergeEntries(remoteEntries, libraryPredictedEntries)
+                // Error fallback merges whatever survived (partial stream or stale cache) —
+                // same expensive merge, so keep it off the main thread too.
+                allEntries = withContext(Dispatchers.Default) {
+                    mergeEntries(remoteEntries, libraryPredictedEntries)
+                }
                 if (allEntries.isNotEmpty()) {
                     hasLoaded = true
                     publishScheduleView(
@@ -717,9 +750,15 @@ class AiringScheduleScreenModel(
     private fun rescheduleSeriesAlarms() {
         val seriesIds = schedulePrefs.notifySeriesMediaIds().get()
         if (seriesIds.isEmpty()) return
-        allEntries
-            .filter { it.mediaId.toString() in seriesIds && !it.hasAired() }
-            .forEach { ScheduleNotifications.ensureScheduled(application, it) }
+        // Each registration is an AlarmManager binder round-trip (plus preference reads),
+        // so batch them on a background dispatcher instead of blocking the main thread
+        // after every fetch.
+        val snapshot = allEntries.toList()
+        screenModelScope.launch(Dispatchers.Default) {
+            snapshot
+                .filter { it.mediaId.toString() in seriesIds && !it.hasAired() }
+                .forEach { ScheduleNotifications.ensureScheduled(application, it) }
+        }
     }
 
     fun selectDay(day: DayOfWeek) {
@@ -775,5 +814,13 @@ class AiringScheduleScreenModel(
     ) {
         val hasActiveFilters: Boolean
             get() = onlyFavorites || hideAired || showAdult || selectedFormats.isNotEmpty()
+    }
+
+    private companion object {
+        /** Seconds in a single day; used to bucket schedule entries by epoch day. */
+        private const val SECONDS_PER_DAY = 86_400L
+
+        /** Duplicate window (days) within which a library-predicted airing matches a remote one. */
+        private const val DEDUPE_WINDOW_DAYS = 3L
     }
 }

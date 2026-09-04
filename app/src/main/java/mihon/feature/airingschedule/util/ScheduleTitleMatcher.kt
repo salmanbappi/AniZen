@@ -1,6 +1,7 @@
 package mihon.feature.airingschedule.util
 
 import mihon.feature.airingschedule.AiringScheduleEntry
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Utility for robust title matching between library anime and schedule entries.
@@ -8,6 +9,9 @@ import mihon.feature.airingschedule.AiringScheduleEntry
  * preventing false-positive collisions across different seasons or distinct titles.
  */
 object ScheduleTitleMatcher {
+
+    /** Safety valve for the normalized-key memo cache; far above any realistic title count. */
+    private const val MAX_CACHED_TITLES = 10_000
 
     private val SMART_SINGLE_QUOTES = Regex("[’‘`´]")
     private val SMART_DOUBLE_QUOTES = Regex("[“”„«»]")
@@ -75,12 +79,31 @@ object ScheduleTitleMatcher {
     )
 
     /**
+     * Memoized normalized keys for a title, keyed by the raw title string.
+     *
+     * Normalization runs ~15 regex passes and allocates a set of derived variants per call,
+     * and the schedule's merge / filter / grouping pipelines call it repeatedly for the same
+     * recurring titles — every weekly entry of a show contributes identical title strings,
+     * and each streamed AniList page re-merges the full accumulated set. Distinct titles are
+     * bounded by the library size plus the airing-window catalog, so the cache stays small;
+     * the size guard is only a safety valve against pathological inputs.
+     */
+    private val normalizedKeyCache = ConcurrentHashMap<String, Set<String>>(512)
+
+    /**
      * Produces normalized variants of a title for robust matching.
      * All returned keys are lowercase, stripped of noise tags, and normalized for whitespace/punctuation.
      */
     fun normalizedKeys(title: String?): Set<String> {
         if (title.isNullOrBlank()) return emptySet()
+        normalizedKeyCache[title]?.let { return it }
+        val computed = computeNormalizedKeys(title)
+        if (normalizedKeyCache.size >= MAX_CACHED_TITLES) normalizedKeyCache.clear()
+        normalizedKeyCache[title] = computed
+        return computed
+    }
 
+    private fun computeNormalizedKeys(title: String): Set<String> {
         val keys = mutableSetOf<String>()
 
         // 1. Basic clean (lowercase, replace smart quotes, trim)
