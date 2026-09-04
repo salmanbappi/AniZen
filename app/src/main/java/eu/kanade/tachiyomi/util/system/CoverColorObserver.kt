@@ -2,13 +2,14 @@ package eu.kanade.tachiyomi.util.system
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 import timber.log.Timber
@@ -47,7 +48,12 @@ object CoverColorObserver {
     private val lock = Any()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var flushJob: Job? = null
+
+    /** Serializes flush passes so at most one is reading prefs/writing at a time. */
+    private val flushMutex = Mutex()
+
+    /** True while a flush pass is armed (sleeping in its debounce or running). */
+    private var flushScheduled = false
 
     private val prefs: LibraryPreferences
         get() = Injekt.get<LibraryPreferences>()
@@ -187,10 +193,12 @@ object CoverColorObserver {
             // or a pending (favorite) entry must be written. Skipping the write otherwise
             // avoids a wholesale prefs rewrite + listeners on every app start.
             val pendingFavoriteColor = pendingColors.any { entry ->
-                parseColor(entry)?.let(favoriteIdFilter) == true
+                val parsed = parseColor(entry)
+                parsed != null && favoriteIdFilter(parsed.first)
             }
             val pendingFavoriteRatio = pendingRatios.any { entry ->
-                parseRatio(entry)?.let(favoriteIdFilter) == true
+                val parsed = parseRatio(entry)
+                parsed != null && favoriteIdFilter(parsed.first)
             }
             if (pruned || pendingFavoriteColor || pendingFavoriteRatio) {
                 val persistedColors = colors.keys.mapTo(mutableSetOf()) { id ->
@@ -200,7 +208,7 @@ object CoverColorObserver {
                     encode(id, versions[id] ?: 0L, ratios[id] ?: 0f)
                 }
                 // Drop the stale tuple for any id that has a pending replacement, then apply
-                // the pending entries (same favorites filter as [flushInternal]: browsing-only
+                // the pending entries (same favorites filter as [flushOnce]: browsing-only
                 // colors are not persisted — they re-extract cheaply on next sight).
                 val pendingColorIds = pendingColors.mapNotNullTo(mutableSetOf()) { parseColor(it)?.first }
                 val pendingRatioIds = pendingRatios.mapNotNullTo(mutableSetOf()) { parseRatio(it)?.first }
@@ -226,35 +234,68 @@ object CoverColorObserver {
 
     /** Immediately persists the current maps, pruning non-favorites along the way. */
     fun flush() {
-        synchronized(lock) {
-            if (flushJob?.isActive == true) {
-                flushJob?.cancel()
-            }
-            flushJob = scope.launch {
-                flushInternal()
-            }
-        }
+        armFlush(debounceMs = 0L)
     }
 
     // endregion
 
     // region Internal
 
+    /**
+     * Debounced flush: called after every stored update. Bursts coalesce — while a flush is
+     * armed, further updates ride the same pass instead of re-arming.
+     */
     private fun scheduleFlush() {
-        synchronized(lock) {
-            flushJob?.cancel()
-            flushJob = scope.launch {
-                delay(FLUSH_DEBOUNCE_MS)
-                flushInternal()
+        armFlush(debounceMs = FLUSH_DEBOUNCE_MS)
+    }
+
+    /**
+     * Arms a single flush pass. An immediate pass (App.onStop) supersedes an armed debounce
+     * so the process isn't killed before it fires.
+     *
+     * Deliberately cancellation-free: a cancelled pass that was suspended on the DB query
+     * would waste the query, and one inside the write block can't be interrupted anyway.
+     * Instead, [flushMutex] guarantees at most one pass runs at a time and [flushScheduled]
+     * is cleared *before* a pass starts, so any update landing after the pass's snapshot
+     * re-arms a new one — nothing is lost between passes.
+     */
+    private fun armFlush(debounceMs: Long) {
+        val shouldLaunch = synchronized(lock) {
+            if (flushScheduled) {
+                if (debounceMs == 0L) {
+                    // Immediate supersedes the pending debounce.
+                    flushScheduled = false
+                    true
+                } else {
+                    // Debounce already armed: coalesce into the existing window.
+                    false
+                }
+            } else {
+                flushScheduled = true
+                true
+            }
+        }
+        if (!shouldLaunch) return
+        scope.launch {
+            if (debounceMs > 0L) delay(debounceMs)
+            // Reset before the pass: updates arriving while we flush re-arm a new pass
+            // instead of being silently skipped by this one (they land after its snapshot).
+            synchronized(lock) { flushScheduled = false }
+            flushMutex.withLock {
+                if (!hasPending()) return@withLock
+                flushOnce()
             }
         }
     }
 
-    private suspend fun flushInternal() {
-        // Cheap lock-free-ish exit when nothing is pending.
-        val hasPending = synchronized(lock) { pendingColors.isNotEmpty() || pendingRatios.isNotEmpty() }
-        if (!hasPending) return
+    private fun hasPending(): Boolean = synchronized(lock) {
+        pendingColors.isNotEmpty() || pendingRatios.isNotEmpty()
+    }
 
+    /**
+     * One write pass: prunes non-favorites from prefs and applies all pending entries.
+     */
+    private suspend fun flushOnce() {
         // Suspend DB query must run OUTSIDE the lock: holding the monitor across an await
         // would stall concurrent update()/updateRatio() callers (extraction threads) for the
         // whole query duration. CancellationException must NOT be swallowed (runCatching
@@ -269,6 +310,7 @@ object CoverColorObserver {
         val favoriteIdFilter: (Long) -> Boolean = { id -> favorites.isEmpty() || id in favorites }
 
         synchronized(lock) {
+            // Another pass (or load()) may have drained pending while we ran the query.
             if (pendingColors.isEmpty() && pendingRatios.isEmpty()) return
 
             val colorsPref = prefs.coverColors()
