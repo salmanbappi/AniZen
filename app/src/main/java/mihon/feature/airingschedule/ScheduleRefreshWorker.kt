@@ -59,7 +59,7 @@ class ScheduleRefreshWorker(
             schedulePrefs.lastSourceFeedSyncTime().set(System.currentTimeMillis())
             schedulePrefs.sourceFeedSyncStatus().set(
                 "${result.sourcesChecked}/${favoriteSourceIds.size} source(s) checked, " +
-                    "${recentObservations.size} episode observation(s) in 2-day journal" +
+                    "${recentObservations.size} episode observation(s) in 7-day journal" +
                     if (result.failedSources > 0) " • ${result.failedSources} unavailable" else "",
             )
             Result.success()
@@ -73,16 +73,16 @@ class ScheduleRefreshWorker(
     ): List<AiringScheduleEntry> {
         val zone = ZoneId.systemDefault()
         val now = ZonedDateTime.now(zone)
-        val weekStart = now.minusDays(2)
+        val weekStart = now.minusDays(7)
             .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             .toLocalDate().atStartOfDay(zone)
-        val weekEnd = weekStart.plusDays(7).minusSeconds(1)
+        val weekEnd = now.plusDays(1)
         val entries = AiringScheduleRepository().getWeeklySchedule(
             weekStart.toEpochSecond(),
             weekEnd.toEpochSecond(),
             includeAdult = schedulePrefs.showAdultContent().get(),
         )
-        val windowStart = now.minusDays(2).toEpochSecond()
+        val windowStart = now.minusDays(7).toEpochSecond()
         val nowEpoch = now.toEpochSecond()
         return entries.filter { it.airingAt in windowStart..nowEpoch }
     }
@@ -98,6 +98,7 @@ class ScheduleRefreshWorker(
         var sourceCalls = 0
         var sourcesChecked = 0
         var failedSources = 0
+        val nowSec = System.currentTimeMillis() / 1000L
 
         for (sourceId in sourceIds) {
             if (sourceCalls++ >= MAX_SOURCE_CALLS_PER_RUN) break
@@ -117,15 +118,26 @@ class ScheduleRefreshWorker(
             }.take(MAX_MATCHING_ANIME_PER_SOURCE)
 
             for (anime in matchingAnime) {
-                val episodes = runCatching { source.getEpisodeList(anime) }.getOrNull().orEmpty()
+                val episodes = runCatching {
+                    source.getAnimeEpisodeUpdate(
+                        anime = anime,
+                        episodes = emptyList(),
+                        fetchDetails = false,
+                        fetchEpisodes = true,
+                    ).episodes
+                }.getOrNull().orEmpty()
                 for (episode in episodes) {
                     if (episode.date_upload <= 0L) continue
+                    if (!isSimulcastSubEpisode(episode)) continue
+
+                    val sourceUploadAt = episode.date_upload / 1000L
+                    if (sourceUploadAt > nowSec + 3600L) continue // Future timestamp sanity check
+
                     val entry = airedEntries.firstOrNull {
                         it.episode.toFloat() == episode.episode_number &&
                             titlesMatch(it, anime.title)
                     } ?: continue
 
-                    val sourceUploadAt = episode.date_upload / 1000L
                     val delayMinutes = (sourceUploadAt - entry.airingAt) / 60L
                     if (delayMinutes !in MIN_DELAY_MINUTES..MAX_DELAY_MINUTES) continue
 
@@ -144,22 +156,20 @@ class ScheduleRefreshWorker(
     }
 
     private fun titlesMatch(entry: AiringScheduleEntry, sourceTitle: String): Boolean {
-        val source = normalizeTitle(sourceTitle)
-        if (source.length < 3) return false
-        return listOfNotNull(
-            entry.titleUserPreferred,
-            entry.titleEnglish,
-            entry.titleRomaji,
-            entry.titleNative,
-        ).map(::normalizeTitle).any { candidate ->
-            if (candidate.length < 3) return@any false
-            candidate == source ||
-                (candidate.length >= 6 && source.length >= 6 && (candidate.contains(source) || source.contains(candidate)))
-        }
+        val candidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+        return mihon.feature.airingschedule.util.ScheduleTitleMatcher.matchesAny(sourceTitle, candidates)
     }
 
-    private fun normalizeTitle(value: String) =
-        value.lowercase().replace(Regex("[^\\p{L}\\p{N}]"), "")
+    private fun isSimulcastSubEpisode(episode: eu.kanade.tachiyomi.animesource.model.SEpisode): Boolean {
+        if (episode.episode_number <= 0f) return false
+        val name = episode.name.trim()
+        val scanlator = episode.scanlator?.trim().orEmpty()
+
+        if (DUB_REGEX.containsMatchIn(name) || scanlator.contains("dub", ignoreCase = true)) return false
+        if (BATCH_REGEX.containsMatchIn(name)) return false
+
+        return true
+    }
 
     private data class FeedObservationResult(
         val observations: List<SourceFeedObservation>,
@@ -172,8 +182,11 @@ class ScheduleRefreshWorker(
         private const val MAX_SOURCE_CALLS_PER_RUN = 12
         private const val MAX_LATEST_ANIME_PER_SOURCE = 50
         private const val MAX_MATCHING_ANIME_PER_SOURCE = 5
-        private const val MIN_DELAY_MINUTES = -60L
-        private const val MAX_DELAY_MINUTES = 24L * 60L
+        private val MIN_DELAY_MINUTES = UploadDelayTracker.MIN_DELAY_MINUTES
+        private val MAX_DELAY_MINUTES = UploadDelayTracker.MAX_DELAY_MINUTES
+
+        private val DUB_REGEX = Regex("(?i)(\\b(eng|english|ita|ger|spa|fra)\\s+dub\\b|[\\(\\[\\{]dub[\\)\\]\\}]|\\b(dubbed)\\b|:\\s*dub\\b|-\\s*dub\\b|\\bdub\\s*$)")
+        private val BATCH_REGEX = Regex("(?i)(^batch\\b|\\bbatch\\s*(\\d+[-–]\\d+|\\(\\d+[-–]\\d+\\)))")
 
         fun schedule(context: Context, interval: SchedulePreferences.UploadDelayInterval) {
             val wm = WorkManager.getInstance(context)

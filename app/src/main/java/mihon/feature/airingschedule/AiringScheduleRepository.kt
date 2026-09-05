@@ -38,19 +38,50 @@ class AiringScheduleRepository {
 
     private val client get() = networkHelper.client
 
+    suspend fun getMonthlySchedule(
+        monthStart: Long,
+        monthEnd: Long,
+        includeAdult: Boolean = false,
+    ): List<AiringScheduleEntry> = getSchedule(monthStart, monthEnd, includeAdult)
+
     suspend fun getWeeklySchedule(
         weekStart: Long,
         weekEnd: Long,
         includeAdult: Boolean = false,
+    ): List<AiringScheduleEntry> = getSchedule(weekStart, weekEnd, includeAdult)
+
+    suspend fun getSchedule(
+        start: Long,
+        end: Long,
+        includeAdult: Boolean = false,
+    ): List<AiringScheduleEntry> = getScheduleIncremental(start, end, includeAdult) { _, _ -> }
+
+    /**
+     * Fetches the schedule from AniList page by page, invoking [onPage] for every non-empty
+     * page as soon as it lands so callers can publish partial results to the UI and let it
+     * "fill in" progressively instead of blocking on the whole multi-page fetch. The callback
+     * runs inside the pagination loop (on an IO dispatcher) and is awaited before the next
+     * page is requested, so publishes stay strictly ordered.
+     *
+     * Returns the complete, page-ordered list — identical to what [getSchedule] returns.
+     */
+    suspend fun getScheduleIncremental(
+        start: Long,
+        end: Long,
+        includeAdult: Boolean = false,
+        onPage: suspend (entries: List<AiringScheduleEntry>, hasNextPage: Boolean) -> Unit,
     ): List<AiringScheduleEntry> {
         return withIOContext {
             var page = 1
             val allEntries = mutableListOf<AiringScheduleEntry>()
             var hasNextPage = true
-            while (hasNextPage && page <= 10) {
-                val result = fetchPageWithRetry(weekStart, weekEnd, page, includeAdult)
+            while (hasNextPage && page <= MAX_PAGES) {
+                val result = fetchPageWithRetry(start, end, page, includeAdult)
                 allEntries.addAll(result.entries)
                 hasNextPage = result.hasNextPage
+                if (result.entries.isNotEmpty()) {
+                    onPage(result.entries, hasNextPage)
+                }
                 page++
                 if (hasNextPage) {
                     // Small courtesy delay between paginated requests so we don't look like a
@@ -63,8 +94,8 @@ class AiringScheduleRepository {
     }
 
     private suspend fun fetchPageWithRetry(
-        weekStart: Long,
-        weekEnd: Long,
+        start: Long,
+        end: Long,
         page: Int,
         includeAdult: Boolean,
     ): PageResult {
@@ -72,7 +103,7 @@ class AiringScheduleRepository {
         var lastError: Exception? = null
         while (attempt < MAX_RETRIES) {
             try {
-                return fetchPage(weekStart, weekEnd, page, includeAdult)
+                return fetchPage(start, end, page, includeAdult)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: HttpException) {
@@ -103,16 +134,16 @@ class AiringScheduleRepository {
     }
 
     private suspend fun fetchPage(
-        weekStart: Long,
-        weekEnd: Long,
+        start: Long,
+        end: Long,
         page: Int,
         includeAdult: Boolean,
     ): PageResult {
         val payload = buildJsonObject {
             put("query", AIRING_SCHEDULE_QUERY)
             putJsonObject("variables") {
-                put("weekStart", weekStart.toInt())
-                put("weekEnd", weekEnd.toInt())
+                put("start", start.toInt())
+                put("end", end.toInt())
                 put("page", page)
             }
         }
@@ -164,10 +195,11 @@ class AiringScheduleRepository {
     companion object {
         private const val API_URL = "https://graphql.anilist.co/"
         private const val AIRING_SCHEDULE_QUERY =
-            "query AiringSchedule(\$weekStart:Int,\$weekEnd:Int,\$page:Int){Page(page:\$page,perPage:50){pageInfo{hasNextPage}airingSchedules(airingAt_greater:\$weekStart,airingAt_lesser:\$weekEnd,sort:TIME){id airingAt episode media{id title{userPreferred english romaji native}coverImage{large}episodes status averageScore format isAdult genres}}}}"
+            "query AiringSchedule(\$start:Int,\$end:Int,\$page:Int){Page(page:\$page,perPage:50){pageInfo{hasNextPage}airingSchedules(airingAt_greater:\$start,airingAt_lesser:\$end,sort:TIME){id airingAt episode media{id title{userPreferred english romaji native}coverImage{large}episodes status averageScore format isAdult genres}}}}"
 
         // Transient errors worth retrying: 429 (rate limited), 500, 502/503/504, and Cloudflare 52x codes.
         private val RETRYABLE_HTTP_CODES = setOf(429, 500, 502, 503, 504, 520, 521, 522, 524)
+        private const val MAX_PAGES = 30
         private const val MAX_RETRIES = 5
         private const val BASE_DELAY_MS = 1000L
         private const val MAX_DELAY_MS = 20_000L

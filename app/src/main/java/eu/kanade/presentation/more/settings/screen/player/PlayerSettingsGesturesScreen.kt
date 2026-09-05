@@ -54,7 +54,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
     private fun getSlidersGroup(gesturePreferences: GesturePreferences): Preference.PreferenceGroup {
         val enableVolumeBrightnessGestures = gesturePreferences.gestureVolumeBrightness()
         val swapVol = gesturePreferences.swapVolumeBrightness()
-        val videoZoomGesture = gesturePreferences.gestureVideoZoom()
+        val enableVideoZoomGesture = gesturePreferences.gestureVideoZoom()
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_player_sliders),
@@ -68,7 +68,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_controls_swap_vol_brightness),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    pref = videoZoomGesture,
+                    pref = enableVideoZoomGesture,
                     title = stringResource(MR.strings.pref_video_zoom_gesture),
                     subtitle = stringResource(MR.strings.pref_video_zoom_gesture_summary),
                 ),

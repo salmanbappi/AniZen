@@ -70,8 +70,10 @@ import eu.kanade.presentation.theme.DynamicTachiyomiTheme
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.serialize
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.PlayerData
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
@@ -174,6 +176,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     private var pipReceiver: BroadcastReceiver? = null
+    private var httpServer: HttpServer? = null
 
     val isTv by lazy {
         packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
@@ -377,6 +380,9 @@ class PlayerActivity : BaseActivity() {
     override fun onDestroy() {
         player.isExiting = true
         PlayerStats.reset()
+
+        httpServer?.stop()
+        httpServer = null
 
         audioFocusRequest?.let {
             AudioManagerCompat.abandonAudioFocusRequest(audioManager, it)
@@ -946,7 +952,7 @@ class PlayerActivity : BaseActivity() {
             "fps" -> if (PlayerStats.videoParamsFps.value == 0.0) PlayerStats.videoParamsFps.value = value
             "video-out-params/fps" -> PlayerStats.videoOutParamsFps.value = value
             "container-fps" -> PlayerStats.containerFps.value = value
-            "display-fps" -> PlayerStats.displayFps.value = value
+            "display-fps", "override-display-fps" -> PlayerStats.displayFps.value = value
             "estimated-display-fps" -> PlayerStats.estimatedDisplayFps.value = value
             "mistime" -> PlayerStats.mistime.value = value
             "video-params/aspect" -> if (isPipSupportedAndEnabled) runOnUiThread { runCatching { setPictureInPictureParams(createPipParams()) } }
@@ -1435,6 +1441,9 @@ class PlayerActivity : BaseActivity() {
                 MPVLib.command(arrayOf("set", "start", "${player.timePos}"))
             }
         }
+        httpServer?.stop()
+        httpServer = null
+
         if (video.videoUrl.startsWith(TorrentServerUtils.hostUrl) ||
             video.videoUrl.startsWith("magnet") ||
             video.videoUrl.endsWith(".torrent")
@@ -1445,7 +1454,36 @@ class PlayerActivity : BaseActivity() {
                 torrentLinkHandler(video.videoUrl, video.quality)
             }
         } else {
-            MPVLib.command(arrayOf("loadfile", parseVideoUrl(video.videoUrl)))
+            launchIO {
+                val httpSource = viewModel.currentSource.value as? AnimeHttpSource
+                var videoUrl: String = video.videoUrl
+                if (video.usesHttpServer() && httpSource != null) {
+                    val port = try {
+                        httpServer = httpSource.createHttpServer()
+                        httpServer?.start()
+                        httpServer?.listeningPort ?: 0
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR, e) { "Failed to start http server" }
+                        return@launchIO
+                    }
+
+                    val newVideo = video.copyHttpServer(port)
+                    videoUrl = newVideo.videoUrl
+                    viewModel.updateVideo(newVideo)
+                }
+
+                // Atomic Audio-File Injection: If separate external audio tracks exist, mount them at loadfile time
+                val externalAudio = video.audioTracks.firstOrNull()?.url
+                if (!externalAudio.isNullOrBlank()) {
+                    val parsedAudioUrl = parseVideoUrl(externalAudio)
+                    if (!parsedAudioUrl.isNullOrBlank()) {
+                        MPVLib.setOptionString("audio-file", parsedAudioUrl)
+                        logcat { "Player: Mounted atomic audio-file at loadfile time: $parsedAudioUrl" }
+                    }
+                }
+
+                MPVLib.command(arrayOf("loadfile", parseVideoUrl(videoUrl) ?: videoUrl))
+            }
         }
         updateDiscordRPC(exitingPlayer = false)
     }
@@ -1495,7 +1533,8 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun parseVideoUrl(videoUrl: String?): String? {
-        return Uri.parse(videoUrl).resolveUri(this)
+        if (videoUrl.isNullOrBlank()) return null
+        return runCatching { Uri.parse(videoUrl).resolveUri(this) }.getOrNull()
             ?: videoUrl
     }
 
@@ -1510,6 +1549,10 @@ class PlayerActivity : BaseActivity() {
 
         if (headers["User-Agent"].isNullOrEmpty()) {
             headers["User-Agent"] = networkHelper.defaultUserAgentProvider()
+        }
+
+        if (headers["Connection"].isNullOrEmpty()) {
+            headers["Connection"] = "keep-alive"
         }
 
         val httpHeaderString = headers.map {
@@ -1668,13 +1711,14 @@ class PlayerActivity : BaseActivity() {
         logcat(LogPriority.ERROR) { errorMessage }
         showToast(errorMessage)
 
-        viewModel.setCurrentVideoError()
-
-        if (playerPreferences.switchOnFailure().get()) {
-            if (!viewModel.loadBestVideo()) {
-                runOnUiThread { finish() }
+        if (playerPreferences.switchOnFailure().get() || playerPreferences.selfHealingLinks().get()) {
+            viewModel.viewModelScope.launchIO {
+                if (!viewModel.recoverOrLoadBestVideo()) {
+                    runOnUiThread { finish() }
+                }
             }
         } else {
+            viewModel.setCurrentVideoError()
             viewModel.updateIsLoadingEpisode(false)
             viewModel.isLoading.value = false
             viewModel.setIsStopped(true)

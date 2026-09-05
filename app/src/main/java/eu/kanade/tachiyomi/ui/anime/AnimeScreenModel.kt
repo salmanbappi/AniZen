@@ -124,6 +124,7 @@ import tachiyomi.domain.episode.interactor.UpdateEpisode
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.episode.model.EpisodeUpdate
 import tachiyomi.domain.episode.service.calculateChapterGap
+import tachiyomi.domain.episode.service.EpisodeRecognition
 import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.episode.service.missingEpisodesCount
 import kotlinx.serialization.json.Json
@@ -292,22 +293,27 @@ class AnimeScreenModel(
             (it.downloadState.hashCode().toLong() * 10L) + 
             (it.downloadProgress.toLong() * 100L)
         }
+        val previousHash = (this as? State.Success)?.episodesStatusHash ?: 0L
         val episodesChanged = episodes.size != this.episodes.size || 
-                             episodesStatusHash != (this as? State.Success)?.let { success -> 
-                                 success.episodes.sumOf { 
-                                     it.episode.lastModifiedAt + 
-                                     (if (it.episode.seen) 1L else 0L) + 
-                                     (if (it.selected) 2L else 0L) + 
-                                     (it.downloadState.hashCode().toLong() * 10L) + 
-                                     (it.downloadProgress.toLong() * 100L)
-                                 } 
-                             } ?: 0L ||
+                             episodesStatusHash != previousHash ||
                              episodes.firstOrNull()?.episode?.id != this.episodes.firstOrNull()?.episode?.id
 
         val processedEpisodes = if (anime === this.anime && !episodesChanged) {
             this.processedEpisodes
         } else {
             episodes.applyFilters(anime, libraryPreferences.skipDupeEpisodes().get()).toImmutableList()
+        }
+
+        val hasUnseenEpisodes = if (anime === this.anime && !episodesChanged) {
+            this.hasUnseenEpisodes
+        } else {
+            processedEpisodes.any { !it.episode.seen }
+        }
+
+        val isWatching = if (anime === this.anime && !episodesChanged) {
+            this.isWatching
+        } else {
+            processedEpisodes.any { it.episode.seen }
         }
 
         val missingEpisodeCount = if (hideMissingEpisodes) {
@@ -507,6 +513,9 @@ class AnimeScreenModel(
             anime = anime,
             episodes = episodes.toImmutableList(),
             processedEpisodes = processedEpisodes,
+            hasUnseenEpisodes = hasUnseenEpisodes,
+            isWatching = isWatching,
+            episodesStatusHash = episodesStatusHash,
             episodeListItems = episodeListItems,
             missingEpisodeCount = missingEpisodeCount,
             trackItems = trackItems.toImmutableList(),
@@ -768,7 +777,12 @@ class AnimeScreenModel(
         val state = successState ?: return
         try {
             withIOContext {
-                val networkAnime = state.source.getAnimeDetails(state.anime.toSAnime())
+                val networkAnime = state.source.getAnimeEpisodeUpdate(
+                    anime = state.anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = true,
+                    fetchEpisodes = false,
+                ).anime
                 updateAnime.awaitUpdateFromSource(state.anime, networkAnime, manualFetch)
             }
         } catch (e: Throwable) {
@@ -938,14 +952,30 @@ class AnimeScreenModel(
                         // 3. Official Related (Source Provided)
                         launch {
                             try {
-                                getRelatedAnime.subscribe(anime).collect { (_, animes) ->
-                                    if (animes.isNotEmpty()) {
-                                        kotlinx.coroutines.coroutineScope {
-                                            val domainAnimes = animes
-                                                .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
-                                                .awaitAll()
-                                                .mapNotNull { getAnime.await(it.id) }
+                                if (source.supportsRelatedAnime) {
+                                    // extensions-lib 17 related entries API
+                                    val relations = source.getRelatedAnimeList(anime.toSAnime())
+                                    if (relations.isNotEmpty()) {
+                                        val domainAnimes = relations
+                                            .flatMap { it.animes }
+                                            .distinctBy { it.url }
+                                            .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                            .awaitAll()
+                                            .mapNotNull { getAnime.await(it.id) }
+                                        if (domainAnimes.isNotEmpty()) {
                                             updateSection(SuggestionSection.Type.Source, domainAnimes)
+                                        }
+                                    }
+                                } else {
+                                    getRelatedAnime.subscribe(anime).collect { (_, animes) ->
+                                        if (animes.isNotEmpty()) {
+                                            kotlinx.coroutines.coroutineScope {
+                                                val domainAnimes = animes
+                                                    .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                                    .awaitAll()
+                                                    .mapNotNull { getAnime.await(it.id) }
+                                                updateSection(SuggestionSection.Type.Source, domainAnimes)
+                                            }
                                         }
                                     }
                                 }
@@ -1153,7 +1183,12 @@ class AnimeScreenModel(
             val fetchWindow = fetchInterval.getWindow(java.time.ZonedDateTime.now())
             try {
                 val source = sourceManager.getOrStub(anime.source)
-                val episodes = source.getEpisodeList(anime.toSAnime())
+                val episodes = source.getAnimeEpisodeUpdate(
+                    anime = anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 syncEpisodesWithSource.await(episodes, anime, source, false, fetchWindow)
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
@@ -1257,7 +1292,16 @@ class AnimeScreenModel(
             val downloaded = if (isLocal) {
                 true
             } else if (downloadedEpisodeDirs.isNotEmpty()) {
-                downloadProvider.getValidEpisodeDirNames(episode.name, episode.scanlator).any { it in downloadedEpisodeDirs }
+                downloadProvider.getValidEpisodeDirNames(episode.name, episode.scanlator).any { it in downloadedEpisodeDirs } ||
+                    (episode.isRecognizedNumber && downloadedEpisodeDirs.any { dirName ->
+                        if (!episode.scanlator.isNullOrBlank()) {
+                            val parsedScanlator = dirName.substringBefore('_', "")
+                            if (parsedScanlator.isNotBlank() && !parsedScanlator.equals(episode.scanlator, ignoreCase = true)) {
+                                return@any false
+                            }
+                        }
+                        EpisodeRecognition.parseEpisodeNumber(anime.ogTitle, dirName) == episode.episodeNumber
+                    })
             } else false
             val downloadState = when {
                 activeDownload != null -> activeDownload.status
@@ -1272,7 +1316,12 @@ class AnimeScreenModel(
         val state = successState ?: return
         try {
             withIOContext {
-                val seasons = state.source.getSeasonList(state.anime.toSAnime())
+                val seasons = state.source.getAnimeSeasonUpdate(
+                    anime = state.anime.toSAnime(),
+                    seasons = emptyList(),
+                    fetchDetails = false,
+                    fetchSeasons = true,
+                ).seasons
 
                 val newSeasons = syncSeasonsWithSource.await(
                     seasons,
@@ -1307,7 +1356,12 @@ class AnimeScreenModel(
 
         try {
             withIOContext {
-                val episodes = state.source.getEpisodeList(state.anime.toSAnime())
+                val episodes = state.source.getAnimeEpisodeUpdate(
+                    anime = state.anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 val newEpisodes = syncEpisodesWithSource.await(episodes, state.anime, state.source, manualFetch)
                 if (manualFetch) downloadNewEpisodes(newEpisodes)
             }
@@ -1349,7 +1403,12 @@ class AnimeScreenModel(
         if (episodes.isEmpty()) {
             val source = sourceManager.getOrStub(season.anime.source)
             try {
-                val fetched = source.getEpisodeList(season.anime.toSAnime())
+                val fetched = source.getAnimeEpisodeUpdate(
+                    anime = season.anime.toSAnime(),
+                    episodes = emptyList(),
+                    fetchDetails = false,
+                    fetchEpisodes = true,
+                ).episodes
                 syncEpisodesWithSource.await(fetched, season.anime, source, false)
                 episodes = getAnimeAndEpisodesAndSeasons.awaitEpisodes(season.anime.id)
             } catch (e: Exception) {
@@ -2144,6 +2203,9 @@ class AnimeScreenModel(
             val hideMissingEpisodes: Boolean = false,
             val availableScanlators: ImmutableList<String> = persistentListOf(),
             val excludedScanlators: ImmutableSet<String> = persistentSetOf(),
+            val hasUnseenEpisodes: Boolean = true,
+            val isWatching: Boolean = false,
+            val episodesStatusHash: Long = 0L,
         ) : State {
             companion object {
                 fun create(
@@ -2164,6 +2226,15 @@ class AnimeScreenModel(
                     excludedScanlators: ImmutableSet<String> = persistentSetOf(),
                 ): Success {
                     val processedEpisodes = episodes.applyFilters(anime, skipDupeEpisodes).toImmutableList()
+                    val hasUnseenEpisodes = processedEpisodes.any { !it.episode.seen }
+                    val isWatching = processedEpisodes.any { it.episode.seen }
+                    val episodesStatusHash = episodes.sumOf { 
+                        it.episode.lastModifiedAt + 
+                        (if (it.episode.seen) 1L else 0L) + 
+                        (if (it.selected) 2L else 0L) + 
+                        (it.downloadState.hashCode().toLong() * 10L) + 
+                        (it.downloadProgress.toLong() * 100L)
+                    }
                     val missingEpisodeCount = if (hideMissingEpisodes) 0 else processedEpisodes.map { it.episode.episodeNumber }.missingEpisodesCount()
                     
                     val episodeListItems = mutableListOf<EpisodeList>()
@@ -2342,6 +2413,9 @@ class AnimeScreenModel(
                         isFromSource = isFromSource,
                         episodes = episodes.toImmutableList(),
                         processedEpisodes = processedEpisodes,
+                        hasUnseenEpisodes = hasUnseenEpisodes,
+                        isWatching = isWatching,
+                        episodesStatusHash = episodesStatusHash,
                         episodeListItems = episodeListItems.toImmutableList(),
                         missingEpisodeCount = missingEpisodeCount,
                         isRefreshingData = isRefreshingData,

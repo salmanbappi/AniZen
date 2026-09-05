@@ -50,6 +50,7 @@ fun List<Episode>.applyFilters(anime: Anime, downloadManager: DownloadManager, s
                     anime.ogTitle,
                     // SY <--
                     anime.source,
+                    episodeNumber = episode.episodeNumber,
                 )
                 downloaded || isLocalAnime
             }

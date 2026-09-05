@@ -7,6 +7,31 @@ import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 import tachiyomi.domain.library.model.LibraryDisplayMode
 
+import eu.kanade.tachiyomi.extension.model.ContentWarning
+
+enum class ContentWarningLevel {
+    SAFE,
+    SAFE_AND_MIXED,
+    ALL,
+    ;
+
+    fun allowsDiscovery(warning: ContentWarning): Boolean {
+        return when (this) {
+            SAFE -> warning == ContentWarning.SAFE || warning == ContentWarning.UNSPECIFIED
+            SAFE_AND_MIXED -> warning != ContentWarning.NSFW
+            ALL -> true
+        }
+    }
+
+    fun allowsInstalled(warning: ContentWarning): Boolean {
+        return when (this) {
+            SAFE -> warning == ContentWarning.SAFE || warning == ContentWarning.UNSPECIFIED
+            SAFE_AND_MIXED -> true
+            ALL -> true
+        }
+    }
+}
+
 class SourcePreferences(
     private val preferenceStore: PreferenceStore,
 ) {
@@ -26,6 +51,11 @@ class SourcePreferences(
     )
 
     fun showNsfwSource() = preferenceStore.getBoolean("show_nsfw_source", true)
+
+    fun contentWarningLevel() = preferenceStore.getEnum(
+        "pref_content_warning_level",
+        if (showNsfwSource().get()) ContentWarningLevel.ALL else ContentWarningLevel.SAFE_AND_MIXED,
+    )
 
     fun migrationSortingMode() = preferenceStore.getEnum(
         "pref_migration_sorting",

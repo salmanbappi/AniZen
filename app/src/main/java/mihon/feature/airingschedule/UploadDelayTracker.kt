@@ -74,29 +74,38 @@ class UploadDelayTracker {
     }
 
     /**
-     * Uses the largest plausible delay observed in the two-day source-feed journal.
-     * The schedule feature intentionally uses the slowest observed source upload so a user
-     * does not get an early "available" estimate when a source publishes inconsistently.
+     * Calculates the median delay per source across all valid observations in the rolling journal.
+     * Enforces plausible simulcast delay bounds ([-60m, +360m]) and uses median estimation
+     * so re-uploads, dubs, or corrupted timestamps cannot skew the result.
      */
     fun recordFeedObservations(
         observations: List<SourceFeedObservation>,
-        intervalMinutes: Long,
+        intervalMinutes: Long = 0L,
     ): Boolean {
         if (observations.isEmpty()) return false
-        val now = System.currentTimeMillis() / 1000L
-        val windowStart = now - (intervalMinutes * 60L)
-        val delays = observations
-            .asSequence()
-            .filter { it.sourceUploadAt in windowStart..now }
-            .filter { it.delayMinutes in -60L..(24 * 60L) }
-            .groupBy { it.sourceId }
-            .mapValues { (_, values) -> values.maxOf { it.delayMinutes } }
+        val delays = calculateDelaysFromObservations(observations)
         if (delays.isEmpty()) return false
         val previous = getDelays()
         val updated = previous.toMutableMap().apply { putAll(delays) }
         if (previous == updated) return false
         saveDelays(updated)
         return true
+    }
+
+    /**
+     * Extracts sourceId -> median delay (minutes) from a list of observations.
+     */
+    fun calculateDelaysFromObservations(
+        observations: List<SourceFeedObservation>,
+    ): Map<String, Long> {
+        return observations
+            .asSequence()
+            .filter { it.delayMinutes in MIN_DELAY_MINUTES..MAX_DELAY_MINUTES }
+            .groupBy { it.sourceId }
+            .mapValues { (_, values) ->
+                val delayList = values.map { it.delayMinutes }
+                mihon.feature.airingschedule.util.UploadDelayResolver.computeMedian(delayList)
+            }
     }
 
     /** Clears the stored delay for a source. */
@@ -119,12 +128,15 @@ class UploadDelayTracker {
     }
 
     companion object {
+        const val MIN_DELAY_MINUTES = -60L
+        const val MAX_DELAY_MINUTES = 360L // 6 hours
+
         /**
          * Converts a stored delay (minutes) to the expected airing timestamp.
          * [anilistAirAt] is the Unix epoch in seconds from AniList.
          * Returns the adjusted timestamp in seconds.
          */
         fun adjustedAirTime(anilistAirAt: Long, delayMinutes: Long): Long =
-            anilistAirAt + (delayMinutes * 60)
+            mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(anilistAirAt, delayMinutes)
     }
 }

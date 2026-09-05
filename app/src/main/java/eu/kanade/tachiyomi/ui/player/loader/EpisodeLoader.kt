@@ -35,9 +35,17 @@ class EpisodeLoader {
          * @param episode the episode being parsed.
          * @param anime the anime of the episode.
          * @param source the source of the anime.
+         * @param allowDownloaded whether an already-downloaded copy may be returned. Callers that
+         * need a remote, fetchable stream (e.g. the downloader) must pass `false`; a downloaded
+         * episode resolves to a local `content://`/`file://` URI, which cannot be fetched over HTTP.
          */
-        suspend fun getHosters(episode: Episode, anime: Anime, source: AnimeSource): List<Hoster> {
-            val isDownloaded = isDownload(episode, anime)
+        suspend fun getHosters(
+            episode: Episode,
+            anime: Anime,
+            source: AnimeSource,
+            allowDownloaded: Boolean = true,
+        ): List<Hoster> {
+            val isDownloaded = allowDownloaded && isDownload(episode, anime)
             return when {
                 isDownloaded -> getHostersOnDownloaded(episode, anime, source)
                 source is AnimeHttpSource -> getHostersOnHttp(episode, source)
@@ -60,6 +68,7 @@ class EpisodeLoader {
                 anime.title,
                 anime.source,
                 skipCache = true,
+                episodeNumber = episode.episodeNumber,
             )
         }
 

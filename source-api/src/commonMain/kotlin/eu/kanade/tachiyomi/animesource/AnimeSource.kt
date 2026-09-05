@@ -1,7 +1,10 @@
 package eu.kanade.tachiyomi.animesource
 
+import eu.kanade.tachiyomi.animesource.model.AnimeRelation
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SAnimeEpisodeUpdate
+import eu.kanade.tachiyomi.animesource.model.SAnimeSeasonUpdate
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.util.awaitSingle
@@ -26,12 +29,74 @@ interface AnimeSource {
         get() = ""
 
     /**
+     * Fetches updated information for an anime.
+     *
+     * Depending on the provided flags or source availability, this may include
+     * updated anime metadata, available episodes, or both.
+     *
+     * If a value is not requested, the existing provided value can be returned as-is.
+     * The host app may apply any returned updates regardless of the flags,
+     * so care should be taken to only return accurate and intentional changes.
+     *
+     * @since extensions-lib 17
+     * @param anime The anime to fetch updates for.
+     * @param episodes Existing episodes of the anime.
+     * @param fetchDetails Whether to fetch updated anime details.
+     * @param fetchEpisodes Whether to fetch available episodes.
+     */
+    @Suppress("DEPRECATION")
+    suspend fun getAnimeEpisodeUpdate(
+        anime: SAnime,
+        episodes: List<SEpisode>,
+        fetchDetails: Boolean,
+        fetchEpisodes: Boolean,
+    ): SAnimeEpisodeUpdate {
+        // Bridges the combined API to the legacy methods so extensions built against
+        // older lib versions keep working without any branching in the host app.
+        val updatedAnime = if (fetchDetails) getAnimeDetails(anime) else anime
+        val newEpisodes = if (fetchEpisodes) getEpisodeList(anime) else episodes
+        return SAnimeEpisodeUpdate(updatedAnime, newEpisodes)
+    }
+
+    /**
+     * Fetches updated information for an anime.
+     *
+     * Depending on the provided flags or source availability, this may include
+     * updated anime metadata, available seasons, or both.
+     *
+     * If a value is not requested, the existing provided value can be returned as-is.
+     * The host app may apply any returned updates regardless of the flags,
+     * so care should be taken to only return accurate and intentional changes.
+     *
+     * @since extensions-lib 17
+     * @param anime The anime to fetch updates for.
+     * @param seasons Existing seasons of the anime.
+     * @param fetchDetails Whether to fetch updated anime details.
+     * @param fetchSeasons Whether to fetch available seasons.
+     */
+    @Suppress("DEPRECATION")
+    suspend fun getAnimeSeasonUpdate(
+        anime: SAnime,
+        seasons: List<SAnime>,
+        fetchDetails: Boolean,
+        fetchSeasons: Boolean,
+    ): SAnimeSeasonUpdate {
+        val updatedAnime = if (fetchDetails) getAnimeDetails(anime) else anime
+        val newSeasons = if (fetchSeasons) getSeasonList(anime) else seasons
+        return SAnimeSeasonUpdate(updatedAnime, newSeasons)
+    }
+
+    /**
      * Get the updated details for a anime.
      *
      * @since extensions-lib 1.5
      * @param anime the anime to update.
      * @return the updated anime.
      */
+    @Deprecated(
+        "Use the combined suspend API instead",
+        ReplaceWith("getAnimeEpisodeUpdate"),
+    )
     @Suppress("DEPRECATION")
     suspend fun getAnimeDetails(anime: SAnime): SAnime {
         return fetchAnimeDetails(anime).awaitSingle()
@@ -44,6 +109,10 @@ interface AnimeSource {
      * @param anime the anime to update.
      * @return the episodes for the anime.
      */
+    @Deprecated(
+        "Use the combined suspend API instead",
+        ReplaceWith("getAnimeEpisodeUpdate"),
+    )
     @Suppress("DEPRECATION")
     suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
         return fetchEpisodeList(anime).awaitSingle()
@@ -56,6 +125,10 @@ interface AnimeSource {
      * @param anime the anime to fetch seasons for.
      * @return the anime list for the anime.
      */
+    @Deprecated(
+        "Use the combined suspend API instead",
+        ReplaceWith("getAnimeSeasonUpdate"),
+    )
     suspend fun getSeasonList(anime: SAnime): List<SAnime> = emptyList()
 
     /**
@@ -114,6 +187,13 @@ interface AnimeSource {
     )
     fun fetchVideoList(episode: SEpisode): Observable<List<Video>> =
         throw IllegalStateException("Not used")
+
+    // Lib 17 -->
+    val supportsRelatedAnime: Boolean
+        get() = false
+
+    suspend fun getRelatedAnimeList(anime: SAnime): List<AnimeRelation> = emptyList()
+    // Lib 17 <--
 
     // KMK -->
     /**

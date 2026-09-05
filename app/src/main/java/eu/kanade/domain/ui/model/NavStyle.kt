@@ -53,7 +53,6 @@ enum class NavStyle(
             listOf(
                 UpdatesTab,
                 HistoryTab,
-                AiringScheduleTab,
                 BrowseTab,
                 MoreTab,
             )

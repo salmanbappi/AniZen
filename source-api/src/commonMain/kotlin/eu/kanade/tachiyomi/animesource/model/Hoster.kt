@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.animesource.model.SerializableVideo.Companion.toVideo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 open class Hoster(
     val hosterUrl: String = "",
@@ -12,6 +13,7 @@ open class Hoster(
     val videoList: List<Video>? = null,
     val internalData: String = "",
     val lazy: Boolean = false,
+    val memo: JsonObject = JsonObject.EMPTY,
 ) {
     @Transient
     @Volatile
@@ -26,6 +28,38 @@ open class Hoster(
         ERROR,
     }
 
+    // Ext lib 16 constructor
+    @Deprecated("Used only for compatibility with ext lib 16, do not use", level = DeprecationLevel.HIDDEN)
+    constructor(
+        hosterUrl: String = "",
+        hosterName: String = "",
+        videoList: List<Video>? = null,
+        internalData: String = "",
+        lazy: Boolean = false,
+    ) : this(
+        hosterUrl = hosterUrl,
+        hosterName = hosterName,
+        videoList = videoList,
+        internalData = internalData,
+        lazy = lazy,
+        memo = JsonObject.EMPTY,
+    )
+
+    fun copy(
+        hosterUrl: String = this.hosterUrl,
+        hosterName: String = this.hosterName,
+        videoList: List<Video>? = this.videoList,
+        internalData: String = this.internalData,
+        lazy: Boolean = this.lazy,
+        memo: JsonObject = this.memo,
+    ): Hoster {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
+            it.selected = this.selected
+        }
+    }
+
+    // Ext lib 16 copy hoster
+    @Deprecated("Used only for compatibility with ext lib 16, do not use", level = DeprecationLevel.HIDDEN)
     fun copy(
         hosterUrl: String = this.hosterUrl,
         hosterName: String = this.hosterName,
@@ -33,7 +67,7 @@ open class Hoster(
         internalData: String = this.internalData,
         lazy: Boolean = this.lazy,
     ): Hoster {
-        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy).also {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, this.memo).also {
             it.selected = this.selected
         }
     }
@@ -45,8 +79,24 @@ open class Hoster(
         internalData: String = this.internalData,
         lazy: Boolean = this.lazy,
         selected: Boolean = this.selected,
+        memo: JsonObject = this.memo,
     ): Hoster {
-        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy).also {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, memo).also {
+            it.selected = selected
+        }
+    }
+
+    // Ext lib 16 copy hoster with selected
+    @Deprecated("Used only for compatibility with ext lib 16, do not use", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        hosterUrl: String = this.hosterUrl,
+        hosterName: String = this.hosterName,
+        videoList: List<Video>? = this.videoList,
+        internalData: String = this.internalData,
+        lazy: Boolean = this.lazy,
+        selected: Boolean = this.selected,
+    ): Hoster {
+        return Hoster(hosterUrl, hosterName, videoList, internalData, lazy, this.memo).also {
             it.selected = selected
         }
     }
@@ -74,6 +124,7 @@ data class SerializableHoster(
     val internalData: String = "",
     val lazy: Boolean = false,
     val selected: Boolean = false,
+    val memo: JsonObject = JsonObject.EMPTY,
 ) {
     companion object {
         fun List<Hoster>.serialize(): String =
@@ -86,6 +137,7 @@ data class SerializableHoster(
                         host.internalData,
                         host.lazy,
                         host.selected,
+                        host.memo,
                     )
                 },
             )
@@ -99,6 +151,7 @@ data class SerializableHoster(
                         sHost.videoList?.toVideoList(),
                         sHost.internalData,
                         sHost.lazy,
+                        sHost.memo,
                     ).apply {
                         selected = sHost.selected
                     }

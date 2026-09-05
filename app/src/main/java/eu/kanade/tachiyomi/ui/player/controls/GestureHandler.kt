@@ -115,7 +115,7 @@ fun GestureHandler(
         }
     }
 
-    val gestureVolumeBrightness = gesturePreferences.gestureVolumeBrightness().get()
+    val gestureVolumeBrightness by gesturePreferences.gestureVolumeBrightness().collectAsStatePref()
     val swapVolumeBrightness by gesturePreferences.swapVolumeBrightness().collectAsStatePref()
     val seekGesture by gesturePreferences.gestureHorizontalSeek().collectAsStatePref()
     val videoZoomGesture by gesturePreferences.gestureVideoZoom().collectAsStatePref()
@@ -167,9 +167,10 @@ fun GestureHandler(
         modifier = modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeGestures)
-            .pointerInput(areControlsLocked) {
+            .pointerInput(areControlsLocked, videoZoomGesture) {
                 if (areControlsLocked || !videoZoomGesture) return@pointerInput
                 awaitEachGesture {
+                    if (areControlsLocked || !videoZoomGesture) return@awaitEachGesture
                     var zoom = viewModel.videoZoom.value
                     var panX = viewModel.videoPanX.value
                     var panY = viewModel.videoPanY.value
@@ -396,7 +397,7 @@ fun GestureHandler(
                     }
                 }
             }
-            .pointerInput(areControlsLocked, gestureVolumeBrightness, seekGesture) {
+            .pointerInput(areControlsLocked, gestureVolumeBrightness, seekGesture, swapVolumeBrightness) {
                 if (areControlsLocked) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = true)

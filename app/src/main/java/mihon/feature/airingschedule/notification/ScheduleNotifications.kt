@@ -64,7 +64,28 @@ object ScheduleNotifications {
      * "notify" preference in that case since no alarm backs it.
      */
     fun ensureScheduled(context: Context, entry: AiringScheduleEntry): Boolean = withKeysLock {
-        if (entry.hasAired()) return@withKeysLock false
+        val triggerAtMillis = if (schedulePreferences.uploadDelayEnabled().get()) {
+            val tracker = runCatching { Injekt.get<mihon.feature.airingschedule.UploadDelayTracker>() }.getOrNull()
+            val delays = tracker?.getDelays().orEmpty()
+            val manualDelay = if (schedulePreferences.uploadDelayRefreshInterval().get() == SchedulePreferences.UploadDelayInterval.CUSTOM) {
+                SchedulePreferences.parseCustomDelayMinutes(schedulePreferences.customUploadDelayMinutes().get())
+            } else null
+            val sourcePrefs = runCatching { Injekt.get<eu.kanade.domain.source.service.SourcePreferences>() }.getOrNull()
+            val pinned = sourcePrefs?.pinnedSources()?.get().orEmpty()
+            val favs = schedulePreferences.favoriteSourceIds().get()
+            val delay = mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
+                entry = entry,
+                delays = delays,
+                manualDelayMinutes = manualDelay,
+                pinnedSources = pinned,
+                favoriteSources = favs,
+            )
+            mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, delay) * 1000L
+        } else {
+            entry.airingAt * 1000L
+        }
+
+        if (triggerAtMillis <= System.currentTimeMillis()) return@withKeysLock false
         val key = alarmKey(entry.mediaId, entry.episode)
         val scheduled = schedulePreferences.scheduledAlarmKeys().get()
         if (key in scheduled) return@withKeysLock true
@@ -87,7 +108,6 @@ object ScheduleNotifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val triggerAtMillis = entry.airingAt * 1000L
         runCatching {
             if (canScheduleExactAlarms(context)) {
                 // Fires at the precise millisecond even in Doze/App Standby, regardless of

@@ -5,6 +5,28 @@ import androidx.compose.runtime.Immutable
 import eu.kanade.tachiyomi.source.Source
 import tachiyomi.domain.source.model.StubSource
 
+enum class ContentWarning {
+    UNSPECIFIED,
+    SAFE,
+    MIXED,
+    NSFW,
+    ;
+
+    val hasAdultContent: Boolean
+        get() = this == MIXED || this == NSFW
+
+    companion object {
+        fun fromInt(value: Int?): ContentWarning {
+            return when (value) {
+                1 -> MIXED
+                2 -> NSFW
+                0 -> SAFE
+                else -> UNSPECIFIED
+            }
+        }
+    }
+}
+
 @Immutable
 sealed class Extension {
 
@@ -17,6 +39,7 @@ sealed class Extension {
     abstract val isNsfw: Boolean
     abstract val isTorrent: Boolean
     abstract val repoUrl: String?
+    abstract val contentWarning: ContentWarning
 
     @Immutable
     data class Installed(
@@ -37,6 +60,7 @@ sealed class Extension {
         val signatureHash: String,
         override val repoUrl: String? = null,
         val author: String? = null,
+        override val contentWarning: ContentWarning = if (isNsfw) ContentWarning.NSFW else ContentWarning.SAFE,
     ) : Extension()
 
     @Immutable
@@ -54,6 +78,7 @@ sealed class Extension {
         val iconUrl: String,
         override val repoUrl: String,
         val author: String? = null,
+        override val contentWarning: ContentWarning = if (isNsfw) ContentWarning.NSFW else ContentWarning.SAFE,
     ) : Extension() {
 
         @Immutable
@@ -86,5 +111,6 @@ sealed class Extension {
         override val isTorrent: Boolean = false,
         override val repoUrl: String? = null,
         val author: String? = null,
+        override val contentWarning: ContentWarning = if (isNsfw) ContentWarning.NSFW else ContentWarning.SAFE,
     ) : Extension()
 }

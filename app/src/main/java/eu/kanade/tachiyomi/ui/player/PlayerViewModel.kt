@@ -89,7 +89,6 @@ import eu.kanade.tachiyomi.util.lang.byteSize
 import eu.kanade.tachiyomi.util.lang.takeBytes
 import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.storage.cacheImageDir
-import eu.kanade.tachiyomi.util.system.DeviceTierManager
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
@@ -260,6 +259,10 @@ class PlayerViewModel @JvmOverloads constructor(
     val selectedHosterVideoIndex = _selectedHosterVideoIndex.asStateFlow()
     private val _currentVideo = MutableStateFlow<Video?>(null)
     val currentVideo = _currentVideo.asStateFlow()
+
+    fun updateVideo(video: Video) {
+        _currentVideo.update { video }
+    }
 
     private val _chapters = MutableStateFlow<List<IndexedSegment>>(emptyList())
     val chapters = _chapters.asStateFlow()
@@ -1453,11 +1456,12 @@ class PlayerViewModel @JvmOverloads constructor(
     private val preciseSeek = gesturePreferences.playerSmoothSeek().get()
     private val showSeekBar = gesturePreferences.showSeekBar().get()
 
-    private fun seekToWithText(seekValue: Int, text: String?) {
-        _isSeekingForwards.value = seekValue > 0
+    private fun seekToWithText(seekValue: Int, text: String?, forcePrecise: Boolean = false) {
+        val isForward = seekValue >= pos.value.toInt()
+        _isSeekingForwards.value = isForward
         _doubleTapSeekAmount.value = seekValue - pos.value.toInt()
         _seekText.update { _ -> text }
-        seekTo(seekValue, preciseSeek)
+        seekTo(seekValue, precise = if (forcePrecise) true else preciseSeek)
         if (showSeekBar) showSeekBar()
     }
 
@@ -1689,6 +1693,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     it.scanlator,
                     anime.title,
                     anime.source,
+                    episodeNumber = it.episode_number.toDouble(),
                 ) ||
                 anime.downloadedFilterRaw == Anime.EPISODE_SHOW_NOT_DOWNLOADED &&
                 downloadManager.isEpisodeDownloaded(
@@ -1696,6 +1701,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     it.scanlator,
                     anime.title,
                     anime.source,
+                    episodeNumber = it.episode_number.toDouble(),
                 ) ||
                 anime.bookmarkedFilterRaw == Anime.EPISODE_SHOW_BOOKMARKED &&
                 !it.bookmark ||
@@ -1938,23 +1944,49 @@ class PlayerViewModel @JvmOverloads constructor(
 
         getHosterVideoLinksJob?.cancel()
         getHosterVideoLinksJob = viewModelScope.launchIO {
-            _hosterState.update { _ ->
-                hosterList.map { hoster ->
-                    if (hoster.videoList == null) {
-                        HosterState.Loading(hoster.hosterName)
-                    } else {
-                        val videoList = hoster.videoList!!
-                        HosterState.Ready(
-                            hoster.hosterName,
-                            videoList,
-                            List(videoList.size) { Video.State.QUEUE },
-                        )
+            lastFailedVideoAttempt = null
+            val preloadedVideo = pendingPreloadedVideo
+            val preloadedHosterIndex = pendingPreloadedHosterIndex
+            val preloadedVideoIndex = pendingPreloadedVideoIndex
+            val preloadedStates = pendingPreloadedHosterStates
+            val preloadedStartPos = pendingPreloadedStartPosMs
+            pendingPreloadedVideo = null
+            pendingPreloadedHosterIndex = -1
+            pendingPreloadedVideoIndex = -1
+            pendingPreloadedHosterStates = null
+            pendingPreloadedStartPosMs = null
+
+            if (preloadedStates != null) {
+                _hosterState.value = preloadedStates
+            } else {
+                _hosterState.update { _ ->
+                    hosterList.map { hoster ->
+                        if (hoster.videoList == null) {
+                            HosterState.Loading(hoster.hosterName)
+                        } else {
+                            val videoList = hoster.videoList!!
+                            HosterState.Ready(
+                                hoster.hosterName,
+                                videoList,
+                                List(videoList.size) { Video.State.QUEUE },
+                            )
+                        }
                     }
                 }
             }
 
-            val preloadedVideo = pendingPreloadedVideo
-            pendingPreloadedVideo = null
+            if (preloadedVideo != null && preloadedHosterIndex >= 0 && preloadedVideoIndex >= 0 && hosterIndex == -1) {
+                logcat { "Preload: Immediate playback handoff for pre-resolved stream (startPos: ${preloadedStartPos?.div(1000)}s)" }
+                tryAcquireAndLoadVideo(
+                    source = source,
+                    video = preloadedVideo,
+                    hosterIndex = preloadedHosterIndex,
+                    videoIndex = preloadedVideoIndex,
+                    hasFoundPreferredVideo = hasFoundPreferredVideo,
+                    resumePosition = preloadedStartPos,
+                )
+            }
+
             val defaultSelector = if (hosterIndex == -1) {
                 DefaultStreamPreferenceStore(playerPreferences).getEffectiveSelector(currentAnime.value?.id)
             } else {
@@ -1965,6 +1997,11 @@ class PlayerViewModel @JvmOverloads constructor(
                 coroutineScope {
                     hosterList.mapIndexed { hosterIdx, hoster ->
                         async {
+                            // If preloaded states already provided this hoster ready, skip duplicate fetch if video is playing
+                            if (preloadedStates?.getOrNull(hosterIdx) is HosterState.Ready && hasFoundPreferredVideo.get()) {
+                                return@async
+                            }
+
                             val hosterState = EpisodeLoader.loadHosterVideos(source, hoster)
 
                             _hosterState.updateAt(hosterIdx, hosterState)
@@ -2072,13 +2109,14 @@ class PlayerViewModel @JvmOverloads constructor(
         hosterIndex: Int,
         videoIndex: Int,
         hasFoundPreferredVideo: AtomicBoolean,
+        resumePosition: Long? = null,
     ): Boolean {
         if (!hasFoundPreferredVideo.compareAndSet(false, true)) return false
         if (hosterIndex == -1 && videoIndex == -1 && selectedHosterVideoIndex.value != Pair(-1, -1)) {
             hasFoundPreferredVideo.set(false)
             return false
         }
-        val success = loadVideo(source, video, hosterIndex, videoIndex)
+        val success = loadVideo(source, video, hosterIndex, videoIndex, resumePosition)
         if (!success) {
             hasFoundPreferredVideo.set(false)
         }
@@ -2118,7 +2156,13 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private suspend fun loadVideo(source: AnimeSource?, video: Video, hosterIndex: Int, videoIndex: Int): Boolean {
+    private suspend fun loadVideo(
+        source: AnimeSource?,
+        video: Video,
+        hosterIndex: Int,
+        videoIndex: Int,
+        resumePosition: Long? = null,
+    ): Boolean {
         val selectedHosterState = (_hosterState.value[hosterIndex] as? HosterState.Ready) ?: return false
         updateIsLoadingEpisode(true)
         setIsStopped(false)
@@ -2161,7 +2205,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
                 val newVideo = (hosterState.value[newHosterIdx] as HosterState.Ready).videoList[newVideoIdx]
 
-                return loadVideo(source, newVideo, newHosterIdx, newVideoIdx)
+                return loadVideo(source, newVideo, newHosterIdx, newVideoIdx, resumePosition)
             } else {
                 _selectedHosterVideoIndex.update { _ -> oldSelectedIndex }
                 _hosterState.updateAt(
@@ -2185,7 +2229,7 @@ class PlayerViewModel @JvmOverloads constructor(
             loadThumbnails(resolvedVideo, source)
         }
 
-        activity.setVideo(resolvedVideo)
+        activity.setVideo(resolvedVideo, position = if (resumePosition != null && resumePosition > 5000L) resumePosition else null)
         return true
     }
 
@@ -2201,14 +2245,49 @@ class PlayerViewModel @JvmOverloads constructor(
         )
     }
 
-    fun loadBestVideo(): Boolean {
+    private var lastFailedVideoAttempt: Pair<Int, Int>? = null
+
+    suspend fun recoverOrLoadBestVideo(): Boolean {
+        val source = currentSource.value ?: return false
+        val (hosterIdx, videoIdx) = selectedHosterVideoIndex.value
+        val enableSelfHealing = playerPreferences.selfHealingLinks().get()
+        val currentPlaybackPos = (pos.value * 1000).toLong()
+
+        // 1. Self-Healing: If token expired, try fresh re-resolution once on the current hoster/video
+        if (enableSelfHealing && hosterIdx != -1 && videoIdx != -1 && lastFailedVideoAttempt != Pair(hosterIdx, videoIdx)) {
+            lastFailedVideoAttempt = Pair(hosterIdx, videoIdx)
+            val currentHosterState = (hosterState.value.getOrNull(hosterIdx) as? HosterState.Ready)
+            val currentVid = currentHosterState?.videoList?.getOrNull(videoIdx)
+            if (currentVid != null) {
+                logcat { "Self-Healing: Stream playback failed. Attempting fresh token re-resolve for: ${currentVid.quality}" }
+                try {
+                    val uninitializedVideo = currentVid.copy(initialized = false)
+                    val freshlyResolved = HosterLoader.getResolvedVideo(source, uninitializedVideo)
+                    if (freshlyResolved != null && freshlyResolved.videoUrl.isNotBlank() && freshlyResolved.videoUrl != currentVid.videoUrl) {
+                        logcat { "Self-Healing: Re-resolution successful! Resuming stream..." }
+                        val success = loadVideo(source, freshlyResolved, hosterIdx, videoIdx, resumePosition = currentPlaybackPos)
+                        if (success) return true
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    logcat(LogPriority.WARN, e) { "Self-Healing: Re-resolution failed" }
+                }
+            }
+        }
+
+        // 2. Mark error and cascade to next best video / hoster
+        setCurrentVideoError()
+        return loadBestVideo(resumePosition = currentPlaybackPos)
+    }
+
+    fun loadBestVideo(resumePosition: Long? = null): Boolean {
         val source = currentSource.value ?: return false
         val (hosterIdx, videoIdx) = HosterLoader.selectBestVideo(hosterState.value)
         if (hosterIdx == -1) return false
         val newVideo = (hosterState.value[hosterIdx] as HosterState.Ready).videoList[videoIdx]
         viewModelScope.launchIO {
             try {
-                val success = loadVideo(source, newVideo, hosterIdx, videoIdx)
+                val success = loadVideo(source, newVideo, hosterIdx, videoIdx, resumePosition)
                 if (!success) {
                     updateIsLoadingEpisode(false)
                     isLoading.value = false
@@ -2339,6 +2418,8 @@ class PlayerViewModel @JvmOverloads constructor(
 
         _currentEpisode.update { _ -> chosenEpisode }
         updateEpisode(chosenEpisode)
+        lastFailedVideoAttempt = null
+        skippedSegments.clear()
         cancelPreload()
 
         return withIOContext {
@@ -2373,6 +2454,10 @@ class PlayerViewModel @JvmOverloads constructor(
                 logcat(LogPriority.ERROR, e) { e.message ?: "Error getting links" }
             } finally {
                 pendingPreloadedVideo = meta?.video
+                pendingPreloadedHosterIndex = meta?.hosterIndex ?: -1
+                pendingPreloadedVideoIndex = meta?.videoIndex ?: -1
+                pendingPreloadedHosterStates = meta?.hosterStates
+                pendingPreloadedStartPosMs = meta?.startPositionMs
                 _nextEpisodeState.value = PreloadState.None
                 preloadedMeta = null
             }
@@ -2419,21 +2504,12 @@ class PlayerViewModel @JvmOverloads constructor(
             downloadNextEpisodes()
         }
 
-        // Preload next episode URL (Phase 1)
+        // Preload next episode metadata & stream
         val preloadMode = playerPreferences.preloadMode().get()
-        val performanceProfile = decoderPreferences.performanceProfile().get()
-        val canPreloadPerformance = when (performanceProfile) {
-            PlayerEfficiency.MaxPerformance -> true
-            PlayerEfficiency.PowerSaver -> false
-            PlayerEfficiency.Balanced -> true
-            PlayerEfficiency.Automatic -> DeviceTierManager.getTier(activity) != DeviceTierManager.Tier.LOW
-        }
-
-        // Hierarchy: PreloadMode (Explicit Intent) > PerformanceProfile (Global) > Tier (Default)
         val shouldPreload = when (preloadMode) {
             PreloadMode.Off -> false
-            PreloadMode.Always -> true // User explicitly wants it Always
-            PreloadMode.WifiOnly -> activity.isConnectedToWifi() && canPreloadPerformance
+            PreloadMode.Always -> true
+            PreloadMode.WifiOnly -> activity.isConnectedToWifi()
             else -> false
         }
 
@@ -2441,7 +2517,10 @@ class PlayerViewModel @JvmOverloads constructor(
         val networkThrottlingEnabled = playerPreferences.networkAwareThrottling().get()
         val isStruggling = isLoading.value && networkThrottlingEnabled
 
-        if (currentProgress > 0.80 && !isStruggling && activity.player.paused != true && 
+        val remainingSeconds = (totalSeconds - seconds) / 1000.0
+        val isWithinLeadWindow = currentProgress > 0.75 || remainingSeconds <= 180.0
+
+        if (isWithinLeadWindow && !isStruggling && activity.player.paused != true && 
             nextEpisodeState.value == PreloadState.None && shouldPreload) {
             preloadNextEpisodeMetadata()
         }
@@ -2450,16 +2529,33 @@ class PlayerViewModel @JvmOverloads constructor(
     data class PreloadedMeta(
         val episodeId: Long,
         val hosterList: List<Hoster>,
+        val hosterStates: List<HosterState>? = null,
         val video: Video? = null,
-        val createdAtMs: Long = System.currentTimeMillis()
+        val hosterIndex: Int = -1,
+        val videoIndex: Int = -1,
+        val startPositionMs: Long? = null,
+        val createdAtMs: Long = System.currentTimeMillis(),
     )
 
     private val _nextEpisodeState = MutableStateFlow(PreloadState.None)
     val nextEpisodeState = _nextEpisodeState.asStateFlow()
     private var preloadedMeta: PreloadedMeta? = null
     private var pendingPreloadedVideo: Video? = null
+    private var pendingPreloadedHosterIndex: Int = -1
+    private var pendingPreloadedVideoIndex: Int = -1
+    private var pendingPreloadedHosterStates: List<HosterState>? = null
+    private var pendingPreloadedStartPosMs: Long? = null
     private var preloadJob: Job? = null
     private var lastPreloadFailAt = 0L
+
+    // EWMA Network & Resolution Latency Predictor for Preload Lead-Time (Initial default: 4.0s)
+    private var ewmaResolutionTimeMs = 4000f
+
+    private fun updateEwmaResolutionTime(measuredTimeMs: Long) {
+        val clampedTime = measuredTimeMs.toFloat().coerceIn(800f, 25000f)
+        ewmaResolutionTimeMs = (0.3f * clampedTime) + (0.7f * ewmaResolutionTimeMs)
+        logcat { "Preload EWMA: Updated predicted resolution latency: ${ewmaResolutionTimeMs.toInt()}ms" }
+    }
 
     private fun isMetaValid(meta: PreloadedMeta) =
         System.currentTimeMillis() - meta.createdAtMs < 5 * 60_000 // 5 minutes TTL
@@ -2469,6 +2565,10 @@ class PlayerViewModel @JvmOverloads constructor(
 
     fun cancelPreload() {
         pendingPreloadedVideo = null
+        pendingPreloadedHosterIndex = -1
+        pendingPreloadedVideoIndex = -1
+        pendingPreloadedHosterStates = null
+        pendingPreloadedStartPosMs = null
         preloadJob?.cancel()
         preloadJob = null
     }
@@ -2492,6 +2592,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         _nextEpisodeState.value = PreloadState.MetadataLoading
         logcat { "Preload: Starting for episode=$nextEpisodeId" }
+        val startTime = System.currentTimeMillis()
         preloadJob = viewModelScope.launchIO {
             try {
                 val anime = currentAnime.value ?: return@launchIO
@@ -2504,7 +2605,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     source,
                 )
                 
-                var resolvedVideo: Video? = null
+                var resolvedResult: HosterLoader.Companion.ResolvedVideoResult? = null
                 
                 // If intelligent buffer handoff or self-healing links are enabled, pre-resolve the best video
                 val enableBuffering = playerPreferences.intelligentBufferHandoff().get()
@@ -2517,44 +2618,100 @@ class PlayerViewModel @JvmOverloads constructor(
                     _nextEpisodeState.value = PreloadState.PreloadingBuffer
                     logcat { "Preload: Resolving saved default stream for episode=$nextEpisodeId" }
                     try {
-                        resolvedVideo = HosterLoader.resolveDefaultStream(source, hosterList, defaultSelector)
+                        resolvedResult = HosterLoader.resolveDefaultStreamWithResult(source, hosterList, defaultSelector)
                     } catch (e: Exception) {
                         logcat(LogPriority.WARN, e) { "Preload: Default stream resolution failed" }
                     }
                 }
 
-                if (resolvedVideo == null && defaultSelector.isBlank() && (enableBuffering || enableSelfHealing)) {
+                if (resolvedResult == null && defaultSelector.isBlank() && (enableBuffering || enableSelfHealing)) {
                     _nextEpisodeState.value = PreloadState.PreloadingBuffer
                     logcat { "Preload: Resolving best video for episode=$nextEpisodeId" }
                     try {
-                        resolvedVideo = HosterLoader.getBestVideo(source, hosterList)
-                        if (resolvedVideo != null) {
-                            logcat { "Preload: Successfully resolved video: ${resolvedVideo.videoUrl.take(50)}..." }
-                            if (enableBuffering && resolvedVideo.videoUrl.isNotBlank()) {
-                                // Initiate a HEAD request or minimal GET to keep the socket warm
-                                try {
-                                    val client = networkHelper.client
-                                    val request = okhttp3.Request.Builder()
-                                        .url(resolvedVideo.videoUrl)
-                                        .head()
-                                        .build()
-                                    client.newCall(request).execute().use { }
-                                    logcat { "Preload: Successfully warmed socket for video." }
-                                } catch (e: Exception) {
-                                    logcat(LogPriority.WARN, e) { "Preload: Socket warming failed (this is non-fatal)" }
-                                }
-                            }
-                        } else {
-                            logcat { "Preload: Failed to resolve a valid video." }
-                        }
+                        resolvedResult = HosterLoader.getBestVideoWithResult(source, hosterList)
                     } catch (e: Exception) {
                          logcat(LogPriority.WARN, e) { "Preload: Video resolution failed" }
                     }
                 }
+
+                val resolvedVideo = resolvedResult?.video
+                val elapsed = System.currentTimeMillis() - startTime
+                updateEwmaResolutionTime(elapsed)
                 
-                preloadedMeta = PreloadedMeta(nextEpisodeId, hosterList, resolvedVideo)
+                preloadedMeta = PreloadedMeta(
+                    episodeId = nextEpisodeId,
+                    hosterList = hosterList,
+                    hosterStates = resolvedResult?.hosterStates,
+                    video = resolvedVideo,
+                    hosterIndex = resolvedResult?.hosterIndex ?: -1,
+                    videoIndex = resolvedResult?.videoIndex ?: -1,
+                    startPositionMs = null,
+                )
                 _nextEpisodeState.value = if (resolvedVideo != null) PreloadState.BufferReady else PreloadState.MetadataReady
                 logcat { "Preload: Ready for episode=$nextEpisodeId (State: ${_nextEpisodeState.value})" }
+
+                // Asynchronous background pre-warming & AniSkip without blocking readiness
+                if (resolvedVideo != null) {
+                    viewModelScope.launchIO {
+                        if (enableBuffering && resolvedVideo.videoUrl.isNotBlank()) {
+                            // 1. 0-RTT DNS & TLS Session Resumption socket pre-warming for main video stream
+                            try {
+                                val client = networkHelper.client
+                                val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
+                                val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
+                                    ?: okhttp3.Headers.Builder()
+                                val request = okhttp3.Request.Builder()
+                                    .url(resolvedVideo.videoUrl)
+                                    .headers(headersBuilder.build())
+                                    .head()
+                                    .build()
+                                client.newCall(request).execute().use { }
+                                logcat { "Preload: Successfully warmed 0-RTT TLS socket for main video." }
+                            } catch (e: Exception) {
+                                logcat(LogPriority.WARN, e) { "Preload: Video socket warming failed (non-fatal)" }
+                            }
+
+                            // 2. Subtitle & Font Cache Pre-Warming
+                            if (resolvedVideo.subtitleTracks.isNotEmpty()) {
+                                try {
+                                    val client = networkHelper.client
+                                    val sourceHeaders = (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers
+                                    val headersBuilder = (resolvedVideo.headers ?: sourceHeaders)?.newBuilder()
+                                        ?: okhttp3.Headers.Builder()
+
+                                    resolvedVideo.subtitleTracks.take(3).forEach { subTrack ->
+                                        if (subTrack.url.startsWith("http")) {
+                                            try {
+                                                val subReq = okhttp3.Request.Builder()
+                                                    .url(subTrack.url)
+                                                    .headers(headersBuilder.build())
+                                                    .head()
+                                                    .build()
+                                                client.newCall(subReq).execute().use { }
+                                            } catch (_: Exception) { }
+                                        }
+                                    }
+                                } catch (_: Exception) { }
+                            }
+                        }
+
+                        // 3. Pre-calculate AniSkip intro skip position
+                        if (introSkipEnabled && autoSkip && playerPreferences.aniSkipEnabled().get()) {
+                            try {
+                                val nextEpNumber = nextEpisode.episode_number.toInt()
+                                val stamps = getAniSkipStampsForEpisode(anime.id, nextEpNumber, 1440L)
+                                val opStamp = stamps?.firstOrNull { it.type == ChapterType.Opening && it.start <= 5.0 }
+                                if (opStamp != null) {
+                                    val preloadedStartPosMs = ((opStamp.end + 0.5f) * 1000L).toLong()
+                                    preloadedMeta = preloadedMeta?.copy(startPositionMs = preloadedStartPosMs)
+                                    logcat { "Preload: Pre-calculated intro skip start position at ${preloadedStartPosMs / 1000}s" }
+                                }
+                            } catch (e: Exception) {
+                                logcat(LogPriority.WARN, e) { "Preload: AniSkip pre-positioning skipped" }
+                            }
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 logcat(LogPriority.WARN, e) { "Preload: Failed for episode=$nextEpisodeId" }
                 lastPreloadFailAt = System.currentTimeMillis()
@@ -2885,32 +3042,36 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     /**
+     * Helper to fetch AniSkip timestamps for an anime and episode number.
+     */
+    suspend fun getAniSkipStampsForEpisode(animeId: Long, episodeNumber: Int, duration: Long): List<TimeStamp>? {
+        val trackerManager = Injekt.get<TrackerManager>()
+        val tracks = getTracks.await(animeId)
+        if (tracks.isEmpty()) return null
+
+        for (track in tracks) {
+            val tracker = trackerManager.get(track.trackerId)
+            val malId = when (tracker) {
+                is MyAnimeList -> track.remoteId
+                is Anilist -> AniSkipApi().getMalIdFromAL(track.remoteId)
+                else -> null
+            }
+            if (malId != null) {
+                return AniSkipApi().getResult(malId.toInt(), episodeNumber, duration)
+            }
+        }
+        return null
+    }
+
+    /**
      * Returns the response of the AniSkipApi for this episode.
      * just works if tracking is enabled.
      */
     suspend fun aniSkipResponse(playerDuration: Int?): List<TimeStamp>? {
         val animeId = currentAnime.value?.id ?: return null
-        val trackerManager = Injekt.get<TrackerManager>()
-        var malId: Long?
         val episodeNumber = currentEpisode.value?.episode_number?.toInt() ?: return null
-        if (getTracks.await(animeId).isEmpty()) {
-            logcat { "AniSkip: No tracks found for anime $animeId" }
-            return null
-        }
-
-        getTracks.await(animeId).map { track ->
-            val tracker = trackerManager.get(track.trackerId)
-            malId = when (tracker) {
-                is MyAnimeList -> track.remoteId
-                is Anilist -> AniSkipApi().getMalIdFromAL(track.remoteId)
-                else -> null
-            }
-            val duration = playerDuration ?: return null
-            return malId?.let {
-                AniSkipApi().getResult(it.toInt(), episodeNumber, duration.toLong())
-            }
-        }
-        return null
+        val duration = playerDuration?.toLong() ?: return null
+        return getAniSkipStampsForEpisode(animeId, episodeNumber, duration)
     }
 
     val introSkipEnabled = playerPreferences.enableSkipIntro().get()
@@ -2919,6 +3080,9 @@ class PlayerViewModel @JvmOverloads constructor(
 
     private val defaultWaitingTime = playerPreferences.waitingTimeIntroSkip().get()
     var waitingSkipIntro = defaultWaitingTime
+
+    // Hysteresis dead-zone tracker to prevent backwards seek bounce on chapter boundaries
+    private val skippedSegments = mutableSetOf<String>()
 
     fun setChapter(position: Float) {
         getCurrentChapter(position)?.let { (chapterIndex, chapter) ->
@@ -2934,9 +3098,22 @@ class PlayerViewModel @JvmOverloads constructor(
                 _skipIntroText.update { _ -> null }
                 waitingSkipIntro = defaultWaitingTime
             } else {
-                val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
+                val segmentKey = "${chapter.name}_${chapter.start.toInt()}"
+                val isAlreadySkipped = segmentKey in skippedSegments
+
+                // Determine true target after this segment: next chapter start, or end of episode if last chapter
+                val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start
+                    ?: duration.value.takeIf { it > 0f }
+                    ?: (pos.value + 85f)
+
+                // Add hysteresis boundary offset (+0.5s) to guarantee landing cleanly past the intro
+                val targetSeekPos = (nextChapterPos + 0.5f).coerceAtMost(duration.value.takeIf { it > 0f } ?: Float.MAX_VALUE)
 
                 if (netflixStyle) {
+                    if (isAlreadySkipped) {
+                        _skipIntroText.update { _ -> null }
+                        return
+                    }
                     // show a toast with the seconds before the skip
                     if (waitingSkipIntro == defaultWaitingTime) {
                         activity.showToast(
@@ -2947,13 +3124,17 @@ class PlayerViewModel @JvmOverloads constructor(
                             )}",
                         )
                     }
-                    showSkipIntroButton(chapter, nextChapterPos, waitingSkipIntro)
+                    showSkipIntroButton(chapter, targetSeekPos, waitingSkipIntro, segmentKey)
                     waitingSkipIntro--
                 } else if (autoSkip) {
-                    seekToWithText(
-                        seekValue = nextChapterPos.toInt(),
-                        text = activity.stringResource(MR.strings.player_intro_skipped, chapter.name),
-                    )
+                    if (!isAlreadySkipped) {
+                        skippedSegments.add(segmentKey)
+                        seekToWithText(
+                            seekValue = targetSeekPos.toInt(),
+                            text = activity.stringResource(MR.strings.player_intro_skipped, chapter.name),
+                            forcePrecise = true,
+                        )
+                    }
                 } else {
                     updateSkipIntroButton(chapter.chapterType)
                 }
@@ -2974,14 +3155,16 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private fun showSkipIntroButton(chapter: IndexedSegment, nextChapterPos: Float, waitingTime: Int) {
+    private fun showSkipIntroButton(chapter: IndexedSegment, nextChapterPos: Float, waitingTime: Int, segmentKey: String? = null) {
         if (waitingTime > -1) {
             if (waitingTime > 0) {
                 _skipIntroText.update { _ -> activity.stringResource(MR.strings.player_aniskip_dontskip) }
             } else {
+                if (segmentKey != null) skippedSegments.add(segmentKey)
                 seekToWithText(
                     seekValue = nextChapterPos.toInt(),
                     text = activity.stringResource(MR.strings.player_aniskip_skip, chapter.name),
+                    forcePrecise = true,
                 )
             }
         } else {
@@ -2998,11 +3181,18 @@ class PlayerViewModel @JvmOverloads constructor(
                 return
             }
 
-            val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
+            val segmentKey = "${chapter.name}_${chapter.start.toInt()}"
+            skippedSegments.add(segmentKey)
+
+            val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start
+                ?: duration.value.takeIf { it > 0f }
+                ?: (pos.value + 85f)
+            val targetSeekPos = (nextChapterPos + 0.5f).coerceAtMost(duration.value.takeIf { it > 0f } ?: Float.MAX_VALUE)
 
             seekToWithText(
-                seekValue = nextChapterPos.toInt(),
+                seekValue = targetSeekPos.toInt(),
                 text = activity.stringResource(MR.strings.player_aniskip_skip, chapter.name),
+                forcePrecise = true,
             )
         }
     }

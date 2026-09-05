@@ -33,6 +33,8 @@ import eu.kanade.tachiyomi.ui.main.MainActivity
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
@@ -73,7 +75,7 @@ data object BrowseTab : Tab {
 
         // Hoisted for extensions tab's search bar
         val extensionsScreenModel = rememberScreenModel { ExtensionsScreenModel() }
-        val animeExtensionsState by extensionsScreenModel.state.collectAsStateFlow()
+        val searchQuery by extensionsScreenModel.state.map { it.searchQuery }.distinctUntilChanged().collectAsStateFlow(null)
 
         val sourcesTab = sourcesTab()
         val extensionsTab = extensionsTab(extensionsScreenModel)
@@ -129,7 +131,7 @@ data object BrowseTab : Tab {
             titleRes = MR.strings.browse,
             tabs = tabs,
             state = state,
-            searchQuery = animeExtensionsState.searchQuery,
+            searchQuery = searchQuery,
             onChangeSearchQuery = extensionsScreenModel::search,
             scrollable = false,
         )

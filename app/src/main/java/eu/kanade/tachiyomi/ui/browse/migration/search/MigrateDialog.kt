@@ -184,7 +184,12 @@ class MigrateDialogScreenModel(
         mutableState.update { it.copy(isMigrating = true) }
 
         try {
-            val episodes = source.getEpisodeList(newAnime.toSAnime())
+            val episodes = source.getAnimeEpisodeUpdate(
+                anime = newAnime.toSAnime(),
+                episodes = emptyList(),
+                fetchDetails = false,
+                fetchEpisodes = true,
+            ).episodes
 
             migrateAnimeInternal(
                 oldSource = prevSource,

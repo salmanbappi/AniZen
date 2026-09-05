@@ -48,6 +48,7 @@ class SourceUiModelMapper(
             isStub = source.isStub,
             displayName = source.name.ifBlank { source.id.toString() },
             secondaryText = secondaryText,
+            isTorrent = extensionManager.isTorrentSource(source.id),
         )
     }
 

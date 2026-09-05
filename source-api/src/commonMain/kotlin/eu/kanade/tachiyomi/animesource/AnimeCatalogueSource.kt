@@ -88,6 +88,15 @@ interface AnimeCatalogueSource : AnimeSource {
     val supportsRelatedAnimes: Boolean get() = false
 
     /**
+     * Whether the source supports related anime (Aniyomi naming).
+     */
+    override val supportsRelatedAnime: Boolean get() = supportsRelatedAnimes
+
+    override suspend fun getRelatedAnimeList(
+        anime: eu.kanade.tachiyomi.animesource.model.SAnime,
+    ): List<eu.kanade.tachiyomi.animesource.model.AnimeRelation> = emptyList()
+
+    /**
      * Get all the available related animes for an anime.
      * Normally it's not needed to override this method.
      *

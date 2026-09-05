@@ -78,15 +78,26 @@ fun ScheduleAnimeCard(
             .format(timeFormatter12h)
     }
 
-    // A user-supplied custom delay (Refresh interval → Custom) overrides the auto-learned
-    // per-source delay when computing the expected upload time and countdown.
-    val effectiveDelay: Long? = remember(manualDelayMinutes, sourceDelays, favoriteSourceIds) {
-        manualDelayMinutes
-            ?: favoriteSourceIds.mapNotNull { sourceDelays[it] }.maxOrNull()
+    // Resolves expected upload delay via UploadDelayResolver (custom override -> pinned -> favorite -> median)
+    val effectiveDelay: Long? = remember(
+        entry,
+        sourceDelays,
+        manualDelayMinutes,
+        pinnedSourceIds,
+        favoriteSourceIds,
+    ) {
+        mihon.feature.airingschedule.util.UploadDelayResolver.resolveDelay(
+            entry = entry,
+            delays = sourceDelays,
+            manualDelayMinutes = manualDelayMinutes,
+            pinnedSources = pinnedSourceIds,
+            favoriteSources = favoriteSourceIds,
+        )
     }
 
-    val adjustedAiringAt = effectiveDelay?.let { UploadDelayTracker.adjustedAirTime(entry.airingAt, it) }
-        ?: entry.airingAt
+    val adjustedAiringAt = remember(entry, effectiveDelay) {
+        mihon.feature.airingschedule.util.UploadDelayResolver.adjustedAirTime(entry, effectiveDelay)
+    }
 
     val isAdjustedAired = adjustedAiringAt <= currentTimeEpochSecond
 

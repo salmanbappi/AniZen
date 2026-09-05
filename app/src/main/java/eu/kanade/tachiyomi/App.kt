@@ -41,6 +41,7 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode
+import eu.kanade.presentation.anime.components.CoverSettings
 import eu.kanade.tachiyomi.core.security.PrivacyPreferences
 import eu.kanade.tachiyomi.crash.CrashActivity
 import eu.kanade.tachiyomi.crash.GlobalExceptionHandler
@@ -61,10 +62,12 @@ import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.GLUtil
 import eu.kanade.tachiyomi.util.system.WebViewUtil
+import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
+import eu.kanade.tachiyomi.util.system.isTv
 import eu.kanade.tachiyomi.util.system.notify
 import exh.log.CrashlyticsPrinter
 import exh.log.EHLogLevel
@@ -92,6 +95,7 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.data.Database
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.util.TvDevice
 import tachiyomi.presentation.widget.WidgetManager
 import timber.log.Timber
 import uy.kohesive.injekt.Injekt
@@ -128,6 +132,18 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         setupExhLogging()
         LogcatLogger.install(XLogLogcatLogger())
 
+        // Resolved once here so the D-pad focus-highlight modifiers, which are applied to
+        // every grid cell and list row, can short-circuit on touch devices without doing
+        // per-item work.
+        TvDevice.isTv = isTv()
+
+        // Mirror the cover-related preferences into snapshot state once, instead of every
+        // cover composable doing a DI lookup + SharedPreferences read per item.
+        CoverSettings.init(
+            uiPreferences = Injekt.get(),
+            scope = ProcessLifecycleOwner.get().lifecycleScope,
+        )
+
         // Startup Optimization: Initialize non-critical components on background thread
         ProcessLifecycleOwner.get().lifecycleScope.launch(Dispatchers.IO) {
             setupNotificationChannels()
@@ -148,6 +164,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             Injekt.get<eu.kanade.tachiyomi.data.cache.ChapterCache>()
             Injekt.get<eu.kanade.tachiyomi.data.cache.CoverCache>()
             Injekt.get<CustomAnimeRepository>()
+
+            // Warm the cover color/ratio cache so the first library scroll is already
+            // smooth instead of extracting + measuring on the fly (KMK).
+            CoverColorObserver.load()
             
             // Dismiss stuck downloader notifications
             val downloadManager = Injekt.get<DownloadManager>()
@@ -297,6 +317,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     override fun onStop(owner: LifecycleOwner) {
         SecureActivityDelegate.onApplicationStopped()
+
+        // Persist any cover colors/ratios extracted but not yet flushed by the debounce.
+        CoverColorObserver.flush()
 
         DiscordRPCService.stop(applicationContext)
     }

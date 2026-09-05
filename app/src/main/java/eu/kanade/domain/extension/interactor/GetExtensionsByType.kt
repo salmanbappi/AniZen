@@ -1,6 +1,7 @@
 package eu.kanade.domain.extension.interactor
 
 import eu.kanade.domain.extension.model.Extensions
+import eu.kanade.domain.source.service.ContentWarningLevel
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
@@ -16,8 +17,6 @@ class GetExtensionsByType(
 ) {
 
     fun subscribe(): Flow<Extensions> {
-        val showNsfwSources = preferences.showNsfwSource().get()
-
         return combine(
             preferences.enabledLanguages().changes(),
             extensionManager.installedExtensionsFlow,
@@ -25,6 +24,7 @@ class GetExtensionsByType(
             extensionManager.availableExtensionsFlow,
             extensionRepoRepository.subscribeAll(),
             extensionManager.isInitialized,
+            preferences.contentWarningLevel().changes(),
         ) { flows ->
             val enabledLanguages = flows[0] as Set<String>
             val _installed = flows[1] as List<Extension.Installed>
@@ -32,11 +32,12 @@ class GetExtensionsByType(
             val _available = flows[3] as List<Extension.Available>
             val repos = flows[4] as List<mihon.domain.extensionrepo.model.ExtensionRepo>
             val isInitialized = flows[5] as Boolean
+            val contentWarningLevel = flows[6] as ContentWarningLevel
 
             if (!isInitialized) return@combine null
 
             val (updates, installed) = _installed
-                .filter { (showNsfwSources || !it.isNsfw) }
+                .filter { contentWarningLevel.allowsInstalled(it.contentWarning) }
                 .sortedWith(
                     compareBy<Extension.Installed> { !it.isObsolete }
                         .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name },
@@ -52,7 +53,7 @@ class GetExtensionsByType(
                 .filter { extension ->
                     _installed.none { it.pkgName == extension.pkgName && it.author == extension.author } &&
                         _untrusted.none { it.pkgName == extension.pkgName && it.author == extension.author } &&
-                        (showNsfwSources || !extension.isNsfw) &&
+                        contentWarningLevel.allowsDiscovery(extension.contentWarning) &&
                         hiddenRepos.none { extension.repoUrl.startsWith(it) }
                 }
                 .flatMap { ext ->

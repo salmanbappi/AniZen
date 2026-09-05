@@ -112,6 +112,7 @@ class UpdatesScreenModel(
                     update.scanlator,
                     update.ogAnimeTitle,
                     update.sourceId,
+                    episodeNumber = update.episodeNumber,
                 )
                 val downloadState = when {
                     activeDownload != null -> activeDownload.status

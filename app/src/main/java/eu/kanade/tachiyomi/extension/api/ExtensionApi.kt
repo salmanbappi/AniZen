@@ -25,6 +25,13 @@ import uy.kohesive.injekt.injectLazy
 import java.time.Instant
 import kotlin.time.Duration.Companion.days
 
+import okio.BufferedSource
+import okio.buffer
+import okio.gzip
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+
 internal class ExtensionApi {
 
     private val networkService: NetworkHelper by injectLazy()
@@ -54,6 +61,8 @@ internal class ExtensionApi {
                 .newCall(GET("$repoBaseUrl/index.min.json"))
                 .awaitSuccess()
 
+            val bodyString = response.body.source().decompressIfGzipped().use { it.readUtf8() }
+
             val repoHostAuthorRegex = """^https://(?:raw\.githubusercontent\.com|codeberg\.org|gitlab\.com)/([^/]+)/.*""".toRegex()
             val author = extRepo.author
                 ?: repoHostAuthorRegex.find(repoBaseUrl)?.let {
@@ -62,14 +71,25 @@ internal class ExtensionApi {
                 } ?: extRepo.shortName ?: extRepo.name
 
             with(json) {
-                response
-                    .parseAs<List<ExtensionJsonObject>>()
+                decodeFromString<List<ExtensionJsonObject>>(bodyString)
                     .toExtensions(repoBaseUrl, author)
             }
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Failed to get extensions from $repoBaseUrl" }
             emptyList()
         }
+    }
+
+    private fun BufferedSource.decompressIfGzipped(): BufferedSource {
+        val isGzip = peek().use { peeked ->
+            try {
+                peeked.readShort().toInt() == 0x1f8b
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        return if (isGzip) gzip().buffer() else this
     }
 
     suspend fun checkForUpdates(
@@ -124,6 +144,12 @@ internal class ExtensionApi {
                 libVersion >= ExtensionLoader.LIB_VERSION_MIN && libVersion <= ExtensionLoader.LIB_VERSION_MAX
             }
             .map {
+                val contentWarning = when (it.contentWarning) {
+                    1 -> eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED
+                    2 -> eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW
+                    0 -> if (it.nsfw == 1) eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW else eu.kanade.tachiyomi.extension.model.ContentWarning.SAFE
+                    else -> if (it.nsfw == 1) eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW else eu.kanade.tachiyomi.extension.model.ContentWarning.UNSPECIFIED
+                }
                 Extension.Available(
                     name = it.name.substringAfter("Aniyomi: "),
                     pkgName = it.pkg,
@@ -131,13 +157,14 @@ internal class ExtensionApi {
                     versionCode = it.code,
                     libVersion = it.extractLibVersion(),
                     lang = it.lang,
-                    isNsfw = it.nsfw == 1,
-                    isTorrent = it.torrent == 1,
+                    isNsfw = contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW || contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED,
+                    isTorrent = it.torrent == 1 || it.isTorrent,
                     sources = it.sources?.map(extensionSourceMapper).orEmpty(),
                     apkName = it.apk,
                     iconUrl = "${normalizedRepoUrl}/icon/${it.pkg}.png",
                     repoUrl = normalizedRepoUrl,
                     author = author,
+                    contentWarning = contentWarning,
                 )
             }
     }
@@ -151,7 +178,12 @@ internal class ExtensionApi {
     }
 
     private fun ExtensionJsonObject.extractLibVersion(): Double {
-        return version.substringBeforeLast('.').toDouble()
+        return extensionLib?.doubleOrNull
+            ?: libVersion?.doubleOrNull
+            ?: extensionLib?.contentOrNull?.toDoubleOrNull()
+            ?: libVersion?.contentOrNull?.toDoubleOrNull()
+            ?: version.substringBeforeLast('.').toDoubleOrNull()
+            ?: 0.0
     }
 }
 
@@ -163,9 +195,13 @@ private data class ExtensionJsonObject(
     val lang: String,
     val code: Long,
     val version: String,
-    val nsfw: Int,
+    val nsfw: Int = 0,
+    val contentWarning: Int = 0,
     val torrent: Int = 0,
-    val sources: List<ExtensionSourceJsonObject>?,
+    val isTorrent: Boolean = false,
+    val extensionLib: JsonPrimitive? = null,
+    val libVersion: JsonPrimitive? = null,
+    val sources: List<ExtensionSourceJsonObject>? = null,
 )
 
 @Serializable

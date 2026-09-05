@@ -43,8 +43,8 @@ fun Source?.isNsfw(): Boolean {
 // (TORRENT) -->
 fun Source?.isSourceForTorrents(): Boolean {
     if (this == null || this.isLocalOrStub()) return false
-    val sourceUsed: eu.kanade.tachiyomi.extension.model.Extension.Installed = Injekt.get<ExtensionManager>().installedExtensionsFlow.value
-        .find { ext: eu.kanade.tachiyomi.extension.model.Extension.Installed -> ext.sources.any { it.id == this.id } }!!
+    val sourceUsed = Injekt.get<ExtensionManager>().installedExtensionsFlow.value
+        .find { it.sources.any { s -> s.id == this.id } } ?: return false
     return sourceUsed.isTorrent
 }
 // <-- (TORRENT)

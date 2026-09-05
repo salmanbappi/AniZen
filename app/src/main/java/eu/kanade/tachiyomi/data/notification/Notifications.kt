@@ -77,6 +77,12 @@ object Notifications {
     const val CHANNEL_TORRENT_SERVER = "torrent_server_channel"
     const val ID_TORRENT_SERVER = -801
 
+    /**
+     * Notification channel and ids used for extension http server
+     */
+    const val CHANNEL_HTTP_SERVER = "http_server_channel"
+    const val ID_HTTP_SERVER = -901
+
     // AM (DISCORD) -->
     /**
      * Notification channel used for Discord RPC
@@ -195,6 +201,10 @@ object Notifications {
                 },
                 buildNotificationChannel(CHANNEL_TORRENT_SERVER, IMPORTANCE_LOW) {
                     setName("Torrent server")
+                    setShowBadge(false)
+                },
+                buildNotificationChannel(CHANNEL_HTTP_SERVER, IMPORTANCE_LOW) {
+                    setName("Extension HTTP server")
                     setShowBadge(false)
                 },
                 // AM (DISCORD) -->

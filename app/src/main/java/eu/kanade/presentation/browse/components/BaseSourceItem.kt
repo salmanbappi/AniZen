@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,6 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,6 +31,8 @@ import eu.kanade.presentation.browse.SourceUiModel
 import eu.kanade.tachiyomi.network.model.NodeStatus
 import tachiyomi.domain.source.model.Source
 import tachiyomi.presentation.core.components.material.padding
+import tachiyomi.presentation.core.icons.CustomIcons
+import tachiyomi.presentation.core.icons.Magnet
 import tachiyomi.presentation.core.util.secondaryItemAlpha
 
 @Composable
@@ -57,13 +65,21 @@ private val defaultContent: @Composable RowScope.(SourceUiModel.Item) -> Unit = 
             .padding(horizontal = MaterialTheme.padding.medium)
             .weight(1f),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (item.isTorrent) {
+                Icon(
+                    imageVector = CustomIcons.Magnet,
+                    contentDescription = "(Torrent)",
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+
             Text(
                 text = item.displayName,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier.weight(1f, fill = false),
             )
 
             
@@ -129,3 +145,6 @@ private fun StatusBadge(text: String, color: Color) {
         )
     }
 }
+
+private const val TORRENT_ICON = "torrentIcon"
+

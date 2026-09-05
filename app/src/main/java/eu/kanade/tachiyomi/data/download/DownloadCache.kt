@@ -48,6 +48,7 @@ import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.domain.episode.service.EpisodeRecognition
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
 import uy.kohesive.injekt.Injekt
@@ -139,10 +140,11 @@ class DownloadCache(
         animeTitle: String,
         sourceId: Long,
         skipCache: Boolean,
+        episodeNumber: Double = -1.0,
     ): Boolean {
         if (skipCache) {
             val source = sourceManager.getOrStub(sourceId)
-            return provider.findEpisodeDir(episodeName, episodeScanlator, animeTitle, source) != null
+            return provider.findEpisodeDir(episodeName, episodeScanlator, animeTitle, source, episodeNumber) != null
         }
 
         renewCache()
@@ -151,10 +153,24 @@ class DownloadCache(
         if (sourceDir != null) {
             val animeDir = sourceDir.animeDirs[provider.getAnimeDirName(animeTitle)]
             if (animeDir != null) {
-                return provider.getValidEpisodeDirNames(
+                val matched = provider.getValidEpisodeDirNames(
                     episodeName,
                     episodeScanlator,
                 ).any { it in animeDir.episodeDirs }
+                if (matched) return true
+
+                if (episodeNumber >= 0.0) {
+                    return animeDir.episodeDirs.any { dirName ->
+                        if (!episodeScanlator.isNullOrBlank()) {
+                            val parsedScanlator = dirName.substringBefore('_', "")
+                            if (parsedScanlator.isNotBlank() && !parsedScanlator.equals(episodeScanlator, ignoreCase = true)) {
+                                return@any false
+                            }
+                        }
+                        val parsedNum = EpisodeRecognition.parseEpisodeNumber(animeTitle, dirName)
+                        parsedNum == episodeNumber
+                    }
+                }
             }
         }
         return false
@@ -397,13 +413,18 @@ class DownloadCache(
                                     when {
                                         // Ignore incomplete downloads
                                         it.name?.endsWith(Downloader.TMP_DIR_SUFFIX) == true -> null
-                                        // MP4 files
-                                        it.isFile && it.extension == "mp4" -> it.nameWithoutExtension
-                                        // MKV files
-                                        it.isFile && it.extension == "mkv" -> it.nameWithoutExtension
-                                        // Folder of videos
-                                        it.isDirectory -> it.name
-                                        // Anything else is irrelevant
+                                        // A file/folder counts only when it contains a realistically sized video.
+                                        // Failed external handoffs leave empty folders; misclassified HLS responses
+                                        // can leave tiny playlist text files carrying an MP4/MKV extension.
+                                        it.isFile &&
+                                            it.extension?.lowercase() in setOf("mp4", "mkv") &&
+                                            it.length() >= MIN_VALID_VIDEO_BYTES -> it.nameWithoutExtension
+                                        it.isDirectory && it.listFiles().orEmpty().any { child ->
+                                            child.isFile &&
+                                                child.extension?.lowercase() in setOf("mp4", "mkv") &&
+                                                child.length() >= MIN_VALID_VIDEO_BYTES
+                                        } -> it.name
+                                        // Anything else is incomplete/irrelevant
                                         else -> null
                                     }
                                 }
@@ -464,6 +485,8 @@ class DownloadCache(
         }
     }
 }
+
+private const val MIN_VALID_VIDEO_BYTES = 1024L * 1024L
 
 /**
  * Class to store the files under the root downloads directory.

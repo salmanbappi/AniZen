@@ -17,6 +17,7 @@ sealed interface SourceUiModel {
         val isStub: Boolean,
         val secondaryText: String,
         val displayName: String,
+        val isTorrent: Boolean = false,
     ) : SourceUiModel
 
     @Immutable

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.ViewWeek
 import mihon.feature.airingschedule.components.calendar.ScheduleMonthView
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -39,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -62,13 +65,8 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
-import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.NavItem
-import eu.kanade.tachiyomi.ui.more.MoreTab
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
+import eu.kanade.tachiyomi.ui.updates.UpdatesTab
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
 import java.time.DayOfWeek
@@ -87,6 +85,13 @@ private val orderedDays = listOf(
     DayOfWeek.SATURDAY,
     DayOfWeek.SUNDAY,
 )
+
+// Progressive first-fill of a day's list: when a day goes from empty to having entries (e.g.
+// the first AniList page landing during a cold open), the first screenful is revealed a few
+// rows per frame instead of composing everything in one shot. Everything below that window
+// is left to LazyColumn's normal virtualization, so memory/composition cost stays flat.
+private const val DAY_REVEAL_ROW_CAP = 18
+private const val DAY_REVEAL_ROWS_PER_FRAME = 2
 
 data object AiringScheduleTab : Tab {
 
@@ -107,12 +112,6 @@ data object AiringScheduleTab : Tab {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val tabNavigator = LocalTabNavigator.current
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val bottomNavTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
-        val isTabInBottomBar = remember(bottomNavTabs) {
-            val visibleNavItems = bottomNavTabs.mapNotNull { id -> NavItem.fromId(id) }.filter { it.tab.isEnabled() }
-            visibleNavItems.any { it.tab::class == AiringScheduleTab::class }
-        }
         val screenModel = rememberScreenModel { AiringScheduleScreenModel() }
         val state by screenModel.state.collectAsState()
         val scope = rememberCoroutineScope()
@@ -130,13 +129,11 @@ data object AiringScheduleTab : Tab {
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        if (!isTabInBottomBar) {
-                            IconButton(onClick = { tabNavigator.current = MoreTab }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                    contentDescription = stringResource(MR.strings.action_bar_up_description),
-                                )
-                            }
+                        IconButton(onClick = { tabNavigator.current = UpdatesTab }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = stringResource(MR.strings.action_bar_up_description),
+                            )
                         }
                     },
                     title = {
@@ -231,6 +228,7 @@ data object AiringScheduleTab : Tab {
                         val entries = state.scheduleByDay[day] ?: emptyList()
                         ScheduleDayContent(
                             entries = entries,
+                            isRefreshing = state.isRefreshing,
                             titleLanguage = state.titleLanguage,
                             sourceDelays = state.sourceDelays,
                             manualDelayMinutes = state.manualDelayMinutes,
@@ -350,6 +348,7 @@ private fun ScheduleDayTabRow(
 @Composable
 private fun ScheduleDayContent(
     entries: List<AiringScheduleEntry>,
+    isRefreshing: Boolean,
     titleLanguage: SchedulePreferences.TitleLanguage,
     sourceDelays: Map<String, Long>,
     manualDelayMinutes: Long?,
@@ -366,7 +365,19 @@ private fun ScheduleDayContent(
     onToggleNotifySeries: (AiringScheduleEntry) -> Unit,
 ) {
     if (entries.isEmpty()) {
-        EmptyScreen(stringRes = tachiyomi.i18n.MR.strings.information_no_airing_today)
+        if (isRefreshing) {
+            // The cold (first-ever) load is still streaming AniList pages in — this day's rows
+            // simply haven't arrived yet, so show a lightweight placeholder instead of falsely
+            // claiming "nothing airs today".
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(28.dp))
+            }
+        } else {
+            EmptyScreen(stringRes = tachiyomi.i18n.MR.strings.information_no_airing_today)
+        }
         return
     }
 
@@ -379,12 +390,36 @@ private fun ScheduleDayContent(
     }
 
     val listState = rememberLazyListState()
+
+    // Progressive first-fill: reveal the first screenful a few rows per frame the first time
+    // this day receives entries, then hand the rest over to normal lazy composition. The
+    // remember state lives below the empty early-return above, so it is automatically
+    // disposed and reset whenever the day goes empty (e.g. a filter change) — only a fresh
+    // empty -> non-empty transition re-triggers the reveal, never a same-day list swap.
+    var revealPending by remember { mutableStateOf(true) }
+    var revealedCount by remember { mutableStateOf(0) }
+    LaunchedEffect(entries.size) {
+        if (revealPending) {
+            val cap = minOf(entries.size, DAY_REVEAL_ROW_CAP)
+            while (revealedCount < cap) {
+                revealedCount += DAY_REVEAL_ROWS_PER_FRAME
+                withFrameNanos { }
+            }
+            revealPending = false
+        }
+    }
+    val visibleEntries = if (revealPending) {
+        entries.take(revealedCount.coerceIn(0, entries.size))
+    } else {
+        entries
+    }
+
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(vertical = 8.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(items = entries, key = { it.scheduleId }) { entry ->
+        items(items = visibleEntries, key = { it.scheduleId }) { entry ->
             val mediaKey = entry.mediaId.toString()
             val notifyState = when {
                 mediaKey in notifySeriesMediaIds -> BellNotifyState.SERIES
@@ -402,6 +437,7 @@ private fun ScheduleDayContent(
                 candidateKeys.any { it in libraryAnimeTitles }
             }
             ScheduleAnimeCard(
+                modifier = Modifier.animateItem(),
                 entry = entry,
                 titleLanguage = titleLanguage,
                 sourceDelays = sourceDelays,

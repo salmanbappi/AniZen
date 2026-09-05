@@ -138,7 +138,10 @@ private fun FolderPreviewCover(item: LibraryItem, usePanorama: Boolean) {
         data = anime,
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(4.dp),
-        shouldExtractColor = true,
+        // Folder tiles are library items too: no palette extraction while scrolling. The
+        // entry is chosen from the caller's flag, so no measured ratio is needed either.
+        shouldExtractColor = false,
+        measureRatio = false,
         ratio = coverEntry.ratio,
     )
 }

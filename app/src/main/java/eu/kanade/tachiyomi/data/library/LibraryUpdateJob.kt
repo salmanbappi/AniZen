@@ -482,22 +482,35 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val source = sourceManager.getOrStub(anime.source)
 
         // Update anime metadata if needed
-        if (libraryPreferences.autoUpdateMetadata.get()) {
-            val networkAnime = source.getAnimeDetails(anime.toSAnime())
-            updateAnime.awaitUpdateFromSource(anime, networkAnime, manualFetch = false, coverCache)
-        }
+        val fetchDetails = libraryPreferences.autoUpdateMetadata.get()
 
         val dbAnime = getAnime.await(anime.id)?.takeIf { it.favorite } ?: return emptyList()
 
         if (dbAnime.fetchType == FetchType.Seasons) {
-            val seasons = source.getSeasonList(dbAnime.toSAnime())
-            syncSeasonsWithSource.await(seasons, dbAnime, source, false, fetchWindow)
+            val seasonUpdate = source.getAnimeSeasonUpdate(
+                anime = dbAnime.toSAnime(),
+                seasons = emptyList(),
+                fetchDetails = fetchDetails,
+                fetchSeasons = true,
+            )
+            if (fetchDetails) {
+                updateAnime.awaitUpdateFromSource(dbAnime, seasonUpdate.anime, manualFetch = false, coverCache)
+            }
+            syncSeasonsWithSource.await(seasonUpdate.seasons, dbAnime, source, false, fetchWindow)
             return emptyList()
         }
 
-        val episodes = source.getEpisodeList(anime.toSAnime())
+        val episodeUpdate = source.getAnimeEpisodeUpdate(
+            anime = anime.toSAnime(),
+            episodes = emptyList(),
+            fetchDetails = fetchDetails,
+            fetchEpisodes = true,
+        )
+        if (fetchDetails) {
+            updateAnime.awaitUpdateFromSource(anime, episodeUpdate.anime, manualFetch = false, coverCache)
+        }
 
-        return syncEpisodesWithSource.await(episodes, dbAnime, source, false, fetchWindow)
+        return syncEpisodesWithSource.await(episodeUpdate.episodes, dbAnime, source, false, fetchWindow)
     }
 
     private suspend fun withUpdateNotification(

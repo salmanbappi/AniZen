@@ -22,7 +22,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import eu.kanade.tachiyomi.animesource.AnimeSource
+import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.torrentServer.service.TorrentServerService
 import eu.kanade.tachiyomi.network.HttpException
@@ -478,8 +480,10 @@ class Downloader(
     private fun detectEngineType(video: Video): String {
         return when {
             video.videoUrl.startsWith("magnet") || video.videoUrl.endsWith(".torrent") -> "Torrent"
-            video.videoUrl.contains(".m3u8") || 
-            video.videoUrl.contains("/oppai/") || 
+            video.videoUrl.contains(".m3u8", ignoreCase = true) ||
+            // Hanime's signed HLS endpoint is extensionless: /hls/{id}/{token}
+            video.videoUrl.contains("/hls/", ignoreCase = true) ||
+            video.videoUrl.contains("/oppai/") ||
             video.videoUrl.contains("/proxy/oppai/") -> "HLS"
             video.videoUrl.contains(".mpd") || 
             (video.videoUrl.contains("/playback/") && !video.videoUrl.contains(".mp4")) || 
@@ -535,8 +539,13 @@ class Downloader(
             download.status = Download.State.DOWNLOADING
             notifyProgress(download)
             val video = retry {
-                download.video ?: run {
-                    val hosters = EpisodeLoader.getHosters(download.episode, download.anime, download.source as AnimeSource)
+                download.video?.takeIf { it.videoUrl.isRemote() } ?: run {
+                    val hosters = EpisodeLoader.getHosters(
+                        download.episode,
+                        download.anime,
+                        download.source as AnimeSource,
+                        allowDownloaded = false,
+                    )
                     val defaultSelector = eu.kanade.tachiyomi.ui.player.utils.DefaultStreamPreferenceStore(
                         Injekt.get<eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences>()
                     ).getEffectiveSelector(download.anime.id)
@@ -547,35 +556,59 @@ class Downloader(
                     } ?: HosterLoader.getBestVideo(download.source as AnimeSource, hosters)
                 } ?: throw Exception(context.stringResource(MR.strings.video_list_empty_error))
             }.also { download.video = it }
-            
-            // Pro-Active: Set engine type early for UI and logic
-            if (download.engineType.isBlank()) {
-                download.engineType = detectEngineType(video)
-            }
 
-            // Check again for cancellation after slow network call
-            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-
-            // Download soft subtitles EARLY and make them NON-FATAL
+            var downloadHttpServer: HttpServer? = null
             try {
-                downloadSubtitles(video, sandboxDir, videoFilename)
-            } catch (e: Exception) {
-                logcat(LogPriority.WARN, e) { "Subtitles failed but continuing download: ${e.message}" }
-            }
+                if (video.usesHttpServer() && download.source is AnimeHttpSource) {
+                    val httpSource = download.source as AnimeHttpSource
+                    val port = httpSource.createHttpServer()?.let { server ->
+                        downloadHttpServer = server
+                        server.start()
+                        server.listeningPort
+                    } ?: 0
+                    if (port > 0) {
+                        val rewritten = video.copyHttpServer(port)
+                        download.video = rewritten
+                    }
+                }
 
-            if (download.changeDownloader) {
-                val success = externalDownload(download, animeDir, episodeDirname)
-                if (success) return else throw Exception("Could not open external downloader")
-            }
+                val effectiveVideo = download.video ?: video
 
-            val videoFile = when (download.engineType) {
-                "Torrent" -> torrentDownload(download, sandboxDir, videoFilename)
-                "HLS" -> nativeHlsDownload(download, sandboxDir, videoFilename)
-                "DASH" -> UniFile.fromFile(nativeDashMuxDownload(download, sandboxDir, videoFilename))!!
-                else -> internalDownload(download, sandboxDir, videoFilename)
-            }
+                // Recompute after every resolution. A restored/retried download may retain an
+                // engine selected for an old URL (for example, Normal before a Hanime HLS URL).
+                download.engineType = detectEngineType(effectiveVideo)
 
-            finalizeDownload(download, videoFile, animeDir, episodeDirname)
+                // Check again for cancellation after slow network call
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+
+                // Download soft subtitles EARLY and make them NON-FATAL
+                try {
+                    downloadSubtitles(effectiveVideo, sandboxDir, videoFilename)
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN, e) { "Subtitles failed but continuing download: ${e.message}" }
+                }
+
+                if (download.changeDownloader) {
+                    val success = externalDownload(download, animeDir, episodeDirname)
+                    if (success) return else throw Exception("Could not open external downloader")
+                }
+
+                val videoFile = when (download.engineType) {
+                    "Torrent" -> torrentDownload(download, sandboxDir, videoFilename)
+                    "HLS" -> nativeHlsDownload(download, sandboxDir, videoFilename)
+                    "DASH" -> UniFile.fromFile(nativeDashMuxDownload(download, sandboxDir, videoFilename))!!
+                    else -> internalDownload(download, sandboxDir, videoFilename)
+                }
+
+                if (videoFile.length() <= 0L) {
+                    videoFile.delete()
+                    throw IOException("Downloaded video is empty")
+                }
+
+                finalizeDownload(download, videoFile, animeDir, episodeDirname)
+            } finally {
+                downloadHttpServer?.stop()
+            }
             
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Download failed" }
@@ -773,9 +806,12 @@ class Downloader(
     private suspend fun internalDownload(download: Download, sandboxDir: File, filename: String): UniFile {
         val video = download.video!!
         
-        // Scheme Validation: OkHttp only supports http/https
+        // Scheme Validation: this engine fetches over OkHttp, so only http(s) is usable. A local
+        // URI here means the video resolved to an existing download instead of the source's stream.
         if (!video.videoUrl.startsWith("http", ignoreCase = true)) {
-            throw IllegalArgumentException("Unsupported URL scheme: ${video.videoUrl.substringBefore(":")}")
+            throw IllegalArgumentException(
+                "Cannot download from non-HTTP URL (scheme: ${video.videoUrl.substringBefore(":")})",
+            )
         }
 
         val client = networkHelper.downloadClient
@@ -956,6 +992,9 @@ class Downloader(
             val playlistRes = client.newCall(Request.Builder().url(playlistUrl).headers(headers).build()).execute()
             if (!playlistRes.isSuccessful) throw IOException("Failed to fetch playlist: ${playlistRes.code}")
             lines = playlistRes.body?.string()?.lines() ?: emptyList()
+            if (lines.none { it.trimStart().startsWith("#EXTM3U") }) {
+                throw IOException("Hanime returned an invalid HLS playlist")
+            }
 
             val isMaster = lines.any { it.startsWith("#EXT-X-STREAM-INF") }
             if (isMaster) {
@@ -1100,7 +1139,8 @@ class Downloader(
             val episodeName = download.episode.name
             val filename = DiskUtil.buildValidFilename("$animeTitle - $episodeName") + ".mp4"
 
-            // Create the episode directory so external downloader can save inside it
+            // Preserve the external downloader's per-episode target directory. The download cache
+            // now ignores this directory until it actually contains a video file.
             val episodeDir = animeDir.createDirectory(episodeDirname)
             val dirPath = episodeDir?.filePath ?: animeDir.filePath
 
@@ -1202,8 +1242,9 @@ class Downloader(
                 context.startActivity(chooser)
             }
             
-            // Explicitly remove from queue after successful handoff
-            download.status = Download.State.DOWNLOADED
+            // A successful intent handoff is not a completed Anizen download. The external app has
+            // only accepted the request, so do not show a downloaded checkmark or cache an empty dir.
+            download.status = Download.State.NOT_DOWNLOADED
             _queueState.update { it - download }
             store.remove(download)
             notifier.dismissProgress(download)
@@ -1451,6 +1492,17 @@ class Downloader(
 }
 
 private const val MIN_DISK_SPACE = 200L * 1024 * 1024
+
+/**
+ * Schemes the download engines can actually fetch. `content://` and `file://` URIs point at a
+ * local copy (produced by [DownloadManager.buildVideo] for already-downloaded episodes) and are
+ * never valid download inputs.
+ */
+internal fun String.isRemote(): Boolean {
+    return startsWith("http", ignoreCase = true) ||
+        startsWith("magnet:", ignoreCase = true) ||
+        endsWith(".torrent", ignoreCase = true)
+}
 
 object BufferPool {
     private val pool = java.util.concurrent.ArrayBlockingQueue<ByteArray>(128)

@@ -53,13 +53,22 @@ class ScheduleDataRefreshWorker(
                 .toLocalDate().atStartOfDay(zone)
             val weekEnd = weekStart.plusDays(7).minusSeconds(1)
 
-            val entries = repository.getWeeklySchedule(
-                weekStart.toEpochSecond(),
-                weekEnd.toEpochSecond(),
+            // Optimize schedule window:
+            // - Past: 1 week past release date (7 days ago, or start of current week, whichever is earlier)
+            // - Future: Focus on upcoming release dates (rolling 30 days ahead from today)
+            val pastWeekStart = now.minusDays(7).toLocalDate().atStartOfDay(zone)
+            val fetchStart = if (weekStart.isBefore(pastWeekStart)) weekStart else pastWeekStart
+            val fetchEnd = now.plusDays(30).toLocalDate().atTime(23, 59, 59).atZone(zone).let {
+                if (weekEnd.isAfter(it)) weekEnd else it
+            }
+
+            val entries = repository.getSchedule(
+                fetchStart.toEpochSecond(),
+                fetchEnd.toEpochSecond(),
                 includeAdult = includeAdult,
             )
 
-            writeCache(context, weekStart.toEpochSecond(), entries)
+            writeCache(context, fetchStart.toEpochSecond(), entries)
 
             // Re-arm alarms for any anime the user subscribed to "notify every episode" for.
             // Series alarms are only ever scheduled from whichever week is currently loaded in
@@ -151,13 +160,14 @@ class ScheduleDataRefreshWorker(
          * can be used as a fallback if a later refresh attempt fails. Safe to call regardless of
          * whether auto-refresh is enabled. Also syncs upcoming exact air times to matched library anime.
          */
-        suspend fun writeCache(context: Context, weekStartEpoch: Long, entries: List<AiringScheduleEntry>) =
+        suspend fun writeCache(context: Context, monthStartEpoch: Long, entries: List<AiringScheduleEntry>) =
             withContext(Dispatchers.IO) {
                 if (entries.isEmpty()) return@withContext
                 try {
                     val cacheData = ScheduleCacheData(
                         fetchedAt = System.currentTimeMillis(),
-                        weekStartEpoch = weekStartEpoch,
+                        weekStartEpoch = monthStartEpoch,
+                        monthStartEpoch = monthStartEpoch,
                         entries = entries,
                     )
                     inMemoryCache = cacheData
@@ -252,6 +262,7 @@ class ScheduleDataRefreshWorker(
 @Serializable
 data class ScheduleCacheData(
     val fetchedAt: Long,
-    val weekStartEpoch: Long,
+    val weekStartEpoch: Long = 0L,
+    val monthStartEpoch: Long = 0L,
     val entries: List<AiringScheduleEntry>,
 )

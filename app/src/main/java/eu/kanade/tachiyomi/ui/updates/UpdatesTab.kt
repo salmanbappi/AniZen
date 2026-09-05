@@ -118,6 +118,7 @@ data object UpdatesTab : Tab {
                     )
                 }
             },
+            onOpenSchedule = { tabNavigator.current = AiringScheduleTab },
             navigateUp = navigateUp,
         )
 
