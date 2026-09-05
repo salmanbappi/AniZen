@@ -23,6 +23,7 @@ import okhttp3.Response
 import rx.Observable
 import tachiyomi.core.common.util.lang.awaitSingle
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import eu.kanade.tachiyomi.animesource.model.ThumbnailInfo
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -582,8 +583,17 @@ abstract class AnimeHttpSource : AnimeCatalogueSource {
         return null
     }
 
+    /**
+     * Fetch and decode an image tile used by the thumbnail preview.
+     *
+     * Extensions may override this when tile requests require custom headers,
+     * authentication, or a non-standard response format.
+     */
     open suspend fun getImageTile(url: String): Bitmap? {
-        return null
+        return client.newCall(GET(url, headers)).execute().use { response ->
+            if (!response.isSuccessful) return@use null
+            response.body.byteStream().use { BitmapFactory.decodeStream(it) }
+        }
     }
 
     /**
