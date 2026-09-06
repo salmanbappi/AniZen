@@ -32,6 +32,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -64,6 +65,8 @@ import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
+import eu.kanade.tachiyomi.ui.player.execute
+import eu.kanade.tachiyomi.ui.player.executeLongPress
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapToSeekOvals
 import eu.kanade.tachiyomi.ui.player.Sheets
 import eu.kanade.tachiyomi.ui.player.VideoAspect
@@ -224,7 +227,7 @@ fun PlayerControls(
                     unlockControlsButton,
                     bottomRightControls, bottomLeftControls,
                     centerControls, seekbar, playerUpdates,
-                    portraitBottomBar, thumbnail, skipIntroPrompt,
+                    portraitBottomBar, thumbnail, playerPrompt,
                 ) = createRefs()
 
                 val hasPreviousEpisode by viewModel.hasPreviousEpisode.collectAsState()
@@ -437,7 +440,7 @@ fun PlayerControls(
                         } else {
                             bottom.linkTo(portraitBottomBar.top)
                         }
-                    },
+                    }.offset(y = spacing.medium),
                 ) {
                     val invertDuration by playerPreferences.invertDuration().collectAsState()
                     val readAhead by viewModel.readAhead.collectAsState()
@@ -504,16 +507,18 @@ fun PlayerControls(
                     )
                 }
 
-                // Skip intro prompt, right-aligned above the seekbar
+                // Skip intro prompt / custom action button, right-aligned above the seekbar
                 val skipIntroButton by viewModel.skipIntroText.collectAsState()
+                val customButtonTitle by viewModel.primaryButtonTitle.collectAsState()
                 AnimatedVisibility(
-                    visible = skipIntroButton != null && controlsShown && !areControlsLocked && !isLongPressing && !isSeekingUI,
+                    visible = controlsShown && !areControlsLocked && !isLongPressing && !isSeekingUI &&
+                        (skipIntroButton != null || (customButton != null && customButtonTitle.isNotEmpty())),
                     enter = fadeIn(playerControlsEnterAnimationSpec()),
                     exit = fadeOut(playerControlsExitAnimationSpec()),
-                    modifier = Modifier.constrainAs(skipIntroPrompt) {
+                    modifier = Modifier.constrainAs(playerPrompt) {
                         bottom.linkTo(seekbar.top, spacing.small)
                         end.linkTo(seekbar.end)
-                    },
+                    }.offset(y = spacing.medium),
                 ) {
                     val skipIntroLabel = skipIntroButton
                     if (skipIntroLabel != null) {
@@ -522,6 +527,15 @@ fun PlayerControls(
                             onClick = viewModel::onSkipIntro,
                             onLongClick = viewModel::onSkipIntro,
                         )
+                    } else {
+                        val actionButton = customButton
+                        if (actionButton != null && customButtonTitle.isNotEmpty()) {
+                            FilledControlsButton(
+                                text = customButtonTitle,
+                                onClick = { actionButton.execute() },
+                                onLongClick = { actionButton.executeLongPress() },
+                            )
+                        }
                     }
                 }
                 val mediaTitle by viewModel.mediaTitle.collectAsState()
