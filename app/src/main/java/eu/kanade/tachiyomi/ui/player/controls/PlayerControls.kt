@@ -431,7 +431,11 @@ fun PlayerControls(
                         fadeOut(playerControlsExitAnimationSpec())
                     },
                     modifier = Modifier.constrainAs(seekbar) {
-                        bottom.linkTo(parent.bottom, spacing.medium)
+                        if (isLandscape) {
+                            bottom.linkTo(bottomLeftControls.top, spacing.small)
+                        } else {
+                            bottom.linkTo(portraitBottomBar.top, spacing.small)
+                        }
                     },
                 ) {
                     val invertDuration by playerPreferences.invertDuration().collectAsState()
@@ -565,7 +569,7 @@ fun PlayerControls(
                     enter = fadeIn(),
                     exit = fadeOut(),
                     modifier = Modifier.constrainAs(portraitBottomBar) {
-                        bottom.linkTo(seekbar.top, spacing.medium)
+                        bottom.linkTo(parent.bottom, spacing.medium)
                         start.linkTo(parent.start)
                         end.linkTo(parent.end)
                         width = Dimension.fillToConstraints
@@ -607,7 +611,7 @@ fun PlayerControls(
                         fadeOut(playerControlsExitAnimationSpec())
                     },
                     modifier = Modifier.constrainAs(bottomRightControls) {
-                        bottom.linkTo(seekbar.top)
+                        bottom.linkTo(parent.bottom, spacing.medium)
                         end.linkTo(seekbar.end)
                     },
                 ) {
@@ -635,7 +639,7 @@ fun PlayerControls(
                         fadeOut(playerControlsExitAnimationSpec())
                     },
                     modifier = Modifier.constrainAs(bottomLeftControls) {
-                        bottom.linkTo(seekbar.top)
+                        bottom.linkTo(parent.bottom, spacing.medium)
                         start.linkTo(seekbar.start)
                         width = Dimension.fillToConstraints
                         end.linkTo(bottomRightControls.start)
