@@ -72,6 +72,7 @@ import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessOverlay
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessSlider
 import eu.kanade.tachiyomi.ui.player.controls.components.ControlsButton
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleSpeedPlayerUpdate
+import eu.kanade.tachiyomi.ui.player.controls.components.FilledControlsButton
 import eu.kanade.tachiyomi.ui.player.controls.components.SeekbarWithTimers
 import eu.kanade.tachiyomi.ui.player.controls.components.ThumbnailPreview
 import eu.kanade.tachiyomi.ui.player.controls.components.TextPlayerUpdate
@@ -223,7 +224,7 @@ fun PlayerControls(
                     unlockControlsButton,
                     bottomRightControls, bottomLeftControls,
                     centerControls, seekbar, playerUpdates,
-                    portraitBottomBar, thumbnail,
+                    portraitBottomBar, thumbnail, skipIntroPrompt,
                 ) = createRefs()
 
                 val hasPreviousEpisode by viewModel.hasPreviousEpisode.collectAsState()
@@ -432,9 +433,9 @@ fun PlayerControls(
                     },
                     modifier = Modifier.constrainAs(seekbar) {
                         if (isLandscape) {
-                            bottom.linkTo(bottomLeftControls.top, spacing.small)
+                            bottom.linkTo(bottomLeftControls.top)
                         } else {
-                            bottom.linkTo(portraitBottomBar.top, spacing.small)
+                            bottom.linkTo(portraitBottomBar.top)
                         }
                     },
                 ) {
@@ -501,6 +502,27 @@ fun PlayerControls(
                         positionTimerOnClick = {},
                         chapters = chaptersList,
                     )
+                }
+
+                // Skip intro prompt, right-aligned above the seekbar
+                val skipIntroButton by viewModel.skipIntroText.collectAsState()
+                AnimatedVisibility(
+                    visible = skipIntroButton != null && controlsShown && !areControlsLocked && !isLongPressing && !isSeekingUI,
+                    enter = fadeIn(playerControlsEnterAnimationSpec()),
+                    exit = fadeOut(playerControlsExitAnimationSpec()),
+                    modifier = Modifier.constrainAs(skipIntroPrompt) {
+                        bottom.linkTo(seekbar.top, spacing.small)
+                        end.linkTo(seekbar.end)
+                    },
+                ) {
+                    val skipIntroLabel = skipIntroButton
+                    if (skipIntroLabel != null) {
+                        FilledControlsButton(
+                            text = skipIntroLabel,
+                            onClick = viewModel::onSkipIntro,
+                            onLongClick = viewModel::onSkipIntro,
+                        )
+                    }
                 }
                 val mediaTitle by viewModel.mediaTitle.collectAsState()
                 val animeTitle by viewModel.animeTitle.collectAsState()
@@ -589,7 +611,6 @@ fun PlayerControls(
                                 castManager = castManager,
                                 onBackPress = onBackPress,
                                 onCastClick = { showCastSheet = true },
-                                containerButtons = portraitBottomButtonsList,
                             )
                         }
                     }

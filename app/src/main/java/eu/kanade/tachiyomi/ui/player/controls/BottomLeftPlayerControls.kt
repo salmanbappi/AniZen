@@ -46,7 +46,6 @@ fun BottomLeftPlayerControls(
                 castManager = castManager,
                 onBackPress = onBackPress,
                 onCastClick = onCastClick,
-                containerButtons = buttons,
             )
         }
     }

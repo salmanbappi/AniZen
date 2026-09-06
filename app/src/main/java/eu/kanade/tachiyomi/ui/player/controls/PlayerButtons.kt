@@ -81,7 +81,6 @@ fun RenderPlayerButton(
     castManager: CastManager,
     onBackPress: () -> Unit,
     onCastClick: () -> Unit,
-    containerButtons: List<PlayerButton> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val autoPlayEnabled by viewModel.playerPreferences.autoplayEnabled().collectAsState()
@@ -91,10 +90,8 @@ fun RenderPlayerButton(
     val videoZoom by viewModel.videoZoom.collectAsState()
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val currentChapter by viewModel.currentChapter.collectAsState()
-    val skipIntroButton by viewModel.skipIntroText.collectAsState()
     val customButtonTitle by viewModel.primaryButtonTitle.collectAsState()
     val customButton by viewModel.primaryButton.collectAsState()
-    val hasSkipIntroInLayout = containerButtons.contains(PlayerButton.SkipIntro)
 
     when (button) {
         PlayerButton.BackArrow -> {
@@ -292,25 +289,10 @@ fun RenderPlayerButton(
                 )
             }
         }
-        PlayerButton.SkipIntro -> {
-            if (skipIntroButton != null) {
-                FilledControlsButton(
-                    text = skipIntroButton!!,
-                    onClick = viewModel::onSkipIntro,
-                    onLongClick = viewModel::onSkipIntro,
-                )
-            }
-        }
+        // The skip intro prompt is rendered above the seekbar in PlayerControls
+        PlayerButton.SkipIntro -> Unit
         PlayerButton.CustomButton -> {
-            if (skipIntroButton != null) {
-                if (!hasSkipIntroInLayout) {
-                    FilledControlsButton(
-                        text = skipIntroButton!!,
-                        onClick = viewModel::onSkipIntro,
-                        onLongClick = viewModel::onSkipIntro,
-                    )
-                }
-            } else if (customButton != null && customButtonTitle != null) {
+            if (customButton != null && customButtonTitle != null) {
                 FilledControlsButton(
                     text = customButtonTitle!!,
                     onClick = { customButton!!.execute() },
