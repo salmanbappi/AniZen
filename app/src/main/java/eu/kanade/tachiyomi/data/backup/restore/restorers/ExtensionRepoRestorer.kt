@@ -33,6 +33,8 @@ class ExtensionRepoRestorer(
                     fingerprint = backupRepo.signingKeyFingerprint,
                     is_visible = backupRepo.isVisible,
                     author = backupRepo.author,
+                    discord = backupRepo.discord,
+                    icon = backupRepo.icon,
                 )
             }
         }

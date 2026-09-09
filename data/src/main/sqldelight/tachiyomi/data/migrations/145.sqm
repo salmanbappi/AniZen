@@ -1,0 +1,5 @@
+-- Extension repos: add Discord invite URL and optional repo icon URL columns.
+-- Discord powers the Discord button on the Extension repos screen; icon lets a
+-- repo provide its own artwork (falls back to the bundled fingerprint icon).
+ALTER TABLE extension_repos ADD COLUMN discord TEXT;
+ALTER TABLE extension_repos ADD COLUMN icon TEXT;

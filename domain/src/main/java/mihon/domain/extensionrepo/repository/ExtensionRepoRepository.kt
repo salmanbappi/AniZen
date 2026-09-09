@@ -23,6 +23,8 @@ interface ExtensionRepoRepository {
         signingKeyFingerprint: String,
         isVisible: Boolean,
         author: String? = null,
+        discord: String? = null,
+        icon: String? = null,
     )
 
     suspend fun upsertRepo(
@@ -33,6 +35,8 @@ interface ExtensionRepoRepository {
         signingKeyFingerprint: String,
         isVisible: Boolean,
         author: String? = null,
+        discord: String? = null,
+        icon: String? = null,
     )
 
     suspend fun upsertRepo(repo: ExtensionRepo) {
@@ -44,6 +48,8 @@ interface ExtensionRepoRepository {
             signingKeyFingerprint = repo.signingKeyFingerprint,
             isVisible = repo.isVisible,
             author = repo.author,
+            discord = repo.discord,
+            icon = repo.icon,
         )
     }
 

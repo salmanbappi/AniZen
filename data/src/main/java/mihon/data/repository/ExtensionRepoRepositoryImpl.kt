@@ -41,9 +41,23 @@ class ExtensionRepoRepositoryImpl(
         signingKeyFingerprint: String,
         isVisible: Boolean,
         author: String?,
+        discord: String?,
+        icon: String?,
     ) {
         try {
-            handler.await { extension_reposQueries.insert(baseUrl, name, shortName, website, signingKeyFingerprint, isVisible, author) }
+            handler.await {
+                extension_reposQueries.insert(
+                    baseUrl,
+                    name,
+                    shortName,
+                    website,
+                    signingKeyFingerprint,
+                    isVisible,
+                    author,
+                    discord,
+                    icon,
+                )
+            }
         } catch (ex: SQLiteException) {
             throw SaveExtensionRepoException(ex)
         }
@@ -57,9 +71,23 @@ class ExtensionRepoRepositoryImpl(
         signingKeyFingerprint: String,
         isVisible: Boolean,
         author: String?,
+        discord: String?,
+        icon: String?,
     ) {
         try {
-            handler.await { extension_reposQueries.upsert(baseUrl, name, shortName, website, signingKeyFingerprint, isVisible, author) }
+            handler.await {
+                extension_reposQueries.upsert(
+                    baseUrl,
+                    name,
+                    shortName,
+                    website,
+                    signingKeyFingerprint,
+                    isVisible,
+                    author,
+                    discord,
+                    icon,
+                )
+            }
         } catch (ex: SQLiteException) {
             throw SaveExtensionRepoException(ex)
         }
@@ -75,6 +103,8 @@ class ExtensionRepoRepositoryImpl(
                 newRepo.signingKeyFingerprint,
                 newRepo.isVisible,
                 newRepo.author,
+                newRepo.discord,
+                newRepo.icon,
             )
         }
     }
@@ -95,6 +125,8 @@ class ExtensionRepoRepositoryImpl(
         signingKeyFingerprint: String,
         isVisible: Boolean,
         author: String?,
+        discord: String?,
+        icon: String?,
     ): ExtensionRepo = ExtensionRepo(
         baseUrl = baseUrl,
         name = name,
@@ -103,5 +135,7 @@ class ExtensionRepoRepositoryImpl(
         signingKeyFingerprint = signingKeyFingerprint,
         isVisible = isVisible,
         author = author,
+        discord = discord,
+        icon = icon,
     )
 }

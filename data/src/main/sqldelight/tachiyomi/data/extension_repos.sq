@@ -7,7 +7,9 @@ CREATE TABLE extension_repos (
     website TEXT NOT NULL,
     signing_key_fingerprint TEXT UNIQUE NOT NULL,
     is_visible INTEGER AS Boolean NOT NULL DEFAULT 1,
-    author TEXT
+    author TEXT,
+    discord TEXT,
+    icon TEXT
 );
 
 findOne:
@@ -29,12 +31,12 @@ SELECT COUNT(*)
 FROM extension_repos;
 
 insert:
-INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author)
-VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author);
+INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author, discord, icon)
+VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author, :discord, :icon);
 
 upsert:
-INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author)
-VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author)
+INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author, discord, icon)
+VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author, :discord, :icon)
 ON CONFLICT(base_url)
 DO UPDATE
 SET
@@ -43,12 +45,14 @@ SET
     website =: website,
     signing_key_fingerprint = :fingerprint,
     is_visible = :is_visible,
-    author = :author
+    author = :author,
+    discord = :discord,
+    icon = :icon
 WHERE base_url = base_url;
 
 replace:
-INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author)
-VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author)
+INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author, discord, icon)
+VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author, :discord, :icon)
 ON CONFLICT(signing_key_fingerprint)
 DO UPDATE
 SET
@@ -57,7 +61,9 @@ SET
     short_name = :short_name,
     website =: website,
     is_visible = :is_visible,
-    author = :author
+    author = :author,
+    discord = :discord,
+    icon = :icon
 WHERE signing_key_fingerprint = signing_key_fingerprint;
 
 delete:

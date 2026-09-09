@@ -19,6 +19,8 @@ data class ExtensionRepoDto(
     @SerialName("signingKey")
     val signingKey: String? = null,
     val author: String? = null,
+    val discord: String? = null,
+    val icon: String? = null,
 ) {
     fun getFingerprint(): String {
         return (signingKeyFingerprint ?: signingKey ?: "")
@@ -39,6 +41,8 @@ fun ExtensionRepoDto.toExtensionRepo(
         signingKeyFingerprint = getFingerprint(),
         isVisible = true,
         author = author,
+        discord = discord,
+        icon = icon,
     )
 }
 

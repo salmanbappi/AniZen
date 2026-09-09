@@ -28,6 +28,8 @@ class UpdateExtensionRepo(
                 newRepo.copy(
                     isVisible = repo.isVisible,
                     author = newRepo.author ?: repo.author,
+                    discord = newRepo.discord ?: repo.discord,
+                    icon = newRepo.icon ?: repo.icon,
                 ),
             )
         }

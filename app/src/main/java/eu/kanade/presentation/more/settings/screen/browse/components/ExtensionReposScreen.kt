@@ -29,6 +29,7 @@ fun ExtensionReposScreen(
     state: RepoScreenState.Success,
     onClickCreate: () -> Unit,
     onOpenWebsite: (ExtensionRepo) -> Unit,
+    onOpenDiscord: (ExtensionRepo) -> Unit,
     onClickDelete: (String) -> Unit,
     onToggleVisibility: (String, Boolean) -> Unit,
     onClickRefresh: () -> Unit,
@@ -72,6 +73,7 @@ fun ExtensionReposScreen(
             paddingValues = paddingValues + topSmallPaddingValues +
                 PaddingValues(horizontal = MaterialTheme.padding.medium),
             onOpenWebsite = onOpenWebsite,
+            onOpenDiscord = onOpenDiscord,
             onClickDelete = onClickDelete,
             onToggleVisibility = onToggleVisibility,
         )

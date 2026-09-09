@@ -13,6 +13,8 @@ class BackupExtensionRepos(
     @ProtoNumber(5) var signingKeyFingerprint: String,
     @ProtoNumber(100) var isVisible: Boolean = true,
     @ProtoNumber(101) var author: String? = null,
+    @ProtoNumber(102) var discord: String? = null,
+    @ProtoNumber(103) var icon: String? = null,
 )
 
 val backupExtensionReposMapper = { repo: ExtensionRepo ->
@@ -24,5 +26,7 @@ val backupExtensionReposMapper = { repo: ExtensionRepo ->
         signingKeyFingerprint = repo.signingKeyFingerprint,
         isVisible = repo.isVisible,
         author = repo.author,
+        discord = repo.discord,
+        icon = repo.icon,
     )
 }

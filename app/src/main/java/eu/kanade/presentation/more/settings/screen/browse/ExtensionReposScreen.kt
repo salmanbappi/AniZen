@@ -47,6 +47,7 @@ class ExtensionReposScreen(
             state = successState,
             onClickCreate = { screenModel.showDialog(RepoDialog.Create) },
             onOpenWebsite = { context.openInBrowser(it.website) },
+            onOpenDiscord = { it.discord?.let(context::openInBrowser) },
             onClickDelete = { screenModel.showDialog(RepoDialog.Delete(it)) },
             onToggleVisibility = screenModel::onToggleRepoVisibility,
             onClickRefresh = { screenModel.refreshRepos() },

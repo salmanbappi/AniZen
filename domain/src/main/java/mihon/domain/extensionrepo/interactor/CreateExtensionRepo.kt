@@ -2,7 +2,10 @@ package mihon.domain.extensionrepo.interactor
 
 import logcat.LogPriority
 import mihon.domain.extensionrepo.exception.SaveExtensionRepoException
+import mihon.domain.extensionrepo.model.KEIYOUSHI_SIGNATURE
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import mihon.domain.extensionrepo.model.SALMANBAPPI_SIGNATURE
+import mihon.domain.extensionrepo.model.YUZONO_SIGNATURE
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
 import mihon.domain.extensionrepo.service.ExtensionRepoService
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -40,6 +43,8 @@ class CreateExtensionRepo(
                 repo.signingKeyFingerprint,
                 isVisible = true,
                 author = repo.author,
+                discord = repo.discord,
+                icon = repo.icon,
             )
             Result.Success
         } catch (e: SaveExtensionRepoException) {
@@ -83,8 +88,8 @@ class CreateExtensionRepo(
         const val OFFICIAL_REPO_WEBSITE = "https://github.com/salmanbappi/AniZen"
         const val OFFICIAL_REPO_BASE_URL = "https://raw.githubusercontent.com/anizen-app/extensions/repo"
 
-        // cuong-tran's key
-        const val OFFICIAL_REPO_SIGNATURE = "cbec121aa82ebb02aaa73806992e0368a97d47b5451ed6524816d03084c45905"
-        const val KEIYOUSHI_REPO_SIGNATURE = "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+        const val OFFICIAL_REPO_SIGNATURE = YUZONO_SIGNATURE
+        const val KEIYOUSHI_REPO_SIGNATURE = KEIYOUSHI_SIGNATURE
+        const val SALMANBAPPI_REPO_SIGNATURE = SALMANBAPPI_SIGNATURE
     }
 }
