@@ -104,6 +104,7 @@ import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
 import eu.kanade.tachiyomi.util.view.setComposeContent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -113,6 +114,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.migration.Migrator
 import tachiyomi.core.common.Constants
@@ -397,7 +399,12 @@ class MainActivity : BaseActivity() {
                     // KMK -->
                     AppUpdateJob.setupTask(context)
                     // KMK <--
-                    val result = AppUpdateChecker().checkForUpdate(context)
+                    // Heavy work (network + PackageManager/PackageInfo parsing) must stay off
+                    // the main thread: running it here froze the whole UI for ~0.5s on
+                    // mid-range devices a few seconds after every cold start.
+                    val result = withContext(Dispatchers.IO) {
+                        AppUpdateChecker().checkForUpdate(context)
+                    }
                     if (result is GetApplicationRelease.Result.NewUpdate) {
                         val updateScreen = NewUpdateScreen(
                             versionName = result.release.version,
@@ -417,7 +424,13 @@ class MainActivity : BaseActivity() {
         LaunchedEffect(Unit) {
             kotlinx.coroutines.delay(20000) // Further delay for extension checks
             try {
-                ExtensionApi().checkForUpdates(context)
+                // ExtensionLoader.loadExtensions() calls getInstalledPackages() with
+                // signature/metadata flags, which blocks for hundreds of ms. Keep the
+                // whole check (including its PackageManager work) on IO so it can
+                // never hitch the UI thread, wherever the user is in the app.
+                withContext(Dispatchers.IO) {
+                    ExtensionApi().checkForUpdates(context)
+                }
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
             }

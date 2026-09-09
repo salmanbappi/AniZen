@@ -1,0 +1,6 @@
+-- Resolve "automatic index" warnings on every library/updates query.
+-- libraryView joins animes_categories on anime_id, but that table never had an
+-- index, forcing a full scan + ephemeral auto-index per query. animeseasonstatsView
+-- groups seasons by parent_id with no index either.
+CREATE INDEX IF NOT EXISTS animes_categories_anime_id_index ON animes_categories(anime_id);
+CREATE INDEX IF NOT EXISTS animes_parent_id_index ON animes(parent_id);
