@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter
 // If it's not installed, you can return a random value as a workaround
 fun Project.getCommitCount(): String {
     val gitCount = runCommand("git rev-list --count HEAD").toIntOrNull() ?: 0
-    return (gitCount + 957).toString()
+    return (gitCount + 981).toString()
 }
 
 fun Project.getGitSha(): String {

@@ -42,7 +42,7 @@ jobs:
 
       - name: Get Current Version
         run: |
-          COMMIT_COUNT=$(($(git rev-list --count HEAD) + 957))
+          COMMIT_COUNT=$(($(git rev-list --count HEAD) + 981))
           TAG="r$COMMIT_COUNT"
           VERSION_NAME="0.5.78"
           VERSION_CODE=$((578 + COMMIT_COUNT))
