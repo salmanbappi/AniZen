@@ -251,6 +251,51 @@ class GoogleDriveService(private val context: Context) {
         initGoogleDriveService()
     }
 
+    fun isSignedIn(): Boolean {
+        return syncPreferences.googleDriveRefreshToken().get().isNotBlank()
+    }
+
+    suspend fun getOrFetchAccount(): String = withIOContext {
+        val cached = syncPreferences.googleDriveAccount().get()
+        if (cached.isNotBlank()) return@withIOContext cached
+
+        if (!isSignedIn()) return@withIOContext ""
+
+        fetchAndSaveAccount()
+    }
+
+    private fun fetchAndSaveAccount(): String {
+        return try {
+            if (driveService == null) {
+                initGoogleDriveService()
+            }
+            val service = driveService ?: return ""
+            val about = service.about().get().setFields("user(displayName,emailAddress)").execute()
+            val email = about.user?.emailAddress?.takeIf { it.isNotBlank() }
+            val name = about.user?.displayName?.takeIf { it.isNotBlank() }
+            val account = when {
+                email != null && name != null -> "$name ($email)"
+                email != null -> email
+                name != null -> name
+                else -> ""
+            }
+            if (account.isNotBlank()) {
+                syncPreferences.googleDriveAccount().set(account)
+            }
+            account
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, throwable = e) { "Failed to fetch Google Drive user account" }
+            ""
+        }
+    }
+
+    fun signOut() {
+        syncPreferences.googleDriveAccessToken().delete()
+        syncPreferences.googleDriveRefreshToken().delete()
+        syncPreferences.googleDriveAccount().delete()
+        driveService = null
+    }
+
     /**
      * Initializes the Google Drive service by obtaining the access token and refresh token from the SyncPreferences
      * and setting up the service using the obtained tokens.
@@ -345,6 +390,9 @@ class GoogleDriveService(private val context: Context) {
             // Save the new access token
             syncPreferences.googleDriveAccessToken().set(newAccessToken)
             setupGoogleDriveService(newAccessToken, credential.refreshToken)
+            if (syncPreferences.googleDriveAccount().get().isBlank()) {
+                fetchAndSaveAccount()
+            }
         } catch (e: TokenResponseException) {
             if (e.details.error == "invalid_grant") {
                 // The refresh token is invalid, prompt the user to sign in again
@@ -437,6 +485,7 @@ class GoogleDriveService(private val context: Context) {
 
             setupGoogleDriveService(accessToken, refreshToken)
             initGoogleDriveService()
+            fetchAndSaveAccount()
 
             activity.runOnUiThread {
                 onSuccess()

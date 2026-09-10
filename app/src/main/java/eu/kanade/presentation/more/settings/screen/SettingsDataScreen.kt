@@ -434,15 +434,84 @@ object SettingsDataScreen : SearchableSettings {
     @Composable
     private fun getGoogleDrivePreferences(): List<Preference> {
         val context = LocalContext.current
-        val googleDriveSync = Injekt.get<GoogleDriveService>()
-        return listOf(
+        val syncPreferences = remember { Injekt.get<SyncPreferences>() }
+        val googleDriveSync = remember { Injekt.get<GoogleDriveService>() }
+        val refreshToken by syncPreferences.googleDriveRefreshToken().collectAsState()
+        val account by syncPreferences.googleDriveAccount().collectAsState()
+        val isLoggedIn = refreshToken.isNotBlank()
+
+        var showLogoutDialog by remember { mutableStateOf(false) }
+
+        LaunchedEffect(isLoggedIn) {
+            if (isLoggedIn && account.isBlank()) {
+                googleDriveSync.getOrFetchAccount()
+            }
+        }
+
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = {
+                    Text(
+                        text = stringResource(
+                            MR.strings.logout_title,
+                            stringResource(SYMR.strings.google_drive),
+                        ),
+                    )
+                },
+                text = {
+                    Text(
+                        text = if (account.isNotBlank()) {
+                            stringResource(SYMR.strings.google_drive_signed_in_as, account)
+                        } else {
+                            stringResource(SYMR.strings.google_drive_login_success)
+                        },
+                    )
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text(text = stringResource(MR.strings.action_cancel))
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showLogoutDialog = false
+                            googleDriveSync.signOut()
+                            context.toast(context.stringResource(MR.strings.logout_success))
+                        },
+                    ) {
+                        Text(text = stringResource(MR.strings.logout))
+                    }
+                },
+            )
+        }
+
+        val accountPref = if (isLoggedIn) {
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(SYMR.strings.google_drive),
+                subtitle = if (account.isNotBlank()) {
+                    stringResource(SYMR.strings.google_drive_signed_in_as, account)
+                } else {
+                    stringResource(SYMR.strings.google_drive_login_success)
+                },
+                onClick = {
+                    showLogoutDialog = true
+                },
+            )
+        } else {
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(SYMR.strings.pref_google_drive_sign_in),
+                subtitle = stringResource(SYMR.strings.google_drive_not_signed_in),
                 onClick = {
                     val intent = googleDriveSync.getSignInIntent()
                     context.startActivity(intent)
                 },
-            ),
+            )
+        }
+
+        return listOf(
+            accountPref,
             getGoogleDrivePurge(),
         )
     }
