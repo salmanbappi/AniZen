@@ -76,30 +76,29 @@ fun Modifier.runOnEnterKeyPressed(action: () -> Unit): Modifier = this.onPreview
  * For TextField on AppBar, this modifier will request focus
  * to the element the first time it's composed.
  */
-fun Modifier.showSoftKeyboard(show: Boolean): Modifier = if (show) {
-    composed {
-        val focusRequester = remember { FocusRequester() }
-        var openKeyboard by rememberSaveable { mutableStateOf(show) }
-        LaunchedEffect(focusRequester) {
-            if (openKeyboard) {
-                focusRequester.requestFocus()
-                openKeyboard = false
-            }
+@Composable
+fun Modifier.showSoftKeyboard(show: Boolean): Modifier {
+    if (!show) return this
+    val focusRequester = remember { FocusRequester() }
+    var openKeyboard by rememberSaveable { mutableStateOf(show) }
+    LaunchedEffect(focusRequester) {
+        if (openKeyboard) {
+            focusRequester.requestFocus()
+            openKeyboard = false
         }
-
-        this then Modifier.focusRequester(focusRequester)
     }
-} else {
-    this
+
+    return this then Modifier.focusRequester(focusRequester)
 }
 
 /**
  * For TextField, this modifier will clear focus when soft
  * keyboard is hidden.
  */
+@Composable
 fun Modifier.clearFocusOnSoftKeyboardHide(
     onFocusCleared: (() -> Unit)? = null,
-): Modifier = composed {
+): Modifier {
     var isFocused by remember { mutableStateOf(false) }
     var keyboardShowedSinceFocused by remember { mutableStateOf(false) }
     if (isFocused) {
@@ -121,7 +120,7 @@ fun Modifier.clearFocusOnSoftKeyboardHide(
         }
     }
 
-    this then Modifier.onFocusChanged {
+    return this then Modifier.onFocusChanged {
         if (isFocused != it.isFocused) {
             if (isFocused) {
                 keyboardShowedSinceFocused = false
