@@ -126,7 +126,7 @@ fun ScheduleMonthView(
                     }
                     items(
                         items = dayEntries,
-                        key = { "entry_${it.scheduleId}" },
+                        key = { "entry_${it.scheduleId}_${it.airingAt}_${it.episode}" },
                     ) { entry ->
                         val bellState = when {
                             entry.mediaId.toString() in seriesMediaIds -> BellNotifyState.SERIES
@@ -202,7 +202,7 @@ fun ScheduleMonthView(
                 }
                 items(
                     items = dayEntries,
-                    key = { "entry_${it.scheduleId}" },
+                    key = { "entry_${it.scheduleId}_${it.airingAt}_${it.episode}" },
                 ) { entry ->
                     val bellState = when {
                         entry.mediaId.toString() in seriesMediaIds -> BellNotifyState.SERIES

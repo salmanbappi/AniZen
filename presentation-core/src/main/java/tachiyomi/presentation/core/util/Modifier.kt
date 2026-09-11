@@ -27,6 +27,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import tachiyomi.presentation.core.components.material.SECONDARY_ALPHA
+import kotlinx.coroutines.delay
 
 fun Modifier.selectedBackground(isSelected: Boolean): Modifier = if (isSelected) {
     composed {
@@ -108,9 +109,13 @@ fun Modifier.clearFocusOnSoftKeyboardHide(
             if (imeVisible) {
                 keyboardShowedSinceFocused = true
             } else if (keyboardShowedSinceFocused) {
-                focusManager.clearFocus()
-                if (onFocusCleared != null) {
-                    onFocusCleared()
+                // Wait briefly to guard against transient inset flickers while the keyboard animates up
+                delay(150L)
+                if (!WindowInsets.isImeVisible) {
+                    focusManager.clearFocus()
+                    if (onFocusCleared != null) {
+                        onFocusCleared()
+                    }
                 }
             }
         }

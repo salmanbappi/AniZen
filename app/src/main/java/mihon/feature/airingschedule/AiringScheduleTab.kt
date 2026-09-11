@@ -419,7 +419,10 @@ private fun ScheduleDayContent(
         contentPadding = PaddingValues(vertical = 8.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(items = visibleEntries, key = { it.scheduleId }) { entry ->
+        items(
+            items = visibleEntries,
+            key = { "${it.scheduleId}_${it.airingAt}_${it.episode}" },
+        ) { entry ->
             val mediaKey = entry.mediaId.toString()
             val notifyState = when {
                 mediaKey in notifySeriesMediaIds -> BellNotifyState.SERIES
