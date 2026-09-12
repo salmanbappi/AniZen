@@ -83,11 +83,11 @@ fun Modifier.showSoftKeyboard(
     focusRequester: FocusRequester = remember { FocusRequester() },
 ): Modifier {
     if (!show) return this
-    var openKeyboard by rememberSaveable { mutableStateOf(show) }
+    var hasRequestedFocus by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(focusRequester) {
-        if (openKeyboard) {
+        if (!hasRequestedFocus) {
+            hasRequestedFocus = true
             focusRequester.requestFocus()
-            openKeyboard = false
         }
     }
 
