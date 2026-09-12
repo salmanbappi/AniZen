@@ -33,6 +33,7 @@
 -keep class eu.kanade.tachiyomi.network.NetworkHelper { public protected *; }
 -keep class eu.kanade.tachiyomi.network.OkHttpExtensionsKt { public protected *; }
 -keep class eu.kanade.tachiyomi.network.RequestsKt { public protected *; }
+-keep class eu.kanade.tachiyomi.network.HttpException { public protected *; }
 -keep class eu.kanade.tachiyomi.AppInfo { public protected *; }
 -keep class eu.kanade.tachiyomi.torrentutils.** { public protected *; }
 
