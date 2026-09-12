@@ -109,8 +109,6 @@ fun Modifier.clearFocusOnSoftKeyboardHide(
             if (imeVisible) {
                 keyboardShowedSinceFocused = true
             } else if (keyboardShowedSinceFocused) {
-                // Wait briefly to guard against transient inset flickers while the keyboard animates up
-                delay(150L)
                 focusManager.clearFocus()
                 if (onFocusCleared != null) {
                     onFocusCleared()
