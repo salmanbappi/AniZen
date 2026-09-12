@@ -240,27 +240,24 @@ class SyncManager(
     }
 
     private suspend fun isAnimeDifferent(localAnime: Anime, remoteAnime: BackupAnime): Boolean {
-        val localEpisodes = handler.await { episodesQueries.getEpisodesByAnimeId(localAnime.id, 0).executeAsList() }
-        val localCategories = getCategories.await(localAnime.id).map { it.order }
-        val localTracks = getTracks.await(localAnime.id)
-
-        if (areEpisodesDifferent(localEpisodes, remoteAnime.episodes)) {
-            return true
-        }
-
+        // Fast in-memory check first: when the version already differs there is
+        // nothing to gain from the category/track/episode queries below.
         if (localAnime.version != remoteAnime.version) {
             return true
         }
 
+        val localCategories = getCategories.await(localAnime.id).map { it.order }
         if (localCategories.toSet() != remoteAnime.categories.toSet()) {
             return true
         }
-        
+
+        val localTracks = getTracks.await(localAnime.id)
         if (areTracksDifferent(localTracks, remoteAnime.tracking)) {
             return true
         }
 
-        return false
+        val localEpisodes = handler.await { episodesQueries.getEpisodesByAnimeId(localAnime.id, 0).executeAsList() }
+        return areEpisodesDifferent(localEpisodes, remoteAnime.episodes)
     }
 
     private fun areTracksDifferent(localTracks: List<Track>, remoteTracks: List<BackupTracking>): Boolean {

@@ -36,7 +36,6 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.coroutines.runBlocking
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.util.collectAsState
@@ -238,7 +237,7 @@ object SettingsDiscordScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val getCategories = remember { Injekt.get<GetCategories>() }
         val allAnimeCategories by getCategories.subscribe().collectAsState(
-            initial = runBlocking { getCategories.await() },
+            initial = emptyList(),
         )
 
         val discordRPCIncognitoPref = connectionsPreferences.discordRPCIncognito()

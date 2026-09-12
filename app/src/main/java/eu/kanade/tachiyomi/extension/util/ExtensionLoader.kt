@@ -149,6 +149,8 @@ object ExtensionLoader {
             .filter { isPackageAnExtension(it) }
             .map { ExtensionInfo(packageInfo = it, isShared = true) }
 
+        // Materialized once: this pipeline touches the filesystem and parses each APK's manifest,
+        // so it must not be re-evaluated for every package during deduplication below.
         val privateExtPkgs = getPrivateExtensionDir(context)
             .listFiles()
             ?.asSequence()
@@ -165,15 +167,21 @@ object ExtensionLoader {
             }
             ?.filter { isPackageAnExtension(it) }
             ?.map { ExtensionInfo(packageInfo = it, isShared = false) }
-            ?: emptySequence()
+            ?.toList()
+            .orEmpty()
 
-        val extPkgs = (sharedExtPkgs + privateExtPkgs)
+        // Only unambiguous package names are kept, matching the previous singleOrNull lookup.
+        val privateExtPkgsByName = privateExtPkgs
+            .groupBy { it.packageInfo.packageName }
+            .mapNotNull { (packageName, infos) -> infos.singleOrNull()?.let { packageName to it } }
+            .toMap()
+
+        val extPkgs = (sharedExtPkgs + privateExtPkgs.asSequence())
             // Remove duplicates. Shared takes priority than private by default
             .distinctBy { it.packageInfo.packageName }
             // Compare version number
             .mapNotNull { sharedPkg ->
-                val privatePkg = privateExtPkgs
-                    .singleOrNull { it.packageInfo.packageName == sharedPkg.packageInfo.packageName }
+                val privatePkg = privateExtPkgsByName[sharedPkg.packageInfo.packageName]
                 selectExtensionPackage(sharedPkg, privatePkg)
             }
             .toList()

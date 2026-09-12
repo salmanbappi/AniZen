@@ -388,7 +388,9 @@ class AnimeRestorer(
             val item = history.getHistoryImpl()
 
             if (dbHistory == null) {
-                val episode = handler.awaitOneOrNull { episodesQueries.getEpisodeByUrl(history.url) }
+                val episode = handler.awaitOneOrNull {
+                    episodesQueries.getEpisodeByUrlAndAnimeId(episodeUrl = history.url, animeId = anime.id)
+                }
                 return@mapNotNull if (episode == null) {
                     // Episode doesn't exist; skip
                     null

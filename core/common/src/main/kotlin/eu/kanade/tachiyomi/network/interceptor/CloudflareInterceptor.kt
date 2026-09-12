@@ -77,14 +77,14 @@ class CloudflareInterceptor(
 
     private fun cleanUserAgent(userAgent: String): String {
         return userAgent
-            .replace(Regex("\\s+Aniyomi/\\S+", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("\\s+AniZen/\\S+", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("\\s+Tachiyomi/\\S+", RegexOption.IGNORE_CASE), "")
+            .replace(ANIYOMI_USER_AGENT_REGEX, "")
+            .replace(ANIZEN_USER_AGENT_REGEX, "")
+            .replace(TACHIYOMI_USER_AGENT_REGEX, "")
             .trim()
     }
 
     private fun addClientHints(builder: Request.Builder, userAgent: String) {
-        val chromeVersionMatch = Regex("Chrome/(\\d+)").find(userAgent)
+        val chromeVersionMatch = CHROME_VERSION_REGEX.find(userAgent)
         val chromeVersion = chromeVersionMatch?.groupValues?.get(1) ?: "131"
 
         val androidVersion = android.os.Build.VERSION.RELEASE.takeWhile { it.isDigit() }.ifEmpty { "13" }
@@ -357,6 +357,12 @@ class CloudflareInterceptor(
 private val ERROR_CODES = listOf(403, 503)
 private val SERVER_CHECK = arrayOf("cloudflare-nginx", "cloudflare")
 private val COOKIE_NAMES = listOf("cf_clearance")
+
+// Hoisted out of the interceptor body: these previously recompiled on every request.
+private val ANIYOMI_USER_AGENT_REGEX = Regex("\\s+Aniyomi/\\S+", RegexOption.IGNORE_CASE)
+private val ANIZEN_USER_AGENT_REGEX = Regex("\\s+AniZen/\\S+", RegexOption.IGNORE_CASE)
+private val TACHIYOMI_USER_AGENT_REGEX = Regex("\\s+Tachiyomi/\\S+", RegexOption.IGNORE_CASE)
+private val CHROME_VERSION_REGEX = Regex("Chrome/(\\d+)")
 
 private class CloudflareBypassException : Exception()
 

@@ -54,14 +54,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
@@ -423,12 +421,7 @@ fun SearchToolbar(
 fun UpIcon(
     navigationIcon: ImageVector? = null,
 ) {
-    val icon = navigationIcon
-        ?: if (LocalLayoutDirection.current == LayoutDirection.Ltr) {
-            Icons.AutoMirrored.Outlined.ArrowBack
-        } else {
-            Icons.AutoMirrored.Outlined.ArrowBack
-        }
+    val icon = navigationIcon ?: Icons.AutoMirrored.Outlined.ArrowBack
     Icon(
         imageVector = icon,
         contentDescription = stringResource(MR.strings.action_webview_back),
