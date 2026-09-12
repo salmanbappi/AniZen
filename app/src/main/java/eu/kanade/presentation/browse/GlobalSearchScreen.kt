@@ -99,8 +99,8 @@ internal fun GlobalSearchContent(
     LazyColumn(
         contentPadding = contentPadding,
     ) {
-        items.toList().forEachIndexed { index, (source, result) ->
-            item(key = "source-${source.id}-$index") {
+        items.forEach { (source, result) ->
+            item(key = "global-search-${source.id}") {
                 GlobalSearchResultItem(
                     title = fromSourceId?.let {
                         "▶ ${source.name}".takeIf { source.id == fromSourceId }

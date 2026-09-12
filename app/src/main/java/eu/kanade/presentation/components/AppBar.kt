@@ -321,11 +321,10 @@ fun SearchToolbar(
             val focusManager = LocalFocusManager.current
 
             val searchAndClearFocus: () -> Unit = f@{
+                keyboardController?.hide()
+                focusManager.clearFocus()
                 if (searchQuery.isBlank()) return@f
                 onSearch(searchQuery)
-                focusManager.clearFocus()
-                keyboardController?.hide()
-                focusManager.moveFocus(FocusDirection.Next)
             }
 
             BasicTextField(
