@@ -31,11 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
-import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.ui.model.PanoramaMode
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.components.TabbedDialog
@@ -449,7 +449,9 @@ private fun ColumnScope.DisplayPage(
 // SY -->
 data class GroupMode(
     val int: Int,
-    val nameRes: StringResource,
+    // ANZ: AniZen's LibraryGroup.groupTypeStringRes returns an android R.string id, not a
+    // moko StringResource as in upstream.
+    val nameRes: Int,
     val drawableRes: Int,
 )
 
