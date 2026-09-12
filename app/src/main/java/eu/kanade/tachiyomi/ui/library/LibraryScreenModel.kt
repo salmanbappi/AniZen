@@ -319,7 +319,10 @@ class LibraryScreenModel(
                     prefs.filterCompleted,
                     prefs.filterIntervalCustom,
                 ) + trackFilter.values
-                ).any { it != TriState.DISABLED }
+                ).any { it != TriState.DISABLED } ||
+                // ANZ -->
+                prefs.filterCategories
+                // ANZ <--
         }
             .distinctUntilChanged()
             .onEach {
@@ -415,6 +418,23 @@ class LibraryScreenModel(
             !isExcluded && isIncluded
         }
 
+        // ANZ -->
+        // Category filter. Each LibraryItem is a single (anime, category) pair, because
+        // libraryView.sq LEFT JOINs animes_categories without aggregating, so an anime in N
+        // categories yields N rows. Membership on the item's own category is therefore the
+        // correct check; upstream's "all included present" superset test would hide every item
+        // as soon as two categories are whitelisted.
+        val filterFnCategories: (LibraryItem) -> Boolean = categories@{ item ->
+            if (!prefs.filterCategories) return@categories true
+
+            val category = item.libraryAnime.category
+            if (category == 0L) return@categories prefs.includedCategories.isEmpty()
+            if (category in prefs.excludedCategories) return@categories false
+
+            prefs.includedCategories.isEmpty() || category in prefs.includedCategories
+        }
+        // ANZ <--
+
         val filterFn: (LibraryItem) -> Boolean = {
             filterFnDownloaded(it) &&
                 filterFnUnseen(it) &&
@@ -425,7 +445,10 @@ class LibraryScreenModel(
                 // <-- AM (FILLERMARK)
                 filterFnCompleted(it) &&
                 filterFnIntervalCustom(it) &&
-                filterFnTracking(it)
+                filterFnTracking(it) &&
+                // ANZ -->
+                filterFnCategories(it)
+                // ANZ <--
         }
 
         return this
@@ -550,6 +573,11 @@ class LibraryScreenModel(
             libraryPreferences.filterIntervalCustom().changes(),
             libraryPreferences.showSourceIcon().changes(),
             libraryPreferences.showLanguageIcon().changes(),
+            // ANZ -->
+            libraryPreferences.filterCategories().changes(),
+            libraryPreferences.filterCategoriesInclude().changes(),
+            libraryPreferences.filterCategoriesExclude().changes(),
+            // ANZ <--
             transform = {
                 ItemPreferences(
                     downloadBadge = it[0] as Boolean,
@@ -568,6 +596,11 @@ class LibraryScreenModel(
                     // <-- AM (FILLERMARK)
                     showSourceIcon = it[12] as Boolean,
                     showLanguageIcon = it[13] as Boolean,
+                    // ANZ -->
+                    filterCategories = it[14] as Boolean,
+                    includedCategories = (it[15] as Set<*>).mapNotNull { id -> (id as? String)?.toLongOrNull() }.toSet(),
+                    excludedCategories = (it[16] as Set<*>).mapNotNull { id -> (id as? String)?.toLongOrNull() }.toSet(),
+                    // ANZ <--
                 )
             },
         )
@@ -1300,6 +1333,11 @@ class LibraryScreenModel(
         val filterIntervalCustom: TriState,
         val showSourceIcon: Boolean,
         val showLanguageIcon: Boolean,
+        // ANZ -->
+        val filterCategories: Boolean,
+        val includedCategories: Set<Long>,
+        val excludedCategories: Set<Long>,
+        // ANZ <--
     )
 
     @Immutable

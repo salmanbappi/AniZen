@@ -1,0 +1,52 @@
+{
+  "$comment": "AniZen <-> Anikku provenance record. Read by scripts/anz-upstream.sh. See AGENTS.md for the workflow.",
+  "anizen": {
+    "repo": "https://github.com/salmanbappi/AniZen",
+    "branch": "preview",
+    "rootCommit": "01e2564227185aba6335d9bb0d2efed3ac1a6c1f",
+    "rootCommitSubject": "Initial commit with 2x player mod",
+    "historyNote": "The root commit is a squashed snapshot of the Anikku tree. A history rewrite (git filter-branch) left refs/original/* behind, so AniZen shares ZERO commits with Anikku and git cannot compute a merge base. All upstream merges must be base-corrected with --merge-base.",
+    "snapshotCompactFiles": 1939
+  },
+  "upstream": {
+    "name": "anikku",
+    "url": "https://github.com/komikku-app/anikku.git",
+    "remote": "anikku",
+    "branch": "master",
+    "historyNote": "Anikku rewrote/rebased its own master after 2025-04-19. The live master therefore does NOT descend from the content ancestor recorded below, and the fork network is unrelated (compare API returns 404 across networks)."
+  },
+  "base": {
+    "upstreamCommit": "aa016c4c3244d5fdc82835668298dd688bc74caf",
+    "upstreamCommitSubject": "Added translation using Weblate (Thai)",
+    "forkTip": "55f71b374bbc8e1f2713d82ab5ecd4dff7cce4de",
+    "forkTipNote": "salmanbappi/anikku master tip, 2025-12-24. Equal to aa016c4c32 + 2 local commits (update-checker URL, @JvmStatic on SAnime/SEpisode.create).",
+    "note": "aa016c4c32 is the last common content ancestor: it differs from the AniZen root snapshot by only 8 files. Use it as the 3-way merge base."
+  },
+  "measurements": {
+    "measuredAt": "2026-09-13",
+    "vsForkEraRef": {
+      "ref": "refs/remotes/anikku/master (2026-02-05 snapshot)",
+      "command": "scripts/anz-upstream.sh merge --ref refs/remotes/anikku/master",
+      "plainMergeConflicts": 663,
+      "baseCorrectedMergeConflicts": 2,
+      "baseCorrectedConflictPaths": [
+        "i18n-ank/src/commonMain/moko-resources/pt-rBR/strings.xml",
+        "i18n-ank/src/commonMain/moko-resources/ru/strings.xml"
+      ],
+      "note": "Measured 2026-09-13 with base aa016c4c32. Substituting the AniZen root snapshot as base instead yields 6 conflicts (it also flags the 3 player-control files and anikku-tracker/SKILL.md), which is why the true upstream commit is recorded as the base."
+    },
+    "vsLiveUpstream": {
+      "ref": "komikku-app/anikku@master (2026-09-12)",
+      "command": "scripts/anz-upstream.sh report --mirror --fetch",
+      "conflictSurface": 619,
+      "bothModified": 527,
+      "modifyDelete": 92,
+      "note": "Upper bound from tree-level overlap on a blobless mirror; a base-corrected 3-way merge auto-resolves non-overlapping edits, so the real conflict count is lower."
+    },
+    "unmarkedBacklog": {
+      "filesChangedSinceRoot": 1058,
+      "filesCarryingAnyMarker": 84,
+      "note": "Bootstrap annotation backlog. New work must use // ANZ; the backlog is reported, not enforced."
+    }
+  }
+}

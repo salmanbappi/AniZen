@@ -1,0 +1,34 @@
+name: Provenance Guard
+
+# Enforces the fork-hygiene rules that keep Anikku upstream syncs tractable.
+# Rules and rationale: AGENTS.md
+#   R1 fail  non-base locale edited (Weblate owns translations)
+#   R2 fail  new <string>/<plurals> in a frozen upstream i18n module
+#   R3 warn  changed Kotlin without a // ANZ provenance marker
+#   R4 warn  settings.gradle.kts include with no matching directory
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    name: Fork hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check provenance rules
+        env:
+          BASE_REF: origin/${{ github.base_ref || 'preview' }}
+        run: bash scripts/check-provenance.sh

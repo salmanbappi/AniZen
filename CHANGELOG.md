@@ -29,6 +29,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Improved
 
 - feat(entry): show "Now" instead of "0 minutes ago" ([@Secozzi](https://github.com/Secozzi)) ([#1715](https://github.com/aniyomiorg/aniyomi/pull/1715))
+- library: update the Filter/Sort/Display/Group sheet from upstream Anikku, and make the category include/exclude filter actually filter the library
 
 ### Fixed
 
@@ -42,6 +43,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Merge from mihon until 0.16.5 ([@Secozzi](https://github.com/Secozzi)) ([#1663](https://github.com/aniyomiorg/aniyomi/pull/1663))
   - Merge until latest mihon commits ([@Secozzi](https://github.com/Secozzi)) ([#1693](https://github.com/aniyomiorg/aniyomi/pull/1693))
   - Merge until latest mihon commits (v0.17.0) ([@Secozzi](https://github.com/Secozzi)) ([#1804](https://github.com/aniyomiorg/aniyomi/pull/1804))
+- add upstream provenance tooling: `// ANZ` marker convention, `scripts/anz-upstream.sh` (base-corrected upstream reports/merges) and `scripts/check-provenance.sh` (fork-hygiene guard), documented in `AGENTS.md`
+- remove stale `:i18n-aniyomi` module include (deprecated in Gradle 8, an error in Gradle 9)
 
 ## [v0.16.4.3] - 2024-07-01
 ### Fixed

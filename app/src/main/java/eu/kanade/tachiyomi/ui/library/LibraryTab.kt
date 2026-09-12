@@ -456,6 +456,9 @@ data object LibraryTab : Tab {
                     // SY -->
                     hasCategories = state.categories.fastAny { !it.isSystemCategory },
                     // SY <--
+                    // KMK -->
+                    categories = state.categories,
+                    // KMK <--
                 )
             }
             is LibraryScreenModel.Dialog.ChangeCategory -> {

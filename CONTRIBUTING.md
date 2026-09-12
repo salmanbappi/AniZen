@@ -47,3 +47,42 @@ When creating a fork, remember to:
     - Change the `applicationId` in [`build.gradle.kts`](https://salmanbappi/AniZen/blob/master/app/build.gradle.kts)
 - To avoid having your data polluting the main app's analytics and crash report services:
     - If you want to use ACRA crash reporting, replace the `ACRA_URI` endpoint in [`build.gradle.kts`](https://salmanbappi/AniZen/blob/master/app/build.gradle.kts) with your own
+
+# Linting
+
+To auto-fix formatting, run `./gradlew spotlessApply`. `./gradlew spotlessCheck` must pass; CI runs
+`detekt` as well.
+
+# Upstream merging & provenance markers
+
+AniZen descends from the Anikku/Aniyomi lineage, but its git history was squashed: it shares **no
+commits** with Anikku, so a plain `git merge` finds no merge base and conflicts on nearly every file.
+Fork hygiene — not git ancestry — is what keeps upstream syncs possible. Full details live in
+[`AGENTS.md`](AGENTS.md).
+
+## Mark your changes
+
+Wrap every line you add or edit for AniZen (imports excluded) in:
+
+```kotlin
+// ANZ -->
+... your code ...
+// ANZ <--
+```
+
+Do **not** remove inherited markers. `// ANK`, `// KMK`, `// SY` and `// AY` map to other upstreams
+and must survive a merge.
+
+## Strings
+
+Add new strings to `i18n-ank/` (resource class `AMR`). Do not add strings to `i18n/`, `i18n-sy/` or
+`i18n-kmk/` — those are frozen upstream modules. Never edit non-`base` locale files; Weblate owns
+translations.
+
+## Check before pushing
+
+```bash
+scripts/check-provenance.sh                        # fork hygiene
+scripts/anz-upstream.sh report --mirror --fetch    # what upstream changed
+```
+

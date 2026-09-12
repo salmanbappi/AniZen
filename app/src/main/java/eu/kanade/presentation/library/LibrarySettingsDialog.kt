@@ -1,53 +1,56 @@
 package eu.kanade.presentation.library
 
 import android.content.res.Configuration
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.outlined.AddCircle
-import androidx.compose.material.icons.outlined.RemoveCircle
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
+import dev.icerock.moko.resources.StringResource
+import eu.kanade.domain.ui.model.PanoramaMode
+import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
+import eu.kanade.presentation.more.settings.widget.TriStateListDialog
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.library.LibrarySettingsScreenModel
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.map
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryDisplayMode
-import eu.kanade.domain.ui.model.PanoramaMode
 import tachiyomi.domain.library.model.LibraryGroup
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
@@ -61,15 +64,15 @@ import tachiyomi.presentation.core.components.CheckboxItem
 import tachiyomi.presentation.core.components.HeadingItem
 import tachiyomi.presentation.core.components.IconItem
 import tachiyomi.presentation.core.components.SettingsChipRow
-import tachiyomi.presentation.core.components.SliderItem
+import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.components.SortItem
 import tachiyomi.presentation.core.components.TriStateItem
-import tachiyomi.presentation.core.i18n.pluralStringResource
+import tachiyomi.presentation.core.components.material.TextButton
+import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import tachiyomi.presentation.core.components.material.padding
 
 @Composable
 fun LibrarySettingsDialog(
@@ -79,6 +82,9 @@ fun LibrarySettingsDialog(
     // SY -->
     hasCategories: Boolean,
     // SY <--
+    // KMK -->
+    categories: List<Category>,
+    // KMK <--
 ) {
     TabbedDialog(
         onDismissRequest = onDismissRequest,
@@ -99,6 +105,9 @@ fun LibrarySettingsDialog(
             when (page) {
                 0 -> FilterPage(
                     screenModel = screenModel,
+                    // KMK -->
+                    categories = categories,
+                    // KMK <--
                 )
                 1 -> SortPage(
                     category = category,
@@ -118,13 +127,16 @@ fun LibrarySettingsDialog(
     }
 }
 
+@Suppress("UnusedReceiverParameter")
 @Composable
 private fun ColumnScope.FilterPage(
     screenModel: LibrarySettingsScreenModel,
+    categories: List<Category>,
 ) {
-    val filterDownloaded by screenModel.libraryPreferences.filterDownloaded().collectAsStatePref()
-    val downloadedOnly by screenModel.preferences.downloadedOnly().collectAsStatePref()
-    val autoUpdateAnimeRestrictions by screenModel.libraryPreferences.autoUpdateAnimeRestrictions.collectAsStatePref()
+    val filterDownloaded by screenModel.libraryPreferences.filterDownloaded().collectAsState()
+    val downloadedOnly by screenModel.preferences.downloadedOnly().collectAsState()
+    // ANZ: AniZen exposes this as a Preference value, not a function.
+    val autoUpdateAnimeRestrictions by screenModel.libraryPreferences.autoUpdateAnimeRestrictions.collectAsState()
 
     TriStateItem(
         label = stringResource(MR.strings.label_downloaded),
@@ -136,55 +148,55 @@ private fun ColumnScope.FilterPage(
         enabled = !downloadedOnly,
         onClick = { screenModel.toggleFilter(LibraryPreferences::filterDownloaded) },
     )
-    val filterUnseen by screenModel.libraryPreferences.filterUnseen().collectAsStatePref()
+    // ANZ: upstream names this filter "unread".
+    val filterUnseen by screenModel.libraryPreferences.filterUnseen().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_unseen),
         state = filterUnseen,
         onClick = { screenModel.toggleFilter(LibraryPreferences::filterUnseen) },
     )
-    val filterStarted by screenModel.libraryPreferences.filterStarted().collectAsStatePref()
+    val filterStarted by screenModel.libraryPreferences.filterStarted().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.label_started),
         state = filterStarted,
         onClick = { screenModel.toggleFilter(LibraryPreferences::filterStarted) },
     )
-    val filterBookmarked by screenModel.libraryPreferences.filterBookmarked().collectAsStatePref()
+    val filterBookmarked by screenModel.libraryPreferences.filterBookmarked().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_bookmarked),
         state = filterBookmarked,
         onClick = { screenModel.toggleFilter(LibraryPreferences::filterBookmarked) },
     )
-    val filterCompleted by screenModel.libraryPreferences.filterCompleted().collectAsStatePref()
+    val filterCompleted by screenModel.libraryPreferences.filterCompleted().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.completed),
         state = filterCompleted,
         onClick = { screenModel.toggleFilter(LibraryPreferences::filterCompleted) },
     )
-    // SY -->
-    val filterLewd by screenModel.libraryPreferences.filterLewd().collectAsStatePref()
-    TriStateItem(
-        label = stringResource(SYMR.strings.lewd),
-        state = filterLewd,
-        onClick = { screenModel.toggleFilter(LibraryPreferences::filterLewd) },
-    )
-    // SY <--
-    // KMK -->
-    val filterCategories by screenModel.libraryPreferences.filterCategories().collectAsStatePref()
-    CheckboxItem(
-        label = stringResource(MR.strings.action_filter_categories),
-        checked = filterCategories,
-        onClick = { screenModel.libraryPreferences.filterCategories().toggle() },
-    )
-    // KMK <--
     // TODO: re-enable when custom intervals are ready for stable
     if ((!isReleaseBuildType) && LibraryPreferences.ANIME_OUTSIDE_RELEASE_PERIOD in autoUpdateAnimeRestrictions) {
-        val filterIntervalCustom by screenModel.libraryPreferences.filterIntervalCustom().collectAsStatePref()
+        val filterIntervalCustom by screenModel.libraryPreferences.filterIntervalCustom().collectAsState()
         TriStateItem(
             label = stringResource(MR.strings.action_filter_interval_custom),
             state = filterIntervalCustom,
             onClick = { screenModel.toggleFilter(LibraryPreferences::filterIntervalCustom) },
         )
     }
+    // SY -->
+    val filterLewd by screenModel.libraryPreferences.filterLewd().collectAsState()
+    TriStateItem(
+        label = stringResource(SYMR.strings.lewd),
+        state = filterLewd,
+        onClick = { screenModel.toggleFilter(LibraryPreferences::filterLewd) },
+    )
+    // SY <--
+
+    // KMK -->
+    CategoriesFilter(
+        libraryPreferences = screenModel.libraryPreferences,
+        categories = categories,
+    )
+    // KMK <--
 
     val trackers by screenModel.trackersFlow.collectAsState()
     when (trackers.size) {
@@ -193,7 +205,7 @@ private fun ColumnScope.FilterPage(
         }
         1 -> {
             val service = trackers[0]
-            val filterTracker by screenModel.libraryPreferences.filterTracking(service.id.toInt()).collectAsStatePref()
+            val filterTracker by screenModel.libraryPreferences.filterTracking(service.id.toInt()).collectAsState()
             TriStateItem(
                 label = stringResource(MR.strings.action_filter_tracked),
                 state = filterTracker,
@@ -203,7 +215,7 @@ private fun ColumnScope.FilterPage(
         else -> {
             HeadingItem(MR.strings.action_filter_tracked)
             trackers.map { service ->
-                val filterTracker by screenModel.libraryPreferences.filterTracking(service.id.toInt()).collectAsStatePref()
+                val filterTracker by screenModel.libraryPreferences.filterTracking(service.id.toInt()).collectAsState()
                 TriStateItem(
                     label = service.name,
                     state = filterTracker,
@@ -214,6 +226,7 @@ private fun ColumnScope.FilterPage(
     }
 }
 
+@Suppress("UnusedReceiverParameter")
 @Composable
 private fun ColumnScope.SortPage(
     category: Category?,
@@ -221,37 +234,51 @@ private fun ColumnScope.SortPage(
 ) {
     val trackers by screenModel.trackersFlow.collectAsState()
     // SY -->
-    val globalSortMode by screenModel.libraryPreferences.sortingMode().collectAsStatePref()
-    val sortingMode = if (screenModel.grouping == LibraryGroup.BY_DEFAULT && category != null) {
+    val globalSortMode by screenModel.libraryPreferences.sortingMode().collectAsState()
+    val sortingMode = if (screenModel.grouping == LibraryGroup.BY_DEFAULT) {
         category.sort.type
     } else {
         globalSortMode.type
     }
-    val isAscending = if (screenModel.grouping == LibraryGroup.BY_DEFAULT && category != null) {
-        category.sort.isAscending
+    val sortDescending = if (screenModel.grouping == LibraryGroup.BY_DEFAULT) {
+        !category.sort.isAscending
     } else {
-        globalSortMode.isAscending
+        !globalSortMode.isAscending
     }
-    val sortDescending = !isAscending
+    val hasSortTags by remember {
+        screenModel.libraryPreferences.sortTagsForLibrary().changes()
+            .map { it.isNotEmpty() }
+    }.collectAsState(initial = screenModel.libraryPreferences.sortTagsForLibrary().get().isNotEmpty())
     // SY <--
 
-    val options = remember(trackers.isEmpty()) {
+    val options = remember(trackers.isEmpty()/* SY --> */, hasSortTags/* SY <-- */) {
         val trackerMeanPair = if (trackers.isNotEmpty()) {
             MR.strings.action_sort_tracker_score to LibrarySort.Type.TrackerMean
         } else {
             null
         }
+        // SY -->
+        val tagSortPair = if (hasSortTags) {
+            SYMR.strings.tag_sorting to LibrarySort.Type.TagList
+        } else {
+            null
+        }
+        // SY <--
         listOfNotNull(
             MR.strings.action_sort_alpha to LibrarySort.Type.Alphabetical,
+            // ANZ: upstream names these types TotalChapters/LastRead/UnreadCount/LatestChapter/ChapterFetchDate.
             MR.strings.action_sort_total_episodes to LibrarySort.Type.TotalEpisodes,
             MR.strings.action_sort_last_seen to LibrarySort.Type.LastSeen,
-            MR.strings.action_sort_last_anime_update to LibrarySort.Type.LastUpdate,
+            AMR.strings.action_sort_last_update_check to LibrarySort.Type.LastUpdate,
             MR.strings.action_sort_unseen_count to LibrarySort.Type.UnseenCount,
             MR.strings.action_sort_latest_episode to LibrarySort.Type.LatestEpisode,
             MR.strings.action_sort_episode_fetch_date to LibrarySort.Type.EpisodeFetchDate,
             MR.strings.action_sort_date_added to LibrarySort.Type.DateAdded,
             trackerMeanPair,
             MR.strings.action_sort_airing_time to LibrarySort.Type.AiringTime,
+            // SY -->
+            tagSortPair,
+            // SY <--
             MR.strings.action_sort_random to LibrarySort.Type.Random,
         )
     }
@@ -294,18 +321,18 @@ private fun ColumnScope.SortPage(
 private val displayModes = listOf(
     MR.strings.action_display_grid to LibraryDisplayMode.CompactGrid,
     MR.strings.action_display_comfortable_grid to LibraryDisplayMode.ComfortableGrid,
-    MR.strings.action_display_cover_only_grid to LibraryDisplayMode.CoverOnlyGrid,
     MR.strings.action_display_list to LibraryDisplayMode.List,
+    MR.strings.action_display_cover_only_grid to LibraryDisplayMode.CoverOnlyGrid,
+    // ANZ: upstream adds a `ComfortableGridPanorama` display mode here; AniZen keeps panorama
+    // as its own PanoramaMode preference (rendered below) and has no such enum entry.
 )
 
+@Suppress("UnusedReceiverParameter")
 @Composable
 private fun ColumnScope.DisplayPage(
     screenModel: LibrarySettingsScreenModel,
 ) {
-    val displayMode by screenModel.libraryPreferences.displayMode().collectAsStatePref() as androidx.compose.runtime.State<LibraryDisplayMode>
-    val uiPreferences = remember { Injekt.get<eu.kanade.domain.ui.UiPreferences>() }
-    val panoramaMode by uiPreferences.libraryPanoramaMode().collectAsStatePref()
-    
+    val displayMode by screenModel.libraryPreferences.displayMode().collectAsState()
     SettingsChipRow(MR.strings.action_display_mode) {
         displayModes.map { (titleRes, mode) ->
             FilterChip(
@@ -315,7 +342,14 @@ private fun ColumnScope.DisplayPage(
             )
         }
     }
-    
+
+    // ANZ -->
+    // AniZen-specific: panorama mode and the chip-based grid design. Upstream instead offers a
+    // panorama display mode plus a SliderItem whose overload this branch of presentation-core
+    // does not have, so these blocks are kept as-is.
+    val uiPreferences = remember { Injekt.get<eu.kanade.domain.ui.UiPreferences>() }
+    val panoramaMode by uiPreferences.libraryPanoramaMode().collectAsState()
+
     SettingsChipRow(KMR.strings.pref_panorama_cover) {
         PanoramaMode.entries.map { mode ->
             FilterChip(
@@ -335,34 +369,39 @@ private fun ColumnScope.DisplayPage(
         }
     }
 
-    val columns by columnPreference.collectAsStatePref()
-    val isList = displayMode == LibraryDisplayMode.List
-    HeadingItem(if (isList) MR.strings.pref_library_rows else MR.strings.pref_library_columns)
-    
+    val columns by columnPreference.collectAsState()
+    HeadingItem(if (displayMode == LibraryDisplayMode.List) MR.strings.pref_library_rows else MR.strings.pref_library_columns)
+
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-        contentPadding = PaddingValues(horizontal = MaterialTheme.padding.medium)
+        contentPadding = PaddingValues(horizontal = MaterialTheme.padding.medium),
     ) {
         items(11) { i ->
             FilterChip(
                 selected = columns == i,
                 onClick = { columnPreference.set(i) },
-                label = { 
+                label = {
                     Text(
                         text = if (i == 0) stringResource(MR.strings.label_default) else i.toString(),
                         fontFamily = FontFamily.Monospace,
-                        fontWeight = if (columns == i) FontWeight.Black else FontWeight.Medium
-                    ) 
-                }
+                        fontWeight = if (columns == i) FontWeight.Black else FontWeight.Medium,
+                    )
+                },
             )
         }
     }
+    // ANZ <--
 
     HeadingItem(MR.strings.overlay_header)
     CheckboxItem(
         label = stringResource(MR.strings.action_display_download_badge_anime),
         pref = screenModel.libraryPreferences.downloadBadge(),
+    )
+    // ANZ: ported from upstream; the library renderer does not show this badge yet.
+    CheckboxItem(
+        label = stringResource(AMR.strings.action_display_unseen_badge),
+        pref = screenModel.libraryPreferences.unreadBadge(),
     )
     CheckboxItem(
         label = stringResource(MR.strings.action_display_local_badge),
@@ -372,14 +411,19 @@ private fun ColumnScope.DisplayPage(
         label = stringResource(MR.strings.action_display_language_badge),
         pref = screenModel.libraryPreferences.languageBadge(),
     )
-    CheckboxItem(
-        label = stringResource(KMR.strings.action_display_language_icon),
-        pref = screenModel.libraryPreferences.showLanguageIcon(),
-    )
+    // KMK -->
+    val showLang by screenModel.libraryPreferences.languageBadge().collectAsState()
+    if (showLang) {
+        CheckboxItem(
+            label = stringResource(KMR.strings.action_display_language_icon),
+            pref = screenModel.libraryPreferences.showLanguageIcon(),
+        )
+    }
     CheckboxItem(
         label = stringResource(KMR.strings.action_display_source_badge),
         pref = screenModel.libraryPreferences.showSourceIcon(),
     )
+    // KMK <--
     CheckboxItem(
         label = stringResource(AMR.strings.action_display_show_continue_watching_button),
         pref = screenModel.libraryPreferences.showContinueWatchingButton(),
@@ -390,15 +434,24 @@ private fun ColumnScope.DisplayPage(
         label = stringResource(MR.strings.action_display_show_tabs),
         pref = screenModel.libraryPreferences.categoryTabs(),
     )
+    // KMK -->
+    CheckboxItem(
+        label = stringResource(KMR.strings.action_show_hidden_categories),
+        pref = screenModel.libraryPreferences.showHiddenCategories(),
+    )
+    // KMK <--
     CheckboxItem(
         label = stringResource(MR.strings.action_display_show_number_of_items),
         pref = screenModel.libraryPreferences.categoryNumberOfItems(),
     )
-    CheckboxItem(
-        label = stringResource(MR.strings.action_display_show_hidden_categories),
-        pref = screenModel.libraryPreferences.showHiddenCategories(),
-    )
 }
+
+// SY -->
+data class GroupMode(
+    val int: Int,
+    val nameRes: StringResource,
+    val drawableRes: Int,
+)
 
 private fun groupTypeDrawableRes(type: Int): Int {
     return when (type) {
@@ -411,6 +464,7 @@ private fun groupTypeDrawableRes(type: Int): Int {
     }
 }
 
+@Suppress("UnusedReceiverParameter")
 @Composable
 private fun ColumnScope.GroupPage(
     screenModel: LibrarySettingsScreenModel,
@@ -426,16 +480,16 @@ private fun ColumnScope.GroupPage(
             if (trackers.isNotEmpty()) {
                 add(LibraryGroup.BY_TRACK_STATUS)
             }
-            if (hasCategories) {
+            if (hasCategories || screenModel.grouping == LibraryGroup.UNGROUPED) {
                 add(LibraryGroup.UNGROUPED)
             }
         }.map {
             GroupMode(
                 it,
-                LibraryGroup.groupTypeStringRes(it, hasCategories),
+                LibraryGroup.groupTypeStringRes(it),
                 groupTypeDrawableRes(it),
             )
-        }
+        }.toImmutableList()
     }
 
     groups.fastForEach {
@@ -449,10 +503,59 @@ private fun ColumnScope.GroupPage(
         )
     }
 }
-
-data class GroupMode(
-    val int: Int,
-    val nameRes: Int,
-    val drawableRes: Int,
-)
 // SY <--
+
+// KMK -->
+@Composable
+private fun CategoriesFilter(
+    libraryPreferences: LibraryPreferences,
+    categories: List<Category>,
+) {
+    val filterCategories by libraryPreferences.filterCategories().collectAsState()
+
+    val filterCategoriesInclude = libraryPreferences.filterCategoriesInclude()
+    val filterCategoriesExclude = libraryPreferences.filterCategoriesExclude()
+    val included by filterCategoriesInclude.collectAsState()
+    val excluded by filterCategoriesExclude.collectAsState()
+
+    var showCategoriesDialog by rememberSaveable { mutableStateOf(false) }
+    if (showCategoriesDialog) {
+        TriStateListDialog(
+            title = stringResource(MR.strings.categories),
+            message = stringResource(KMR.strings.pref_library_filter_categories_details),
+            items = categories,
+            initialChecked = included.mapNotNull { id -> categories.find { it.id.toString() == id } },
+            initialInversed = excluded.mapNotNull { id -> categories.find { it.id.toString() == id } },
+            itemLabel = { it.visualName },
+            onDismissRequest = { showCategoriesDialog = false },
+            onValueChanged = { newIncluded, newExcluded ->
+                filterCategoriesInclude.set(newIncluded.map { it.id.toString() }.toSet())
+                filterCategoriesExclude.set(newExcluded.map { it.id.toString() }.toSet())
+                showCategoriesDialog = false
+            },
+        )
+    }
+
+    Row(
+        modifier = Modifier
+            .clickable(onClick = { libraryPreferences.filterCategories().toggle() })
+            .fillMaxWidth()
+            .padding(horizontal = SettingsItemsPaddings.Horizontal),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        Checkbox(
+            checked = filterCategories,
+            onCheckedChange = null,
+        )
+        Text(
+            text = stringResource(MR.strings.categories),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = { showCategoriesDialog = true }) {
+            Text(stringResource(MR.strings.action_edit))
+        }
+    }
+}
+// KMK <--

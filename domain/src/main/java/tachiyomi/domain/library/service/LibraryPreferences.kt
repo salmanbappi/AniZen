@@ -126,6 +126,13 @@ class LibraryPreferences(
 
     fun filterCategories() = preferenceStore.getBoolean("pref_filter_library_categories", false)
 
+    // ANZ -->
+    // Category include/exclude filter, ported from Anikku upstream.
+    fun filterCategoriesInclude() = preferenceStore.getStringSet(FILTER_LIBRARY_CATEGORIES_INCLUDE_PREF_KEY, emptySet())
+
+    fun filterCategoriesExclude() = preferenceStore.getStringSet(FILTER_LIBRARY_CATEGORIES_EXCLUDE_PREF_KEY, emptySet())
+    // ANZ <--
+
     fun libraryReadDuplicateChapters() = preferenceStore.getBoolean("pref_library_mark_duplicate_chapters", false)
 
     // SY -->
@@ -145,6 +152,12 @@ class LibraryPreferences(
     // Common badges
 
     fun downloadBadge() = preferenceStore.getBoolean("display_download_badge", false)
+
+    // ANZ -->
+    // Unseen badge on library covers, ported from Anikku upstream.
+    // Preference exists so the sheet matches upstream; the renderer does not honor it yet.
+    fun unreadBadge() = preferenceStore.getBoolean("display_unread_badge", true)
+    // ANZ <--
 
     fun localBadge() = preferenceStore.getBoolean("display_local_badge", true)
 
@@ -365,5 +378,10 @@ class LibraryPreferences(
         const val ANIME_HAS_UNSEEN = "anime_fully_seen"
         const val ANIME_NON_SEEN = "anime_started"
         const val ANIME_OUTSIDE_RELEASE_PERIOD = "anime_outside_release_period"
+
+        // ANZ -->
+        const val FILTER_LIBRARY_CATEGORIES_INCLUDE_PREF_KEY = "pref_filter_library_categories_include"
+        const val FILTER_LIBRARY_CATEGORIES_EXCLUDE_PREF_KEY = "pref_filter_library_categories_exclude"
+        // ANZ <--
     }
 }
