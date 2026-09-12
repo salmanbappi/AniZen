@@ -69,7 +69,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.Pill
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.runOnEnterKeyPressed
-import tachiyomi.presentation.core.util.showSoftKeyboard
 
 const val SEARCH_DEBOUNCE_MILLIS = 250L
 
@@ -320,10 +319,18 @@ fun SearchToolbar(
             val focusManager = LocalFocusManager.current
 
             val searchAndClearFocus: () -> Unit = f@{
-                keyboardController?.hide()
                 focusManager.clearFocus()
+                keyboardController?.hide()
                 if (searchQuery.isBlank()) return@f
                 onSearch(searchQuery)
+            }
+
+            val requestKeyboard = rememberSaveable { mutableStateOf(searchQuery.isEmpty()) }
+            LaunchedEffect(focusRequester) {
+                if (requestKeyboard.value) {
+                    focusRequester.requestFocus()
+                    requestKeyboard.value = false
+                }
             }
 
             BasicTextField(
@@ -331,8 +338,8 @@ fun SearchToolbar(
                 onValueChange = onChangeSearchQuery,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .runOnEnterKeyPressed(action = searchAndClearFocus)
-                    .showSoftKeyboard(remember { searchQuery.isEmpty() }, focusRequester),
+                    .focusRequester(focusRequester)
+                    .runOnEnterKeyPressed(action = searchAndClearFocus),
                 textStyle = MaterialTheme.typography.titleMedium.copy(
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Normal,
