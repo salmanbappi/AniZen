@@ -2,6 +2,7 @@ package eu.kanade.presentation.components
 
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
 import tachiyomi.presentation.core.util.secondaryItemAlpha
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -334,13 +336,21 @@ fun SearchToolbar(
                 }
             }
 
+            // On Android < P, clearing focus in touch mode makes the framework immediately
+            // hand focus back to the first focusable node in the hierarchy. Buttons are not
+            // focusable in touch mode, so that node is the search text field, which reopens
+            // the keyboard right after every dismissal and can never be closed (#72).
+            // Give that bounced focus a harmless place to land instead.
+            Box(modifier = Modifier.size(1.dp).focusable())
+
             BasicTextField(
                 value = searchQuery,
                 onValueChange = onChangeSearchQuery,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
-                    .runOnEnterKeyPressed(action = searchAndClearFocus),
+                    .runOnEnterKeyPressed(action = searchAndClearFocus)
+                    .clearFocusOnSoftKeyboardHide(),
                 textStyle = MaterialTheme.typography.titleMedium.copy(
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Normal,

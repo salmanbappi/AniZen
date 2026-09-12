@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -33,6 +35,8 @@ class GlobalSearchScreen(
         }
 
         val navigator = LocalNavigator.currentOrThrow
+        val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
 
         val screenModel = rememberScreenModel {
             GlobalSearchScreenModel(
@@ -79,12 +83,18 @@ class GlobalSearchScreen(
                 onChangeSearchFilter = screenModel::setSourceFilter,
                 onToggleResults = screenModel::toggleFilterResults,
                 onClickSource = {
+                    // Release focus before leaving so the restored focus doesn't reopen the
+                    // keyboard when coming back to the results (#72)
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
                     navigator.push(BrowseSourceScreen(it.id, state.searchQuery))
                 },
                 onClickItem = { anime ->
                     if (bulkFavoriteState.selectionMode) {
                         bulkFavoriteScreenModel.toggleSelection(anime)
                     } else {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
                         navigator.push(AnimeScreen(anime.id, true))
                     }
                 },

@@ -63,6 +63,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -203,6 +204,7 @@ data class BrowseSourceScreen(
         val entries = screenModel.getColumnsPreferenceForCurrentOrientation(LocalConfiguration.current.orientation)
         val hazeEnabled by uiPreferences.hazeEnabled().collectAsStatePref()
         val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
         val firstItemFocusRequester = remember { FocusRequester() }
         val selectedChipFocusRequester = remember { FocusRequester() }
 
@@ -451,11 +453,21 @@ data class BrowseSourceScreen(
             }
 
             val currentAnimeList by androidx.compose.runtime.rememberUpdatedState(animeList)
-            val onAnimeClickMemoized: (Anime, Int) -> Unit = remember(state.selectionMode, screenModel, navigator) {
+            val onAnimeClickMemoized: (Anime, Int) -> Unit = remember(
+                state.selectionMode,
+                screenModel,
+                navigator,
+                focusManager,
+                keyboardController,
+            ) {
                 { anime, index ->
                     if (state.selectionMode) {
                         screenModel.toggleSelection(anime, index)
                     } else {
+                        // Release focus before leaving so the restored focus doesn't reopen
+                        // the keyboard when coming back to the results (#72)
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
                         navigator.push((AnimeScreen(anime.id, true)))
                     }
                 }
