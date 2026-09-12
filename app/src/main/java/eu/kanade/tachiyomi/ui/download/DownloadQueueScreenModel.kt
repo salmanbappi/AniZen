@@ -61,27 +61,46 @@ class DownloadQueueScreenModel(
         }
 
         override fun onMenuItemClick(position: Int, menuItem: MenuItem) {
-            val item = adapter?.getItem(position) ?: return
+            val adapter = adapter ?: return
+            val item = adapter.getItem(position) ?: return
             if (item is DownloadItem) {
+                val headerItem = item.header as? DownloadHeaderItem ?: return
                 when (menuItem.itemId) {
                     R.id.move_to_top, R.id.move_to_bottom -> {
-                        val headerItems = adapter?.headerItems ?: return
                         val newDownloads = mutableListOf<Download>()
-                        headerItems.forEach { headerItem ->
-                            headerItem as DownloadHeaderItem
-                            if (headerItem == item.header) {
-                                headerItem.removeSubItem(item)
+                        adapter.headerItems.forEach { header ->
+                            header as DownloadHeaderItem
+                            if (header == headerItem) {
+                                header.removeSubItem(item)
                                 if (menuItem.itemId == R.id.move_to_top) {
-                                    headerItem.addSubItem(0, item)
+                                    header.addSubItem(0, item)
                                 } else {
-                                    headerItem.addSubItem(item)
+                                    header.addSubItem(item)
                                 }
                             }
-                            newDownloads.addAll(headerItem.subItems.map { it.download })
+                            newDownloads.addAll(header.subItems.map { it.download })
                         }
                         reorder(newDownloads)
                     }
+                    R.id.move_to_top_series, R.id.move_to_bottom_series -> {
+                        val seriesDownloads = mutableListOf<Download>()
+                        val otherDownloads = mutableListOf<Download>()
+                        adapter.headerItems.forEach { header ->
+                            header as DownloadHeaderItem
+                            val target = if (header == headerItem) seriesDownloads else otherDownloads
+                            target.addAll(header.subItems.map { it.download })
+                        }
+                        if (seriesDownloads.isEmpty()) return
+                        reorder(
+                            if (menuItem.itemId == R.id.move_to_top_series) {
+                                seriesDownloads + otherDownloads
+                            } else {
+                                otherDownloads + seriesDownloads
+                            },
+                        )
+                    }
                     R.id.cancel_download -> cancel(listOf(item.download))
+                    R.id.cancel_series -> cancel(headerItem.subItems.map { it.download })
                 }
             }
         }
