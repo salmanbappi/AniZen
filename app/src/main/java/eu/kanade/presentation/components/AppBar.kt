@@ -332,9 +332,8 @@ fun SearchToolbar(
                 onValueChange = onChangeSearchQuery,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(focusRequester)
                     .runOnEnterKeyPressed(action = searchAndClearFocus)
-                    .showSoftKeyboard(remember { searchQuery.isEmpty() })
+                    .showSoftKeyboard(remember { searchQuery.isEmpty() }, focusRequester)
                     .clearFocusOnSoftKeyboardHide(),
                 textStyle = MaterialTheme.typography.titleMedium.copy(
                     color = MaterialTheme.colorScheme.onBackground,

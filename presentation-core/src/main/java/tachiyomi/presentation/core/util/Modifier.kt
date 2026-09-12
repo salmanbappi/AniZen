@@ -78,9 +78,11 @@ fun Modifier.runOnEnterKeyPressed(action: () -> Unit): Modifier = this.onPreview
  * to the element the first time it's composed.
  */
 @Composable
-fun Modifier.showSoftKeyboard(show: Boolean): Modifier {
+fun Modifier.showSoftKeyboard(
+    show: Boolean,
+    focusRequester: FocusRequester = remember { FocusRequester() },
+): Modifier {
     if (!show) return this
-    val focusRequester = remember { FocusRequester() }
     var openKeyboard by rememberSaveable { mutableStateOf(show) }
     LaunchedEffect(focusRequester) {
         if (openKeyboard) {
