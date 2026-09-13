@@ -1650,9 +1650,9 @@ private fun LazyListScope.sharedEpisodeItems(
         items = episodes,
         key = { index, item ->
             when (item) {
-                is EpisodeList.Item -> "anime-ep-${item.episode.id}"
-                is EpisodeList.MissingCount -> "anime-ms-${item.id}"
-                is EpisodeList.Season -> "anime-sn-${item.name}-$index"
+                is EpisodeList.Item -> item.episode.id
+                is EpisodeList.MissingCount -> item.id
+                is EpisodeList.Season -> "season_${item.name}_$index"
             }
         },
         contentType = { _, item ->

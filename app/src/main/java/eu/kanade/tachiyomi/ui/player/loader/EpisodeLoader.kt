@@ -67,30 +67,42 @@ class EpisodeLoader {
                 episode.scanlator,
                 anime.title,
                 anime.source,
-                skipCache = true,
+                skipCache = false,
                 episodeNumber = episode.episodeNumber,
             )
         }
 
-        private fun checkHasHosters(source: AnimeHttpSource): Boolean {
-            var current: Class<in AnimeHttpSource> = source.javaClass
-            while (true) {
-                if (current == ParsedAnimeHttpSource::class.java ||
-                    current == AnimeHttpSource::class.java ||
-                    current == AnimeSource::class.java
+        /**
+         * Thread-safe cache storing whether an [AnimeHttpSource] implementation supports hosters.
+         * Avoids repeating class hierarchy reflection scans on every episode load.
+         */
+        private val HAS_HOSTERS_CACHE = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
+
+        /**
+         * Method names indicating that an [AnimeHttpSource] declares custom hoster handling.
+         */
+        private val HOSTER_METHOD_NAMES = setOf("getHosterList", "hosterListRequest", "hosterListParse")
+
+        /**
+         * Returns true if the given [source] implements hoster-related methods.
+         * 
+         * @param source the source that is verified
+         */
+        private fun checkHasHosters(source: AnimeHttpSource): Boolean =
+            HAS_HOSTERS_CACHE.getOrPut(source.javaClass) {
+                var current: Class<*>? = source.javaClass
+                while (current != null &&
+                    current != ParsedAnimeHttpSource::class.java &&
+                    current != AnimeHttpSource::class.java &&
+                    current != AnimeSource::class.java
                 ) {
-                    return false
-                }
-                if (current.declaredMethods.any {
-                        it.name in
-                            listOf("getHosterList", "hosterListRequest", "hosterListParse")
+                    if (current.declaredMethods.any { it.name in HOSTER_METHOD_NAMES }) {
+                        return@getOrPut true
                     }
-                ) {
-                    return true
+                    current = current.superclass
                 }
-                current = current.superclass ?: return false
+                false
             }
-        }
 
         /**
          * Returns a list of hosters when the [episode] is online.

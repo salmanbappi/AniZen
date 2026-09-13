@@ -96,7 +96,6 @@ fun GestureHandler(
     val panelShown by viewModel.panelShown.collectAsState()
     val allowGesturesInPanels by playerPreferences.allowGestures().collectAsStatePref()
     val duration by viewModel.duration.collectAsState()
-    val position by viewModel.pos.collectAsState()
     val controlsShown by viewModel.controlsShown.collectAsState()
     val areControlsLocked by viewModel.areControlsLocked.collectAsState()
     val seekAmount by viewModel.doubleTapSeekAmount.collectAsState()
@@ -401,7 +400,7 @@ fun GestureHandler(
                 if (areControlsLocked) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = true)
-                    var startingPosition = position.toInt()
+                    var startingPosition = viewModel.pos.value.toInt()
                     var startingX = down.position.x
                     var startingY = down.position.y
                     var wasPlayerAlreadyPause = false
@@ -441,7 +440,7 @@ fun GestureHandler(
                             if (diffX > viewConfiguration.touchSlop * 1.5f || diffY > viewConfiguration.touchSlop * 1.5f) {
                                 if (diffX > diffY && seekGesture) {
                                     dragDirection = 1
-                                    startingPosition = position.toInt()
+                                    startingPosition = viewModel.pos.value.toInt()
                                     startingX = pointer.position.x
                                     wasPlayerAlreadyPause = viewModel.paused.value
                                     viewModel.pause()

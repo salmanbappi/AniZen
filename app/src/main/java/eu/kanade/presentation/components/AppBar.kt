@@ -93,9 +93,7 @@ fun AppBar(
 
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
-    val isActionMode by remember(actionModeCounter) {
-        derivedStateOf { actionModeCounter > 0 }
-    }
+    val isActionMode = actionModeCounter > 0
 
     AppBar(
         modifier = modifier,

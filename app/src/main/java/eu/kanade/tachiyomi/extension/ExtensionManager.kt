@@ -80,9 +80,11 @@ class ExtensionManager(
         extensionRepoRepository.subscribeAll(),
     ) { installedMap, repos ->
         installedMap.values.map { extension ->
+            val extHash = extension.signatureHash
+            val extPadded = extHash.padStart(64, '0')
             val matchingRepo = repos.find {
-                it.signingKeyFingerprint.equals(extension.signatureHash, ignoreCase = true) ||
-                it.signingKeyFingerprint.padStart(64, '0').equals(extension.signatureHash.padStart(64, '0'), ignoreCase = true)
+                it.signingKeyFingerprint.equals(extHash, ignoreCase = true) ||
+                it.signingKeyFingerprint.padStart(64, '0').equals(extPadded, ignoreCase = true)
             }
             val author = matchingRepo?.author
                 ?: matchingRepo?.let { repo ->
