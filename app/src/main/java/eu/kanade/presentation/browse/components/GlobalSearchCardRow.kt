@@ -53,7 +53,7 @@ fun GlobalSearchCardRow(
     ) {
         items(
             items = titles,
-            key = { "gs-${it.id}" },
+            key = { it.id },
         ) { it: tachiyomi.domain.anime.model.Anime ->
             val animeState = getAnime(it)
             val title by animeState
