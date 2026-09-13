@@ -65,6 +65,10 @@ import tachiyomi.presentation.core.icons.CustomIcons
 import tachiyomi.presentation.core.icons.Magnet
 import tachiyomi.presentation.core.screens.EmptyScreen
 
+private val GITHUB_REPO_REGEX = Regex("""https://raw\.githubusercontent\.com/(.+?)/(.+?)/.+""")
+private val CODEBERG_REPO_REGEX = Regex("""https://codeberg\.org/(.+?)/(.+?)/raw/.+""")
+private val GITLAB_REPO_REGEX = Regex("""https://gitlab\.com/(.+?)/(.+?)/-/raw/.+""")
+
 @Composable
 fun ExtensionDetailsScreen(
     navigateUp: () -> Unit,
@@ -78,18 +82,14 @@ fun ExtensionDetailsScreen(
 ) {
     val uriHandler = LocalUriHandler.current
     val url = remember(state.extension) {
-        val githubRegex = """https://raw\.githubusercontent\.com/(.+?)/(.+?)/.+""".toRegex()
-        val codebergRegex = """https://codeberg\.org/(.+?)/(.+?)/raw/.+""".toRegex()
-        val gitlabRegex = """https://gitlab\.com/(.+?)/(.+?)/-/raw/.+""".toRegex()
-
         val repoUrl = state.extension?.repoUrl.orEmpty()
-        githubRegex.find(repoUrl)?.let {
+        GITHUB_REPO_REGEX.find(repoUrl)?.let {
             val (user, repo) = it.destructured
             "https://github.com/$user/$repo"
-        } ?: codebergRegex.find(repoUrl)?.let {
+        } ?: CODEBERG_REPO_REGEX.find(repoUrl)?.let {
             val (user, repo) = it.destructured
             "https://codeberg.org/$user/$repo"
-        } ?: gitlabRegex.find(repoUrl)?.let {
+        } ?: GITLAB_REPO_REGEX.find(repoUrl)?.let {
             val (user, repo) = it.destructured
             "https://gitlab.com/$user/$repo"
         } ?: state.extension?.repoUrl
