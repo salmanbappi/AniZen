@@ -51,9 +51,9 @@ fun extensionsTab(
                     iconContent = {
                         val nsfwOnly by extensionsScreenModel.state.map { it.nsfwOnly }.collectAsStateWithLifecycle(false)
                         NsfwIcon(
-                            color = if (nsfwOnly) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            color = if (nsfwOnly) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                         )
-                    }
+                    },
                 ),
                 AppBar.OverflowAction(
                     title = actionFilter,

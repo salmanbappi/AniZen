@@ -132,10 +132,10 @@ fun PlaybackSpeedSheet(
                     Icon(Icons.Default.Add, null)
                 }
             }
-            
+
             val pitchCorrection by audioPreferences.enablePitchCorrection().collectAsState()
             val longPressSpeed by preferences.playerSpeedLongPress().collectAsState()
-            
+
             SliderItem(
                 label = "Long press speed",
                 value = longPressSpeed,

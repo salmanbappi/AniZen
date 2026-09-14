@@ -12,6 +12,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
@@ -23,8 +24,6 @@ import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
-import kotlinx.coroutines.flow.combine
 
 class MigrateAnimeScreenModel(
     private val sourceIds: List<Long>,
@@ -49,7 +48,7 @@ class MigrateAnimeScreenModel(
             }
 
             combine(
-                sourceIds.map { getFavorites.subscribe(it) }
+                sourceIds.map { getFavorites.subscribe(it) },
             ) { favoriteLists ->
                 favoriteLists.flatMap { it }
             }
@@ -75,7 +74,7 @@ class MigrateAnimeScreenModel(
                         state.copy(
                             titles = list,
                             selection = list.filter { it.selected }.toImmutableList(),
-                            isLoading = false
+                            isLoading = false,
                         )
                     }
                 }
@@ -154,7 +153,7 @@ class MigrateAnimeScreenModel(
             }.toImmutableList()
             state.copy(
                 titles = newItems,
-                selection = newItems.filter { it.selected }.toImmutableList()
+                selection = newItems.filter { it.selected }.toImmutableList(),
             )
         }
     }
@@ -167,7 +166,7 @@ class MigrateAnimeScreenModel(
             }.toImmutableList()
             state.copy(
                 titles = newItems,
-                selection = if (selected) newItems else persistentListOf()
+                selection = if (selected) newItems else persistentListOf(),
             )
         }
 
@@ -183,7 +182,7 @@ class MigrateAnimeScreenModel(
             }.toImmutableList()
             state.copy(
                 titles = newItems,
-                selection = newItems.filter { it.selected }.toImmutableList()
+                selection = newItems.filter { it.selected }.toImmutableList(),
             )
         }
         selectedPositions[0] = -1

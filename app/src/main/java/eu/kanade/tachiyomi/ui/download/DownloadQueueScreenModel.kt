@@ -10,10 +10,8 @@ import eu.kanade.tachiyomi.databinding.DownloadListBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
@@ -173,6 +171,8 @@ class DownloadQueueScreenModel(
     private fun getHolder(download: Download): DownloadHolder? {
         return if (::controllerBinding.isInitialized) {
             controllerBinding.root.findViewHolderForItemId(download.episode.id) as? DownloadHolder
-        } else null
+        } else {
+            null
+        }
     }
 }

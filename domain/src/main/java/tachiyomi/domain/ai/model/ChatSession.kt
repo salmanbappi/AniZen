@@ -5,5 +5,5 @@ data class ChatSession(
     val title: String,
     val lastMessageAt: Long,
     val isPinned: Boolean,
-    val messageCount: Long = 0
+    val messageCount: Long = 0,
 )

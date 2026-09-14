@@ -10,9 +10,9 @@ import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListItemStatus
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALOAuth
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALSearchResult
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUser
-import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserSearchResult
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserAnimeList
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserAnimeListItem
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserSearchResult
 import eu.kanade.tachiyomi.network.DELETE
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
@@ -233,7 +233,7 @@ class MyAnimeListApi(
             val urlBuilder = "$BASE_API_URL/users/@me/animelist".toUri().buildUpon()
                 .appendQueryParameter(
                     "fields",
-                    "list_status{status,score,num_episodes_watched,is_rewatching,start_date,finish_date},num_episodes,main_picture,synopsis"
+                    "list_status{status,score,num_episodes_watched,is_rewatching,start_date,finish_date},num_episodes,main_picture,synopsis",
                 )
                 .appendQueryParameter("limit", LIST_PAGINATION_AMOUNT.toString())
             if (offset > 0) {

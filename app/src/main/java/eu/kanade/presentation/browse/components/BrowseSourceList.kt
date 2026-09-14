@@ -1,11 +1,9 @@
 package eu.kanade.presentation.browse.components
 
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -58,11 +56,11 @@ fun BrowseSourceList(
             val anime = animeFlow.value
             onBatchIncrement(index)
 
-            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
-                { onAnimeClick(anime, index) } 
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) {
+                { onAnimeClick(anime, index) }
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
-                { onAnimeLongClick(anime, index) } 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) {
+                { onAnimeLongClick(anime, index) }
             }
 
             val itemModifier = (if (index == 0 && firstItemFocusRequester != null) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
@@ -73,7 +71,7 @@ fun BrowseSourceList(
                         }
                     } else {
                         Modifier
-                    }
+                    },
                 )
 
             BrowseSourceListItem(

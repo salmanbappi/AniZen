@@ -37,10 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.anime.components.BottomMenuButton
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.libraryUpdateError.components.libraryUpdateErrorUiItems
-import eu.kanade.presentation.anime.components.BottomMenuButton
 import eu.kanade.tachiyomi.ui.libraryUpdateError.LibraryUpdateErrorItem
 import eu.kanade.tachiyomi.ui.libraryUpdateError.LibraryUpdateErrorScreenState
 import kotlinx.collections.immutable.persistentListOf

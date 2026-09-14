@@ -67,7 +67,7 @@ class HomeScreenModel(
                 context.networkStateFlow(),
                 uiPreferences.adaptiveNavEnabled().changes(),
                 uiPreferences.adaptiveConnectivityRule().changes(),
-                uiPreferences.adaptiveTimeRule().changes()
+                uiPreferences.adaptiveTimeRule().changes(),
             ).collectLatest {
                 adaptiveEngine.evaluateRules(force = true)
             }

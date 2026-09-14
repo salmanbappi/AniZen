@@ -17,16 +17,14 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
-import logcat.LogPriority
 import tachiyomi.domain.ai.model.ChatMessage
 import tachiyomi.domain.ai.model.ChatSession
 import tachiyomi.domain.ai.repository.ChatRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.time.Instant
 
 class AiAssistantScreenModel(
     private val chatRepository: ChatRepository = Injekt.get(),
@@ -36,18 +34,18 @@ class AiAssistantScreenModel(
 
     val sessions: StateFlow<ImmutableList<ChatSession>> = combine(
         chatRepository.getSessions(),
-        state.map { it.activeSessionId }.distinctUntilChanged()
+        state.map { it.activeSessionId }.distinctUntilChanged(),
     ) { list, activeSessionId ->
         list.filter { it.messageCount > 0 || it.id == activeSessionId }
             .toImmutableList()
     }
-    .stateIn(screenModelScope, SharingStarted.Lazily, persistentListOf())
+        .stateIn(screenModelScope, SharingStarted.Lazily, persistentListOf())
 
     init {
         screenModelScope.launchIO {
             val prefSessionId = aiPreferences.activeSessionId().get()
             val allSessions = chatRepository.getSessions().firstOrNull().orEmpty()
-            
+
             // Cleanup truly empty sessions on start (except pref active one)
             val emptySessionIds = allSessions
                 .filter { it.messageCount == 0L && it.id != prefSessionId }
@@ -96,7 +94,7 @@ class AiAssistantScreenModel(
     private fun loadSession(sessionId: Long) {
         // Update ID immediately to prevent race conditions in sendMessage
         mutableState.update { it.copy(activeSessionId = sessionId) }
-        
+
         messageCollectionJob?.cancel()
         messageCollectionJob = screenModelScope.launchIO {
             chatRepository.getMessagesBySessionId(sessionId).collectLatest { messages ->
@@ -158,7 +156,7 @@ class AiAssistantScreenModel(
 
         screenModelScope.launchIO {
             val sessionId = state.value.activeSessionId ?: return@launchIO
-            
+
             // Check if session still exists
             if (chatRepository.getSessionById(sessionId) == null) {
                 createNewSession()
@@ -167,7 +165,7 @@ class AiAssistantScreenModel(
 
             // 1. Save User Message
             chatRepository.insertMessage(sessionId, "user", query)
-            
+
             if (query.trim().equals("/reset", ignoreCase = true)) {
                 aiManager.resetCircuitBreaker()
                 chatRepository.insertMessage(sessionId, "model", "Neural stability reset. Circuit breaker cleared.")
@@ -180,7 +178,7 @@ class AiAssistantScreenModel(
             // 3. Call AI with streaming
             val history = state.value.messages.map { AiManager.ChatMessage(it.role, it.content) }
             val fullResponse = StringBuilder()
-            
+
             try {
                 aiManager.chatWithAssistantStream(query, history).collect { chunk ->
                     fullResponse.append(chunk)
@@ -191,7 +189,7 @@ class AiAssistantScreenModel(
                 val response = fullResponse.toString()
                 if (response.isNotBlank()) {
                     chatRepository.insertMessage(sessionId, "model", response)
-                    
+
                     // 5. Update Session Title if it's the first message from human
                     val userMessages = state.value.messages.filter { it.role == "user" }
                     if (userMessages.size == 1) {

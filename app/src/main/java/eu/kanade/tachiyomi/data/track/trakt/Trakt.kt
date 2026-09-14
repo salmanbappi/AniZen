@@ -1,8 +1,11 @@
 package eu.kanade.tachiyomi.data.track.trakt
 
+import android.app.Application
 import android.graphics.Color
 import dev.icerock.moko.resources.StringResource
+import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.animesource.model.Credit
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.AnimeTracker
 import eu.kanade.tachiyomi.data.track.BaseTracker
@@ -11,14 +14,12 @@ import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.ImportableTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
-import eu.kanade.tachiyomi.animesource.model.Credit
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktIds
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktMovie
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktOAuth
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktShow
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktSyncMovie
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.json.Json
@@ -27,16 +28,15 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import tachiyomi.core.common.util.lang.withIOContext
+import tachiyomi.core.common.util.lang.withUIContext
+import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.i18n.MR
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.math.roundToInt
 import tachiyomi.domain.track.model.Track as DomainTrack
-import tachiyomi.core.common.util.lang.withIOContext
-import eu.kanade.domain.track.model.toDomainTrack
-import tachiyomi.domain.track.interactor.InsertTrack
-import android.app.Application
-import tachiyomi.core.common.util.lang.withUIContext
-import eu.kanade.tachiyomi.util.system.toast
 
 /**
  * Trakt.tv tracker implementation (anime / shows / movies).

@@ -2,18 +2,14 @@ package eu.kanade.presentation.library.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,8 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
@@ -31,11 +25,8 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -51,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.library.LibraryItem
@@ -272,7 +262,7 @@ fun FolderOverlay(
                         BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f, fill = false)
+                                .weight(1f, fill = false),
                         ) {
                             val containerHeight = constraints.maxHeight
 
@@ -295,10 +285,10 @@ fun FolderOverlay(
                                     selectedItems + it.id
                                 }
                             }
-                            
-                            val onClickContinueWatchingGrid: ((tachiyomi.domain.library.model.LibraryAnime) -> Unit)? = 
+
+                            val onClickContinueWatchingGrid: ((tachiyomi.domain.library.model.LibraryAnime) -> Unit)? =
                                 if (onClickContinueWatching != null) { it -> onClickContinueWatching(it) } else null
-                            
+
                             when (displayMode) {
                                 tachiyomi.domain.library.model.LibraryDisplayMode.List -> {
                                     LibraryList(
@@ -369,8 +359,8 @@ fun FolderOverlay(
                                 onMarkAsSeenClicked = { onMarkAsSeenClicked(items.filter { selectedItems.contains(it.libraryAnime.id) }) },
                                 onMarkAsUnseenClicked = { onMarkAsUnseenClicked(items.filter { selectedItems.contains(it.libraryAnime.id) }) },
                                 onFavoriteClicked = { onFavoriteClicked(items.filter { selectedItems.contains(it.libraryAnime.id) }) },
-                                onDownloadClicked = { action -> 
-                                    onDownloadClicked(items.filter { selectedItems.contains(it.libraryAnime.id) }, action) 
+                                onDownloadClicked = { action ->
+                                    onDownloadClicked(items.filter { selectedItems.contains(it.libraryAnime.id) }, action)
                                 },
                                 onDeleteClicked = { onDeleteAnimeClicked(items.filter { selectedItems.contains(it.libraryAnime.id) }) },
                                 onMigrateClicked = { /* Bulk migrate from folder? */ },

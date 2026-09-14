@@ -1,7 +1,7 @@
 package tachiyomi.domain.anime.model
 
-import eu.kanade.tachiyomi.animesource.model.SAnime as SAnimeSource
 import eu.kanade.tachiyomi.source.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SAnime as SAnimeSource
 
 fun Anime.toSAnime(): SAnime = SAnime.create().also {
     it.url = url

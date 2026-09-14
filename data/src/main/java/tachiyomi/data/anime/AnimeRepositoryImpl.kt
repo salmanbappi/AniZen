@@ -1,6 +1,5 @@
 package tachiyomi.data.anime
 
-import tachiyomi.domain.anime.model.SeasonAnime
 import kotlinx.coroutines.flow.Flow
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -10,6 +9,7 @@ import tachiyomi.data.StringListColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.AnimeUpdate
+import tachiyomi.domain.anime.model.SeasonAnime
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.library.model.LibraryAnime
 import java.time.LocalDate

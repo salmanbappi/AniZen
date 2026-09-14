@@ -3,17 +3,17 @@ package eu.kanade.tachiyomi.ui.home
 import android.content.Context
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.NavConfig
+import eu.kanade.domain.ui.model.NavConfigSerializer
 import eu.kanade.domain.ui.model.NavPresets
 import eu.kanade.tachiyomi.util.system.isOnline
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import eu.kanade.domain.ui.model.NavConfig
-import eu.kanade.domain.ui.model.NavConfigSerializer
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableMap
 import java.util.Calendar
 
 data class AdaptiveDecision(
@@ -21,14 +21,14 @@ data class AdaptiveDecision(
     val priority: Int,
     val suggestedConfig: eu.kanade.domain.ui.model.NavConfig? = null,
     val onApply: (() -> Unit)? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
 )
 
 class NavAdaptiveEngine(
     private val context: Context,
     private val scope: CoroutineScope,
     private val uiPreferences: UiPreferences = Injekt.get(),
-    private val basePreferences: BasePreferences = Injekt.get()
+    private val basePreferences: BasePreferences = Injekt.get(),
 ) {
     private val _currentDecision = MutableStateFlow<AdaptiveDecision?>(null)
     val currentDecision = _currentDecision.asStateFlow()
@@ -66,11 +66,11 @@ class NavAdaptiveEngine(
                         val currentConfig = NavConfig(
                             visibleTabs = uiPreferences.bottomNavTabs().get().toImmutableList(),
                             hiddenTabs = uiPreferences.bottomNavHiddenTabs().get().toImmutableList(),
-                            behaviorMap = uiPreferences.bottomNavBehaviors().get().toImmutableMap()
+                            behaviorMap = uiPreferences.bottomNavBehaviors().get().toImmutableMap(),
                         )
                         uiPreferences.lastOnlineNavConfig().set(NavConfigSerializer.serialize(currentConfig))
                         basePreferences.downloadedOnly().set(true)
-                    }
+                    },
                 )
                 return
             } else if (isOnline && isDownloadedOnly) {
@@ -82,10 +82,10 @@ class NavAdaptiveEngine(
                         reason = "Back online! Restore full navigation?",
                         priority = 9,
                         suggestedConfig = savedConfig,
-                        onApply = { 
+                        onApply = {
                             basePreferences.downloadedOnly().set(false)
                             uiPreferences.lastOnlineNavConfig().delete()
-                        }
+                        },
                     )
                     return
                 }
@@ -98,7 +98,7 @@ class NavAdaptiveEngine(
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         val startHour = uiPreferences.adaptiveTimeRuleStart().get()
         val endHour = uiPreferences.adaptiveTimeRuleEnd().get()
-        
+
         val isLateNight = if (startHour <= endHour) {
             hour in startHour..endHour
         } else {
@@ -117,10 +117,10 @@ class NavAdaptiveEngine(
                         val currentConfig = NavConfig(
                             visibleTabs = uiPreferences.bottomNavTabs().get().toImmutableList(),
                             hiddenTabs = uiPreferences.bottomNavHiddenTabs().get().toImmutableList(),
-                            behaviorMap = uiPreferences.bottomNavBehaviors().get().toImmutableMap()
+                            behaviorMap = uiPreferences.bottomNavBehaviors().get().toImmutableMap(),
                         )
                         uiPreferences.lastOnlineNavConfig().set(NavConfigSerializer.serialize(currentConfig))
-                    }
+                    },
                 )
                 return
             } else if (!isLateNight) {
@@ -132,9 +132,9 @@ class NavAdaptiveEngine(
                         reason = "Good morning! Restore your layout?",
                         priority = 4,
                         suggestedConfig = savedConfig,
-                        onApply = { 
+                        onApply = {
                             uiPreferences.lastOnlineNavConfig().delete()
-                        }
+                        },
                     )
                     return
                 }

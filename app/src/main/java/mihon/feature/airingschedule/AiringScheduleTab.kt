@@ -16,12 +16,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.ViewWeek
-import mihon.feature.airingschedule.components.calendar.ScheduleMonthView
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -48,24 +48,24 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
+import eu.kanade.tachiyomi.ui.updates.UpdatesTab
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mihon.feature.airingschedule.components.BellNotifyState
 import mihon.feature.airingschedule.components.ScheduleAnimeCard
 import mihon.feature.airingschedule.components.ScheduleFilterSheet
+import mihon.feature.airingschedule.components.calendar.ScheduleMonthView
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
-import eu.kanade.tachiyomi.ui.updates.UpdatesTab
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
@@ -149,7 +149,7 @@ data object AiringScheduleTab : Tab {
                                     text = weekRange,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                )
                             }
                         }
                     },
@@ -434,11 +434,12 @@ private fun ScheduleDayContent(
                 val candidateKeys = candidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
                 candidateKeys.firstNotNullOfOrNull { libraryAnimeIdByTitle[it] }
             }
-            val isInLibrary = matchedAnimeId != null || remember(entry.scheduleId, libraryAnimeTitles) {
-                val candidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
-                val candidateKeys = candidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
-                candidateKeys.any { it in libraryAnimeTitles }
-            }
+            val isInLibrary = matchedAnimeId != null ||
+                remember(entry.scheduleId, libraryAnimeTitles) {
+                    val candidates = mihon.feature.airingschedule.util.ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+                    val candidateKeys = candidates.flatMap { mihon.feature.airingschedule.util.ScheduleTitleMatcher.normalizedKeys(it) }
+                    candidateKeys.any { it in libraryAnimeTitles }
+                }
             ScheduleAnimeCard(
                 modifier = Modifier.animateItem(),
                 entry = entry,

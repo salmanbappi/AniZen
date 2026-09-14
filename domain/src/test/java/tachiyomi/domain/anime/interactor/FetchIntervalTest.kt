@@ -143,16 +143,16 @@ class FetchIntervalTest {
         val interval = 1 // 1 day interval
         val lastUpdate = testTime.minusDays(100).toInstant().toEpochMilli()
         val anime = Anime.create().copy(lastUpdate = lastUpdate, nextUpdate = 0L, fetchInterval = interval)
-        
+
         coEvery { getEpisodesByAnimeId.await(any(), any()) } returns emptyList()
-        
+
         // window is today +/- 1 day
         val window = fetchInterval.getWindow(testTime)
-        
+
         val update = fetchInterval.toAnimeUpdate(anime, testTime, window)
-        
+
         // The interval in update should be increased exponentially
-        update.fetchInterval shouldBe 16 
+        update.fetchInterval shouldBe 16
     }
 
     private fun episodeWithTime(episode: Episode, duration: Duration): Episode {

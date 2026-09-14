@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.util.system
 
 import android.app.Application
 import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import androidx.core.graphics.drawable.toBitmap
 import androidx.palette.graphics.Palette
@@ -37,7 +36,7 @@ object CoverColorExtractor {
     ) = withContext(Dispatchers.Default) {
         val context = Injekt.get<Application>()
         val image = state.result.image
-        
+
         // Fast ratio extraction without bitmap conversion
         val ratio = image.width.toFloat() / image.height.toFloat()
         cover.ratio = ratio

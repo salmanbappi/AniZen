@@ -15,7 +15,6 @@ import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.concurrent.ConcurrentHashMap
-
 import java.util.concurrent.atomic.AtomicLong
 
 data class Download(
@@ -55,21 +54,29 @@ data class Download(
 
     // Rich Notification Fields
     @Transient var speed: String = ""
+
     @Transient var eta: String = ""
     var totalSize: Long = -1L
     var totalDuration: Long = 0L
+
     @Transient var downloadedSize: String = ""
+
     @Transient var downloadedSegments: Int = 0
     var totalSegments: Int = 0
+
     @Transient var activeThreads: Int = 0
-    var engineType: String = "" // "HLS", "DASH", or "Normal"
+    var engineType: String = ""
+
+    // "HLS", "DASH", or "Normal"
     @Transient var interruptedState: State? = null
-    
+
     // 1DM-style granular progress
     @Transient val partProgress = ConcurrentHashMap<Int, Float>()
+
     @Transient val segmentProgress = ConcurrentHashMap<Int, Boolean>()
+
     @Transient var lastNotifiedTime: Long = 0L
-    
+
     // PERFORMANCE: Atomic accumulators for lock-free metric updates
     private val totalBytesAccumulator = AtomicLong(0)
     private var lastUpdateTime: Long = System.currentTimeMillis()
@@ -84,13 +91,13 @@ data class Download(
             totalSize = contentLength
         }
         totalBytesAccumulator.set(bytesRead)
-        
+
         val newProgress = when {
             totalSize > 0 -> (100 * bytesRead / totalSize).toInt()
             totalSegments > 0 -> (100 * downloadedSegments / totalSegments).toInt()
             else -> -1
         }
-        
+
         calculateSpeed(bytesRead)
 
         if (progress != newProgress) progress = newProgress
@@ -123,12 +130,12 @@ data class Download(
     private fun calculateSpeed(bytesRead: Long) {
         val now = System.currentTimeMillis()
         val timeDiff = (now - lastUpdateTime) / 1000.0
-        
+
         // SMOOTHING: Only calculate metrics every 500ms to avoid CPU thrashing
-        if (timeDiff >= 0.5) { 
+        if (timeDiff >= 0.5) {
             val bytesDiff = bytesRead - lastBytesRead.get()
             val currentSpeed = bytesDiff / timeDiff
-            
+
             // Lock-free sampling using CopyOnWriteArrayList and Atomic updates
             speedSamples.add(currentSpeed)
             if (speedSamples.size > 5) speedSamples.removeAt(0)

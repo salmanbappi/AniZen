@@ -1,42 +1,33 @@
 package eu.kanade.presentation.library.components
 
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastAny
-import eu.kanade.tachiyomi.ui.library.LibraryItem
-import kotlinx.collections.immutable.ImmutableList
-import tachiyomi.domain.anime.model.AnimeCover
-import tachiyomi.domain.library.model.LibraryAnime
-import tachiyomi.presentation.core.components.FastScrollLazyColumn
-import tachiyomi.presentation.core.util.plus
-import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.unit.dp
+import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
+import kotlinx.collections.immutable.ImmutableList
+import tachiyomi.domain.anime.model.AnimeCover
+import tachiyomi.domain.library.model.LibraryAnime
+import tachiyomi.presentation.core.components.FastScrollLazyColumn
+import tachiyomi.presentation.core.util.plus
 
 @Composable
 internal fun LibraryList(
@@ -72,14 +63,14 @@ internal fun LibraryList(
 
         itemsIndexed(
             items = items,
-            key = { _, item -> 
+            key = { _, item ->
                 when (item) {
                     is LibraryDisplayItem.Anime -> "library-list-${item.libraryItem.libraryAnime.anime.id}"
                     is LibraryDisplayItem.Folder -> "library-list-folder-${item.folder.id}"
                     is LibraryDisplayItem.Header -> "library-list-header-${item.name}"
                 }
             },
-            contentType = { _, item -> 
+            contentType = { _, item ->
                 when (item) {
                     is LibraryDisplayItem.Anime -> "anime_library_list_item"
                     is LibraryDisplayItem.Folder -> "folder_library_list_item"
@@ -136,7 +127,7 @@ internal fun LibraryList(
                     Text(
                         text = displayItem.name,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
                     )
                 }
             }
@@ -161,13 +152,13 @@ fun FolderListItem(
                 onLongClick = onLongClick,
             )
             .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = Icons.Outlined.Folder,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier.size(48.dp),
         )
         Text(
             text = folder.folder.name,

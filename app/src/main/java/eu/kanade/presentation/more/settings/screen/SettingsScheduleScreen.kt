@@ -9,9 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
 import eu.kanade.presentation.more.settings.Preference
 import kotlinx.collections.immutable.persistentListOf
@@ -25,6 +22,9 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 object SettingsScheduleScreen : SearchableSettings {
 
@@ -213,8 +213,8 @@ object SettingsScheduleScreen : SearchableSettings {
                         pref = schedulePreferences.showAdultContent(),
                         title = "Show 18+ anime",
                         subtitle = "Include adult-only anime in the airing schedule",
-                        ),
                     ),
+                ),
             ),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_schedule_about_title),
@@ -243,7 +243,7 @@ object SettingsScheduleScreen : SearchableSettings {
         } else {
             "not yet"
         }
-        val delayText = learnedDelays.values.maxOrNull()?.let { "${it} min maximum learned delay" }
+        val delayText = learnedDelays.values.maxOrNull()?.let { "$it min maximum learned delay" }
             ?: "no delay learned yet"
         return "Live monitor: ${status.ifBlank { "waiting for first background sync" }}. " +
             "Last sync: $lastSyncText. Currently applying $delayText to schedule times."

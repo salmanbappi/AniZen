@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
-import eu.kanade.tachiyomi.ui.player.PlayerEfficiency
 import eu.kanade.tachiyomi.ui.player.Debanding
+import eu.kanade.tachiyomi.ui.player.PlayerEfficiency
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
@@ -43,5 +43,5 @@ enum class InterpolationMode(val title: String, val value: String) {
     Linear("Fast (Low Power)", "linear"),
     Oversample("Balanced (Anime)", "oversample"),
     Mitchell("Smooth (Cinematic)", "mitchell"),
-    CatmullRom("High Quality (Sharp)", "catmull_rom")
+    CatmullRom("High Quality (Sharp)", "catmull_rom"),
 }

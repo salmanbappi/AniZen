@@ -350,6 +350,4 @@ object SettingsLibraryScreen : SearchableSettings {
             ),
         )
     }
-
-
 }

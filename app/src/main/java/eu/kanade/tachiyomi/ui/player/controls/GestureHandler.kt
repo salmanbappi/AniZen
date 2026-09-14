@@ -18,22 +18,15 @@
 package eu.kanade.tachiyomi.ui.player.controls
 
 import android.content.pm.PackageManager
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,11 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -55,33 +44,28 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
-import eu.kanade.presentation.player.components.LeftSideOvalShape
-import eu.kanade.presentation.player.components.RightSideOvalShape
-import eu.kanade.presentation.theme.playerRippleConfiguration
 import eu.kanade.tachiyomi.ui.player.LongPressAction
-import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PausedLongPressAction
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.Sheets
-import eu.kanade.tachiyomi.ui.player.videoDisplaySize
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
+import eu.kanade.tachiyomi.ui.player.videoDisplaySize
 import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sqrt
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 @Composable
 fun GestureHandler(
@@ -96,7 +80,6 @@ fun GestureHandler(
     val panelShown by viewModel.panelShown.collectAsState()
     val allowGesturesInPanels by playerPreferences.allowGestures().collectAsStatePref()
     val duration by viewModel.duration.collectAsState()
-    val position by viewModel.pos.collectAsState()
     val controlsShown by viewModel.controlsShown.collectAsState()
     val areControlsLocked by viewModel.areControlsLocked.collectAsState()
     val seekAmount by viewModel.doubleTapSeekAmount.collectAsState()
@@ -121,7 +104,7 @@ fun GestureHandler(
     val videoZoomGesture by gesturePreferences.gestureVideoZoom().collectAsStatePref()
     val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsStatePref()
     val showSeekbar by gesturePreferences.showSeekBar().collectAsStatePref()
-    
+
     val longPressAction by gesturePreferences.longPressAction().collectAsStatePref()
     val pausedLongPressAction by gesturePreferences.pausedLongPressAction().collectAsStatePref()
     val longPressSliding by gesturePreferences.gestureLongPressSpeedSliding().collectAsStatePref()
@@ -135,7 +118,7 @@ fun GestureHandler(
     val isTv = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
-    
+
     var speedRampJob by remember { mutableStateOf<Job?>(null) }
     var longPressJob by remember { mutableStateOf<Job?>(null) }
     var originalSpeed by remember { mutableFloatStateOf(1f) }
@@ -147,12 +130,12 @@ fun GestureHandler(
         speedRampJob = scope.launch {
             var currentSpeed = MPVLib.getPropertyDouble("speed").toFloat()
             val step = if (targetSpeed > currentSpeed) 0.1f else -0.1f
-            
+
             while (if (step > 0) currentSpeed < targetSpeed else currentSpeed > targetSpeed) {
                 currentSpeed += step
                 if (step > 0 && currentSpeed > targetSpeed) currentSpeed = targetSpeed
                 if (step < 0 && currentSpeed < targetSpeed) currentSpeed = targetSpeed
-                
+
                 MPVLib.setPropertyDouble("speed", currentSpeed.toDouble())
                 viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(currentSpeed, false) }
                 delay(16)
@@ -247,7 +230,7 @@ fun GestureHandler(
                     originalSpeed = viewModel.playbackSpeed.value
                     wasPaused = false
                     isSpeedLongPress = false
-                    
+
                     val press = PressInteraction.Press(
                         down.position.copy(x = if (down.position.x > size.width * 3 / 5) down.position.x - size.width * 0.6f else down.position.x),
                     )
@@ -302,7 +285,7 @@ fun GestureHandler(
                         var lastX = down.position.x
                         var unsnappedCurrentSpeed = originalSpeed.toDouble()
                         var hasInitializedDragSpeed = false
-                        
+
                         while (true) {
                             val event = awaitPointerEvent()
                             if (event.changes.fastAny { it.isConsumed } && !viewModel.isLongPressing.value) {
@@ -318,7 +301,7 @@ fun GestureHandler(
                                 up = pointer
                                 break
                             }
-                            
+
                             val distance = (pointer.position - startPosition).getDistance()
                             if (!viewModel.isLongPressing.value) {
                                 if (distance > viewConfiguration.touchSlop * 1.5f) {
@@ -364,8 +347,12 @@ fun GestureHandler(
                                 viewModel.playerUpdate.update { PlayerUpdates.None }
                             }
                         } else if (up != null) {
-                            val secondDown = if (areControlsLocked) null else withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
-                                awaitFirstDown(requireUnconsumed = true)
+                            val secondDown = if (areControlsLocked) {
+                                null
+                            } else {
+                                withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
+                                    awaitFirstDown(requireUnconsumed = true)
+                                }
                             }
                             if (secondDown == null) {
                                 if (areControlsLocked || (!isDoubleTapSeeking && viewModel.doubleTapSeekAmount.value == 0)) {
@@ -401,7 +388,7 @@ fun GestureHandler(
                 if (areControlsLocked) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = true)
-                    var startingPosition = position.toInt()
+                    var startingPosition = viewModel.pos.value.toInt()
                     var startingX = down.position.x
                     var startingY = down.position.y
                     var wasPlayerAlreadyPause = false
@@ -410,7 +397,7 @@ fun GestureHandler(
                     var originalBrightness = viewModel.currentBrightness.value
                     val brightnessGestureSens = 0.001f
                     val volumeGestureSens = 0.08f
-                    
+
                     while (true) {
                         val event = awaitPointerEvent()
                         if ((event.changes.fastAny { it.isConsumed } || viewModel.isLongPressing.value) && dragDirection == 0) break
@@ -441,7 +428,7 @@ fun GestureHandler(
                             if (diffX > viewConfiguration.touchSlop * 1.5f || diffY > viewConfiguration.touchSlop * 1.5f) {
                                 if (diffX > diffY && seekGesture) {
                                     dragDirection = 1
-                                    startingPosition = position.toInt()
+                                    startingPosition = viewModel.pos.value.toInt()
                                     startingX = pointer.position.x
                                     wasPlayerAlreadyPause = viewModel.paused.value
                                     viewModel.pause()
@@ -449,10 +436,15 @@ fun GestureHandler(
                                 } else if (diffY > diffX && gestureVolumeBrightness) {
                                     dragDirection = 2
                                     startingY = pointer.position.y
-                                    initialVolumePercent = if (viewModel.currentMPVVolume.value > 100) viewModel.currentMPVVolume.value.toFloat()
-                                    else viewModel.currentVolume.value.toFloat() / viewModel.maxVolume * 100f
+                                    initialVolumePercent = if (viewModel.currentMPVVolume.value > 100) {
+                                        viewModel.currentMPVVolume.value.toFloat()
+                                    } else {
+                                        viewModel.currentVolume.value.toFloat() / viewModel.maxVolume * 100f
+                                    }
                                     originalBrightness = viewModel.currentBrightness.value
-                                } else break
+                                } else {
+                                    break
+                                }
                             }
                         } else if (dragDirection == 1) {
                             calculateNewHorizontalGestureValue(startingPosition.toFloat(), startingX, pointer.position.x, 0.15f).let {
@@ -485,7 +477,7 @@ fun GestureHandler(
                         }
                     }
                 }
-            }
+            },
     ) {}
 }
 

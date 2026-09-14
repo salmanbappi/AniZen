@@ -137,7 +137,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
     @Composable
     private fun getDoubleTapGroup(
         gesturePreferences: GesturePreferences,
-        playerPreferences: eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
+        playerPreferences: eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences,
     ): Preference.PreferenceGroup {
         val leftDoubleTap = gesturePreferences.leftDoubleTapGesture()
         val centerDoubleTap = gesturePreferences.centerDoubleTapGesture()

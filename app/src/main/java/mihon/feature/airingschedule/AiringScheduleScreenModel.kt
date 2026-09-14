@@ -15,7 +15,9 @@ import kotlinx.coroutines.withContext
 import mihon.feature.airingschedule.components.BellNotifyState
 import mihon.feature.airingschedule.notification.ScheduleNotifications
 import tachiyomi.core.common.util.lang.withIOContext
+import tachiyomi.domain.anime.interactor.FetchInterval
 import tachiyomi.domain.anime.interactor.GetLibraryAnime
+import tachiyomi.domain.library.model.LibraryAnime
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.DayOfWeek
@@ -25,9 +27,6 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 import java.util.concurrent.TimeUnit
-
-import tachiyomi.domain.anime.interactor.FetchInterval
-import tachiyomi.domain.library.model.LibraryAnime
 import kotlin.math.absoluteValue
 
 class AiringScheduleScreenModel(
@@ -112,7 +111,9 @@ class AiringScheduleScreenModel(
             var nextUpdateMs = anime.nextUpdate
             var intervalDays = if (anime.fetchInterval in 1..FetchInterval.MAX_INTERVAL) {
                 anime.fetchInterval
-            } else 7
+            } else {
+                7
+            }
 
             if (nextUpdateMs <= 0L || nextUpdateMs < nowMs) {
                 val update = runCatching {
@@ -250,7 +251,9 @@ class AiringScheduleScreenModel(
             val cache = ScheduleDataRefreshWorker.readCache(application)
             val cachedEntries = if (cache != null && cache.entries.isNotEmpty()) {
                 cache.entries
-            } else null
+            } else {
+                null
+            }
 
             val cacheAge = System.currentTimeMillis() - (cache?.fetchedAt ?: 0L)
             val isCacheValid = cache != null && cache.entries.isNotEmpty() && cacheAge < TimeUnit.HOURS.toMillis(12)

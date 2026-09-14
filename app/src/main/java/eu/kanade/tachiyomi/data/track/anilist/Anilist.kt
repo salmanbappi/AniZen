@@ -3,15 +3,15 @@ package eu.kanade.tachiyomi.data.track.anilist
 import android.graphics.Color
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.track.model.toDbTrack
-import eu.kanade.tachiyomi.animesource.model.Credit
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.animesource.model.Credit
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.AnimeTracker
 import eu.kanade.tachiyomi.data.track.BaseTracker
 import eu.kanade.tachiyomi.data.track.DeletableTracker
-import eu.kanade.tachiyomi.data.track.ImportableTracker
-import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.ImportStatusFilter
+import eu.kanade.tachiyomi.data.track.ImportableEntry
+import eu.kanade.tachiyomi.data.track.ImportableTracker
 import eu.kanade.tachiyomi.data.track.anilist.dto.ALOAuth
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import kotlinx.collections.immutable.ImmutableList
@@ -239,7 +239,6 @@ class Anilist(id: Long) :
         return api.getUserAnimeList(getUsername().toInt())
     }
 
-
     override suspend fun login(username: String, password: String) = login(password)
 
     suspend fun login(token: String) {
@@ -306,7 +305,7 @@ class Anilist(id: Long) :
                 statusFilter = mappedStatusFilter,
                 startDate = item.startedAt.toEpochMilli(),
                 finishDate = item.completedAt.toEpochMilli(),
-                trackingUrl = AnilistApi.animeUrl(item.media.id)
+                trackingUrl = AnilistApi.animeUrl(item.media.id),
             )
         }
     }

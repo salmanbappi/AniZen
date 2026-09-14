@@ -25,12 +25,15 @@ package eu.kanade.tachiyomi.ui.player
 import android.app.Application
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.Bitmap
 import android.media.AudioManager
 import android.net.Uri
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -51,12 +54,15 @@ import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.toHosterList
+import eu.kanade.tachiyomi.animesource.model.ThumbnailInfo
 import eu.kanade.tachiyomi.animesource.model.TimeStamp
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.database.models.Episode
 import eu.kanade.tachiyomi.data.database.models.toDomainEpisode
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.model.Download
+import eu.kanade.tachiyomi.data.filler.AnimeFillerListFetcher
 import eu.kanade.tachiyomi.data.saver.Image
 import eu.kanade.tachiyomi.data.saver.ImageSaver
 import eu.kanade.tachiyomi.data.saver.Location
@@ -84,6 +90,7 @@ import eu.kanade.tachiyomi.ui.player.utils.DefaultStreamSelector
 import eu.kanade.tachiyomi.ui.player.utils.TrackSelect
 import eu.kanade.tachiyomi.ui.reader.SaveImageNotifier
 import eu.kanade.tachiyomi.util.editCover
+import eu.kanade.tachiyomi.util.episode.EpisodeSeasonUtils
 import eu.kanade.tachiyomi.util.episode.filterDownloadedEpisodes
 import eu.kanade.tachiyomi.util.lang.byteSize
 import eu.kanade.tachiyomi.util.lang.takeBytes
@@ -93,15 +100,6 @@ import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.Utils
-import android.graphics.Bitmap
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import eu.kanade.tachiyomi.animesource.model.ThumbnailInfo
-import eu.kanade.tachiyomi.animesource.model.TileInfo
-import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -110,9 +108,12 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -141,11 +142,8 @@ import tachiyomi.domain.history.model.ActivityLog
 import tachiyomi.domain.history.model.HistoryUpdate
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.source.service.SourceManager
-import eu.kanade.tachiyomi.util.episode.EpisodeSeasonUtils
-import eu.kanade.tachiyomi.data.filler.AnimeFillerListFetcher
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.ank.AMR
 import tachiyomi.source.localanime.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -540,7 +538,6 @@ class PlayerViewModel @JvmOverloads constructor(
                     }
                 }
 
-
                 val videoFilename = DiskUtil.buildValidFilename(currentEpisode.value?.name ?: "")
                 currentVideo.value?.subtitleTracks?.forEachIndexed { index, sub ->
                     val cleanLang = if (sub.url.startsWith("content://") || sub.url.startsWith("file://")) {
@@ -567,7 +564,7 @@ class PlayerViewModel @JvmOverloads constructor(
                             isLoading = if (mpvId == null) wasLoading else false,
                             isFailed = if (mpvId != null) false else wasFailed,
                             resolvedUrl = resolvedUrl,
-                        )
+                        ),
                     )
                 }
 
@@ -590,7 +587,7 @@ class PlayerViewModel @JvmOverloads constructor(
                             isLoading = if (mpvId == null) wasLoading else false,
                             isFailed = if (mpvId != null) false else wasFailed,
                             resolvedUrl = resolvedUrl,
-                        )
+                        ),
                     )
                 }
             } catch (e: NullPointerException) {
@@ -923,7 +920,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         onSecondReached(pos.toInt(), duration.value.toInt())
         _pos.update { pos }
-        
+
         if (pos > 15f && !hasTriggeredWatching && !incognitoMode) {
             hasTriggeredWatching = true
             val anime = currentAnime.value ?: return
@@ -1901,7 +1898,7 @@ class PlayerViewModel @JvmOverloads constructor(
     private fun initEpisodeList(anime: Anime): List<Episode> {
         // Optimizing: This should ideally be passed in or fetched earlier
         // but for now we keep it simple but non-blocking where possible.
-        // We use runBlocking here because it's part of a chain that requires immediate return, 
+        // We use runBlocking here because it's part of a chain that requires immediate return,
         // but we'll optimize the call site in future reviews.
         val episodes = runBlocking { getEpisodesByAnimeId.await(anime.id) }
 
@@ -2317,7 +2314,7 @@ class PlayerViewModel @JvmOverloads constructor(
         val newComposite = DefaultStreamSelector.updateCompositeSelector(
             currentComposite,
             hoster.name,
-            DefaultStreamSelector.selectorFor(video, hoster.name)
+            DefaultStreamSelector.selectorFor(video, hoster.name),
         )
         DefaultStreamPreferenceStore(playerPreferences).setSelector(
             animeId = currentAnime.value?.id,
@@ -2428,9 +2425,9 @@ class PlayerViewModel @JvmOverloads constructor(
                 val currentEpisode =
                     currentEpisode.value
                         ?: throw ExceptionWithStringResource("No episode loaded", MR.strings.no_episode_loaded)
-                
+
                 val isMetaStateValid = nextEpisodeState.value == PreloadState.MetadataReady || nextEpisodeState.value == PreloadState.BufferReady
-                
+
                 if (isMetaStateValid && meta != null && isMetaValid(meta) && episodeId == meta.episodeId) {
                     logcat { "Using preloaded hoster list for episode: ${currentEpisode.name}" }
                     currentHosterList = meta.hosterList
@@ -2520,8 +2517,9 @@ class PlayerViewModel @JvmOverloads constructor(
         val remainingSeconds = (totalSeconds - seconds) / 1000.0
         val isWithinLeadWindow = currentProgress > 0.75 || remainingSeconds <= 180.0
 
-        if (isWithinLeadWindow && !isStruggling && activity.player.paused != true && 
-            nextEpisodeState.value == PreloadState.None && shouldPreload) {
+        if (isWithinLeadWindow && !isStruggling && activity.player.paused != true &&
+            nextEpisodeState.value == PreloadState.None && shouldPreload
+        ) {
             preloadNextEpisodeMetadata()
         }
     }
@@ -2578,12 +2576,12 @@ class PlayerViewModel @JvmOverloads constructor(
         if (list.isEmpty()) return
         val currentIndex = getCurrentEpisodeIndex()
         val hasNext = currentIndex in 0 until list.lastIndex
-        
+
         if (!hasNext) {
             _nextEpisodeState.value = PreloadState.Unavailable
             return
         }
-        
+
         if (_nextEpisodeState.value == PreloadState.Failed && !canRetryPreload()) return
         if (_nextEpisodeState.value == PreloadState.MetadataLoading || _nextEpisodeState.value == PreloadState.MetadataReady || _nextEpisodeState.value == PreloadState.PreloadingBuffer || _nextEpisodeState.value == PreloadState.BufferReady) return
 
@@ -2597,20 +2595,20 @@ class PlayerViewModel @JvmOverloads constructor(
             try {
                 val anime = currentAnime.value ?: return@launchIO
                 val source = sourceManager.getOrStub(anime.source)
-                
+
                 logcat { "Preload: Fetching hosters for ${nextEpisode.name}" }
                 val hosterList = EpisodeLoader.getHosters(
                     nextEpisode.toDomainEpisode()!!,
                     anime,
                     source,
                 )
-                
+
                 var resolvedResult: HosterLoader.Companion.ResolvedVideoResult? = null
-                
+
                 // If intelligent buffer handoff or self-healing links are enabled, pre-resolve the best video
                 val enableBuffering = playerPreferences.intelligentBufferHandoff().get()
                 val enableSelfHealing = playerPreferences.selfHealingLinks().get()
-                
+
                 val defaultSelector = DefaultStreamPreferenceStore(playerPreferences)
                     .getEffectiveSelector(anime.id)
 
@@ -2630,14 +2628,14 @@ class PlayerViewModel @JvmOverloads constructor(
                     try {
                         resolvedResult = HosterLoader.getBestVideoWithResult(source, hosterList)
                     } catch (e: Exception) {
-                         logcat(LogPriority.WARN, e) { "Preload: Video resolution failed" }
+                        logcat(LogPriority.WARN, e) { "Preload: Video resolution failed" }
                     }
                 }
 
                 val resolvedVideo = resolvedResult?.video
                 val elapsed = System.currentTimeMillis() - startTime
                 updateEwmaResolutionTime(elapsed)
-                
+
                 preloadedMeta = PreloadedMeta(
                     episodeId = nextEpisodeId,
                     hosterList = hosterList,

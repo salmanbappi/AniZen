@@ -22,7 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,14 +31,13 @@ import eu.kanade.domain.ui.model.NavCommunityRegistry
 import eu.kanade.domain.ui.model.NavItem
 import eu.kanade.domain.ui.model.NavLayoutPack
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.more.settings.widget.PreferenceGroupHeader
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
-import eu.kanade.presentation.more.settings.widget.PreferenceGroupHeader
 import eu.kanade.tachiyomi.ui.home.BrainStrategy
 import eu.kanade.tachiyomi.ui.home.NavLearningBrain
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.plus
-import androidx.compose.ui.platform.LocalContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -59,22 +58,22 @@ class NavigationGalleryScreen : Screen() {
             },
         ) { paddingValues ->
             val context = LocalContext.current
-            
+
             val strategies = remember(context) {
                 if (!NavLearningBrain.hasEnoughData(context)) return@remember emptyList()
-                
+
                 val configClassic = NavLearningBrain.recommendLayout(context, BrainStrategy.CLASSIC)
                 val configTrending = NavLearningBrain.recommendLayout(context, BrainStrategy.TRENDING)
                 val configFocus = NavLearningBrain.recommendLayout(context, BrainStrategy.FOCUS)
 
                 buildList {
                     add(Triple(BrainStrategy.CLASSIC, "Daily Driver" to "Your overall habits and most used tabs over time.", configClassic))
-                    
+
                     // Only show Trending if there is recent activity AND it differs from the classic layout
                     if (NavLearningBrain.hasTrendingData() && configTrending.visibleTabs != configClassic.visibleTabs) {
                         add(Triple(BrainStrategy.TRENDING, "Trending Now" to "What you've been focused on in the last 24 hours.", configTrending))
                     }
-                    
+
                     add(Triple(BrainStrategy.FOCUS, "Laser Focus" to "The absolute most essential tab for your current usage.", configFocus))
                 }
             }
@@ -82,7 +81,7 @@ class NavigationGalleryScreen : Screen() {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = paddingValues + PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
                     PreferenceGroupHeader(title = "Community Presets")
@@ -94,7 +93,7 @@ class NavigationGalleryScreen : Screen() {
                         onApply = {
                             uiPreferences.updateNavConfig(pack.config)
                             backPress?.invoke()
-                        }
+                        },
                     )
                 }
 
@@ -111,12 +110,12 @@ class NavigationGalleryScreen : Screen() {
                                 name = name,
                                 description = desc,
                                 config = config,
-                                author = "AniZen System"
+                                author = "AniZen System",
                             ),
                             onApply = {
                                 uiPreferences.updateNavConfig(config)
                                 backPress?.invoke()
-                            }
+                            },
                         )
                     }
                 }
@@ -127,7 +126,7 @@ class NavigationGalleryScreen : Screen() {
     @Composable
     private fun LayoutPackCard(
         pack: NavLayoutPack,
-        onApply: () -> Unit
+        onApply: () -> Unit,
     ) {
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -136,7 +135,7 @@ class NavigationGalleryScreen : Screen() {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
                         Text(text = pack.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -146,29 +145,29 @@ class NavigationGalleryScreen : Screen() {
                         Text("Apply")
                     }
                 }
-                
+
                 Text(
                     text = pack.description,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    modifier = Modifier.padding(vertical = 8.dp),
                 )
 
                 Text(
                     text = "Visual Preview:",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
 
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
                         modifier = Modifier.padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         pack.config.visibleTabs.forEach { id ->
                             val item = NavItem.fromId(id)
@@ -179,7 +178,7 @@ class NavigationGalleryScreen : Screen() {
                                             imageVector = item.iconVector!!,
                                             contentDescription = null,
                                             modifier = Modifier.padding(4.dp),
-                                            tint = MaterialTheme.colorScheme.primary
+                                            tint = MaterialTheme.colorScheme.primary,
                                         )
                                     } else {
                                         val icon = if (item == NavItem.FEED || item == NavItem.SCHEDULE) {
@@ -187,14 +186,14 @@ class NavigationGalleryScreen : Screen() {
                                         } else {
                                             rememberAnimatedVectorPainter(
                                                 AnimatedImageVector.animatedVectorResource(item.iconRes),
-                                                false
+                                                false,
                                             )
                                         }
                                         Icon(
                                             painter = icon,
                                             contentDescription = null,
                                             modifier = Modifier.padding(4.dp),
-                                            tint = MaterialTheme.colorScheme.primary
+                                            tint = MaterialTheme.colorScheme.primary,
                                         )
                                     }
                                     Text(text = item.id.take(3).uppercase(), style = MaterialTheme.typography.labelSmall)

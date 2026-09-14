@@ -1,14 +1,14 @@
 package exh.source
 
+import android.content.SharedPreferences
+import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
+import eu.kanade.tachiyomi.animesource.PreferenceScreen
 import eu.kanade.tachiyomi.source.model.AnimesPage
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.Video
 import eu.kanade.tachiyomi.source.online.HttpSource
-import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.PreferenceScreen
-import android.content.SharedPreferences
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -25,6 +25,7 @@ abstract class DelegatedHttpSource(val delegate: HttpSource) : HttpSource(), Con
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         (delegate as? ConfigurableAnimeSource)?.setupPreferenceScreen(screen)
     }
+
     /**
      * Returns the request for the popular anime given the page.
      *

@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.browse.source
 
-import android.app.Application
 import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
@@ -8,18 +7,17 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.interactor.GetEnabledSources
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.interactor.ToggleSourcePin
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.browse.SourceUiModel
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.model.NodeStatus
 import eu.kanade.tachiyomi.util.system.LAST_USED_KEY
-import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.PINNED_KEY
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -42,7 +40,6 @@ import tachiyomi.domain.source.model.FeedSavedSearchCategory
 import tachiyomi.domain.source.model.Pin
 import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.service.SourceHealthCache
-import eu.kanade.domain.source.service.SourcePreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.TreeMap
@@ -81,7 +78,7 @@ class SourcesScreenModel(
                 _events.send(Event.FailedFetchingSources)
             }.collectLatest {}
         }
-        
+
         screenModelScope.launchIO {
             getFeedSavedSearchCategories.subscribe().collectLatest { categories ->
                 mutableState.update { it.copy(categories = categories.toImmutableList()) }
@@ -103,10 +100,10 @@ class SourcesScreenModel(
         nsfwOnly: Boolean,
     ) {
         // Map source IDs to their extension's NSFW status for reliable filtering
-        val nsfwSourceIds = extensions.flatMap { ext -> 
-            if (ext.isNsfw) ext.sources.map { it.id } else emptyList() 
+        val nsfwSourceIds = extensions.flatMap { ext ->
+            if (ext.isNsfw) ext.sources.map { it.id } else emptyList()
         }.toSet()
-        
+
         yield()
 
         val filteredSources = sources.filter { source ->
@@ -127,7 +124,7 @@ class SourcesScreenModel(
                 else -> d1.compareTo(d2)
             }
         }
-        
+
         val byLang = filteredSources.groupByTo(map) {
             when {
                 it.isUsedLast -> LAST_USED_KEY
@@ -135,7 +132,7 @@ class SourcesScreenModel(
                 else -> it.lang
             }
         }
-        
+
         yield()
 
         val items = byLang
@@ -149,7 +146,7 @@ class SourcesScreenModel(
                                 headerKey = lang,
                                 isNsfw = nsfwSourceIds.contains(source.id) || source.isNsfw,
                                 status = healthMap[source.id],
-                            )
+                            ),
                         )
                     }
                 }
@@ -215,7 +212,7 @@ class SourcesScreenModel(
                         feedOrder = nextOrder,
                         type = FeedSavedSearch.Type.Latest.value,
                         category = categoryId,
-                    )
+                    ),
                 )
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e) { "Failed to add source ${source.name} to feed category $categoryId" }

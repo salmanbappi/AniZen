@@ -9,8 +9,6 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,7 +30,6 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import tachiyomi.domain.source.model.FeedSavedSearchCategory
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -106,7 +103,7 @@ fun Screen.sourcesTab(): TabContent {
                                 LazyColumn {
                                     itemsIndexed(
                                         items = state.categories,
-                                        key = { index, it -> "source-category-$dialogId-${it.id}-$index" }
+                                        key = { index, it -> "source-category-$dialogId-${it.id}-$index" },
                                     ) { _, category ->
                                         ListItem(
                                             headlineContent = { Text(category.name) },
@@ -115,7 +112,7 @@ fun Screen.sourcesTab(): TabContent {
                                                 .clickable {
                                                     screenModel.addToFeed(source, category.id)
                                                     screenModel.closeDialog()
-                                                }
+                                                },
                                         )
                                     }
                                 }
@@ -124,7 +121,7 @@ fun Screen.sourcesTab(): TabContent {
                                 TextButton(onClick = screenModel::closeDialog) {
                                     Text(text = stringResource(MR.strings.action_cancel))
                                 }
-                            }
+                            },
                         )
                     }
                     null -> {}

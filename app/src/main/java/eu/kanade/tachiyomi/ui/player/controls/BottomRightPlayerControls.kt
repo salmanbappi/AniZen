@@ -40,7 +40,7 @@ fun BottomRightPlayerControls(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall)
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
     ) {
         buttons.forEach { button ->
             RenderPlayerButton(

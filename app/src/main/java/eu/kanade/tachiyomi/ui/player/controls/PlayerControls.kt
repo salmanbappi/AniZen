@@ -17,28 +17,32 @@
 
 package eu.kanade.tachiyomi.ui.player.controls
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
@@ -52,10 +56,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -69,23 +76,21 @@ import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
-import eu.kanade.tachiyomi.ui.player.execute
-import eu.kanade.tachiyomi.ui.player.executeLongPress
-import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapToSeekOvals
 import eu.kanade.tachiyomi.ui.player.Sheets
-import eu.kanade.tachiyomi.ui.player.VideoAspect
 import eu.kanade.tachiyomi.ui.player.cast.components.CastSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessOverlay
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessSlider
-import eu.kanade.tachiyomi.ui.player.controls.components.ControlsButton
-import eu.kanade.tachiyomi.ui.player.controls.components.DoubleSpeedPlayerUpdate
+import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapToSeekOvals
 import eu.kanade.tachiyomi.ui.player.controls.components.FilledControlsButton
 import eu.kanade.tachiyomi.ui.player.controls.components.SeekbarWithTimers
-import eu.kanade.tachiyomi.ui.player.controls.components.videoTimerWidth
-import eu.kanade.tachiyomi.ui.player.controls.components.ThumbnailPreview
 import eu.kanade.tachiyomi.ui.player.controls.components.TextPlayerUpdate
+import eu.kanade.tachiyomi.ui.player.controls.components.ThumbnailPreview
 import eu.kanade.tachiyomi.ui.player.controls.components.VolumeSlider
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.toFixed
+import eu.kanade.tachiyomi.ui.player.controls.components.videoTimerWidth
+import eu.kanade.tachiyomi.ui.player.execute
+import eu.kanade.tachiyomi.ui.player.executeLongPress
+import eu.kanade.tachiyomi.ui.player.parseButtons
 import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -93,23 +98,11 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import exh.log.InterpolationStatsOverlay
 import `is`.xyz.mpv.MPVLib
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import android.content.res.Configuration
-import eu.kanade.tachiyomi.ui.player.PlayerButton
-import eu.kanade.tachiyomi.ui.player.parseButtons
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -140,7 +133,6 @@ fun PlayerControls(
     val isLoadingEpisode by viewModel.isLoadingEpisode.collectAsState()
     val isStopped by viewModel.isStopped.collectAsState()
     val duration by viewModel.duration.collectAsState()
-    val position by viewModel.pos.collectAsState()
     val paused by viewModel.paused.collectAsState()
     val gestureSeekAmount by viewModel.gestureSeekAmount.collectAsState()
     val doubleTapSeekAmount by viewModel.doubleTapSeekAmount.collectAsState()
@@ -371,7 +363,7 @@ fun PlayerControls(
                             stringResource((currentPlayerUpdate as PlayerUpdates.ShowTextResource).textResource),
                         )
                         is PlayerUpdates.VideoZoom -> TextPlayerUpdate(
-                            "Zoom: ${((currentPlayerUpdate as PlayerUpdates.VideoZoom).zoom * 100).toInt()}%"
+                            "Zoom: ${((currentPlayerUpdate as PlayerUpdates.VideoZoom).zoom * 100).toInt()}%",
                         )
                         else -> {}
                     }
@@ -392,12 +384,13 @@ fun PlayerControls(
                     )
                 }
                 val isLongPressing by viewModel.isLongPressing.collectAsState()
-                 AnimatedVisibility(
+                AnimatedVisibility(
                     visible = (
                         (controlsShown && !areControlsLocked || gestureSeekAmount != null) ||
                             ((isLoading || pausedForCache) && !isStopped) ||
                             isLoadingEpisode
-                        ) && !isLongPressing,
+                        ) &&
+                        !isLongPressing,
                     enter = fadeIn(playerControlsEnterAnimationSpec()),
                     exit = fadeOut(playerControlsExitAnimationSpec()),
                     modifier = Modifier.constrainAs(centerControls) {
@@ -491,74 +484,48 @@ fun PlayerControls(
                         }
 
                         val invertDuration by playerPreferences.invertDuration().collectAsState()
-                    val readAhead by viewModel.readAhead.collectAsState()
-                    val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
+                        val readAhead by viewModel.readAhead.collectAsState()
+                        val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
+                        val position by viewModel.pos.collectAsState()
 
-                    var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
-                    var sliderPosition by remember { androidx.compose.runtime.mutableFloatStateOf(position) }
-                    var lastTargetSeekPos by remember { mutableStateOf<Float?>(null) }
+                        var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
+                        var scrubbingPosition by remember { mutableStateOf<Float?>(null) }
 
-                    LaunchedEffect(position, seekPosition, isSeekingUI) {
-                        if (isSeekingUI) {
-                            sliderPosition = seekPosition
-                        } else {
-                            val target = lastTargetSeekPos
-                            if (target != null) {
-                                if (kotlin.math.abs(position - target) > 1.5f) {
-                                    sliderPosition = target
-                                } else {
-                                    sliderPosition = position
-                                    lastTargetSeekPos = null
+                        SeekbarWithTimers(
+                            position = scrubbingPosition ?: position,
+                            duration = duration,
+                            readAheadValue = readAhead,
+                            onValueChange = { newPos ->
+                                if (scrubbingPosition == null) {
+                                    wasPlayerAlreadyPause = viewModel.paused.value
+                                    viewModel.pause()
+                                    viewModel.updateIsSeeking(true)
                                 }
-                            } else {
-                                sliderPosition = position
-                            }
-                        }
-                    }
-
-                    LaunchedEffect(isSeekingUI) {
-                        if (!isSeekingUI && lastTargetSeekPos != null) {
-                            kotlinx.coroutines.delay(1000)
-                            lastTargetSeekPos = null
-                        }
-                    }
-
-                    SeekbarWithTimers(
-                        position = sliderPosition,
-                        duration = duration,
-                        readAheadValue = readAhead,
-                        onValueChange = {
-                            if (!viewModel.isSeekingUI.value) {
-                                wasPlayerAlreadyPause = viewModel.paused.value
-                                viewModel.pause()
-                                viewModel.updateIsSeeking(true)
-                            }
-                            sliderPosition = it
-                            lastTargetSeekPos = it
-                            viewModel.updateSeekPos(it)
-                            viewModel.scrubSeekTo(it.toInt(), false)
-                        },
-                        onValueChangeFinished = {
-                            val target = sliderPosition
-                            lastTargetSeekPos = target
-                            viewModel.updateSeekPos(target)
-                            viewModel.updateIsSeeking(false)
-                            viewModel.seekTo(target.toInt(), preciseSeeking)
-                            if (!wasPlayerAlreadyPause) {
-                                viewModel.unpause()
-                            }
-                        },
-                        timersInverted = Pair(false, invertDuration),
-                        durationTimerOnCLick = { playerPreferences.invertDuration().set(!invertDuration) },
-                        positionTimerOnClick = {},
-                        onDurationTextLayout = { layoutResult ->
-                            if (layoutResult.lineCount > 0) {
-                                durationInkWidthPx =
-                                    layoutResult.getLineRight(0) - layoutResult.getLineLeft(0)
-                            }
-                        },
-                        chapters = chaptersList,
-                    )
+                                scrubbingPosition = newPos
+                                viewModel.updateSeekPos(newPos)
+                                viewModel.scrubSeekTo(newPos.toInt(), false)
+                            },
+                            onValueChangeFinished = {
+                                val target = scrubbingPosition ?: position
+                                scrubbingPosition = null
+                                viewModel.updateSeekPos(target)
+                                viewModel.updateIsSeeking(false)
+                                viewModel.seekTo(target.toInt(), preciseSeeking)
+                                if (!wasPlayerAlreadyPause) {
+                                    viewModel.unpause()
+                                }
+                            },
+                            timersInverted = Pair(false, invertDuration),
+                            durationTimerOnCLick = { playerPreferences.invertDuration().set(!invertDuration) },
+                            positionTimerOnClick = {},
+                            onDurationTextLayout = { layoutResult ->
+                                if (layoutResult.lineCount > 0) {
+                                    durationInkWidthPx =
+                                        layoutResult.getLineRight(0) - layoutResult.getLineLeft(0)
+                                }
+                            },
+                            chapters = chaptersList,
+                        )
                     }
                 }
                 val mediaTitle by viewModel.mediaTitle.collectAsState()
@@ -639,7 +606,7 @@ fun PlayerControls(
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         portraitBottomButtonsList.forEach { button ->
                             RenderPlayerButton(

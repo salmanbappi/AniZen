@@ -18,7 +18,7 @@ class ActivityLogRepositoryImpl(
                 animeId = animeId,
                 eventType = eventType.toLong(),
                 count = count,
-                timestamp = timestamp
+                timestamp = timestamp,
             )
         }
     }

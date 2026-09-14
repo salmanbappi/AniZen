@@ -17,13 +17,13 @@ import eu.kanade.tachiyomi.data.torrentServer.service.TorrentServerService
 import eu.kanade.tachiyomi.torrentServer.TorrentServerPreferences
 import eu.kanade.tachiyomi.ui.player.AMNIS
 import eu.kanade.tachiyomi.ui.player.JUST_PLAYER
+import eu.kanade.tachiyomi.ui.player.MPV_EX
 import eu.kanade.tachiyomi.ui.player.MPV_KT
 import eu.kanade.tachiyomi.ui.player.MPV_KT_PREVIEW
 import eu.kanade.tachiyomi.ui.player.MPV_PLAYER
 import eu.kanade.tachiyomi.ui.player.MPV_REMOTE
 import eu.kanade.tachiyomi.ui.player.MPV_REX
 import eu.kanade.tachiyomi.ui.player.MPV_RX
-import eu.kanade.tachiyomi.ui.player.MPV_EX
 import eu.kanade.tachiyomi.ui.player.MX_PLAYER
 import eu.kanade.tachiyomi.ui.player.MX_PLAYER_FREE
 import eu.kanade.tachiyomi.ui.player.MX_PLAYER_PRO
@@ -35,9 +35,9 @@ import eu.kanade.tachiyomi.ui.player.X_PLAYER
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.utils.DefaultStreamPreferenceStore
-import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.LocalHttpServerHolder
 import eu.kanade.tachiyomi.util.LocalHttpServerService
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap

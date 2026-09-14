@@ -7,7 +7,6 @@ import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.MediaTrack
 import com.google.android.gms.common.images.WebImage
 import eu.kanade.tachiyomi.animesource.model.Video
-import okhttp3.Headers
 import eu.kanade.tachiyomi.torrentServer.TorrentServerApi
 import eu.kanade.tachiyomi.torrentServer.TorrentServerUtils
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
@@ -17,6 +16,7 @@ import eu.kanade.tachiyomi.util.LocalHttpServerService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import okhttp3.Headers
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
 import java.net.Inet4Address
@@ -172,11 +172,11 @@ class CastMediaBuilder(
 
             val nonMobileIp = ipAddresses.find { (name, _) ->
                 !name.startsWith("rmnet") &&
-                !name.startsWith("ccmni") &&
-                !name.startsWith("pdp") &&
-                !name.startsWith("tun") &&
-                !name.startsWith("tap") &&
-                !name.startsWith("p2p")
+                    !name.startsWith("ccmni") &&
+                    !name.startsWith("pdp") &&
+                    !name.startsWith("tun") &&
+                    !name.startsWith("tap") &&
+                    !name.startsWith("p2p")
             }?.second
             if (nonMobileIp != null) return nonMobileIp
 

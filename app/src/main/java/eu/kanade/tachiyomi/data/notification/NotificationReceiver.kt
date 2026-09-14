@@ -667,7 +667,6 @@ class NotificationReceiver : BroadcastReceiver() {
             )
         }
 
-
         /**
          * Returns [PendingIntent] that cancels a backup restore job.
          *

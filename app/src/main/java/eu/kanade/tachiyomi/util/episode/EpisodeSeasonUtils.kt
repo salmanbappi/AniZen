@@ -6,7 +6,6 @@ object EpisodeSeasonUtils {
     // Added |_ to delimiters to support patterns like _s1e1_
     private val seasonRegex = Regex("""(?i)(?:^|\b|\s|\[|_)(?:s|season\s*)(\d+)(?:\s|e|x|\||-|\.|\b|\]|_|$)""")
 
-
     /**
      * Extracts season number from episode name.
      * Returns "Season X" if found.

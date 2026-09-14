@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -61,12 +60,12 @@ fun BrowseSourceComfortableGrid(
             val animeFlow = animeList[index] ?: return@items
             val anime = animeFlow.value
             onBatchIncrement(index)
-            
-            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
-                { onAnimeClick(anime, index) } 
+
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) {
+                { onAnimeClick(anime, index) }
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
-                { onAnimeLongClick(anime, index) } 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) {
+                { onAnimeLongClick(anime, index) }
             }
 
             val topRowThreshold = if (columnsCount > 0) columnsCount else 6
@@ -78,9 +77,9 @@ fun BrowseSourceComfortableGrid(
                         }
                     } else {
                         Modifier
-                    }
+                    },
                 )
-            
+
             BrowseSourceComfortableGridItem(
                 anime = anime,
                 isFavorite = anime.id in favoriteIds,

@@ -21,12 +21,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState as composeCollectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import dev.vivvvek.seeker.Segment
 import eu.kanade.tachiyomi.ui.player.Decoder
 import eu.kanade.tachiyomi.ui.player.Panels
+import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel.VideoTrack
 import eu.kanade.tachiyomi.ui.player.Sheets
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.AspectRatioItem
@@ -40,13 +40,13 @@ import eu.kanade.tachiyomi.ui.player.controls.components.sheets.QualitySheet
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.ScreenshotSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.SubtitlesSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.VideoZoomSheet
-import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import tachiyomi.domain.custombuttons.model.CustomButton
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.InputStream
+import androidx.compose.runtime.collectAsState as composeCollectAsState
 
 @Composable
 fun PlayerSheets(
@@ -179,14 +179,16 @@ fun PlayerSheets(
         Sheets.AspectRatios -> {
             val playerPreferences = remember { Injekt.get<PlayerPreferences>() }
             val customRatiosSet by playerPreferences.customAspectRatios().collectAsState()
-            val customRatios = customRatiosSet.mapNotNull { 
+            val customRatios = customRatiosSet.mapNotNull {
                 val parts = it.split("|")
                 if (parts.size == 2) {
                     val ratio = parts[1].toDoubleOrNull()
                     if (ratio != null) AspectRatioItem(parts[0], ratio, true) else null
-                } else null
+                } else {
+                    null
+                }
             }
-            
+
             val currentRatio = viewModel.videoAspectOverride.composeCollectAsState().value
 
             AspectRatioSheet(

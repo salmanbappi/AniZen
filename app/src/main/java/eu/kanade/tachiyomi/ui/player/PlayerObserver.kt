@@ -1,7 +1,5 @@
 package eu.kanade.tachiyomi.ui.player
 
-import android.widget.Toast
-import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -36,7 +34,7 @@ class PlayerObserver(val activity: PlayerActivity) :
 
     override fun efEvent(err: String?) {
         if (err == null) return // Ignore normal EOF or file replacement events
-        
+
         var errorMessage = err
         if (!httpError.isNullOrEmpty()) {
             errorMessage += ": $httpError"

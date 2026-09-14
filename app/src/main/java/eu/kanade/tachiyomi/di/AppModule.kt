@@ -3,12 +3,10 @@ package eu.kanade.tachiyomi.di
 import android.app.Application
 import android.content.Context
 import android.os.Build
-import androidx.core.content.ContextCompat
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import eu.kanade.domain.track.store.DelayedTrackingStore
-import eu.kanade.tachiyomi.data.backup.BackupFileValidator
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
@@ -26,7 +24,6 @@ import eu.kanade.tachiyomi.source.AndroidSourceManager
 import eu.kanade.tachiyomi.ui.player.ExternalIntents
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
-import eu.kanade.tachiyomi.data.ai.AiManager
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
@@ -45,7 +42,6 @@ import tachiyomi.data.History
 import tachiyomi.data.StringListColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.domain.source.service.SourceManager
-
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.source.localanime.image.LocalAnimeSourceCoverManager
 import tachiyomi.source.localanime.image.LocalAnimeSourceEpisodeThumbnailManager
@@ -103,7 +99,6 @@ class AppModule(val app: Application) : InjektModule {
                 ),
             )
         }
-
 
         addSingletonFactory<DatabaseHandler> {
             AndroidDatabaseHandler(
@@ -170,8 +165,8 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { ConnectionsManager() }
         // <-- AM (CONNECTIONS)
 
-        addSingletonFactory<tachiyomi.domain.ai.repository.ChatRepository> { 
-            tachiyomi.data.ai.ChatRepositoryImpl(get()) 
+        addSingletonFactory<tachiyomi.domain.ai.repository.ChatRepository> {
+            tachiyomi.data.ai.ChatRepositoryImpl(get())
         }
 
         addSingletonFactory { GoogleDriveService(app) }

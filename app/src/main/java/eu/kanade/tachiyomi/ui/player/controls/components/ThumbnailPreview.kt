@@ -73,8 +73,8 @@ fun ThumbnailPreview(
     // Reactively compute the seeking chapter only when it changes, without recomposing
     // the entire ThumbnailPreview on every position tick.
     val seekingChapter by remember(chapters) {
-        androidx.compose.runtime.derivedStateOf { 
-            chapters.lastOrNull { it.start <= positionSProvider() } 
+        androidx.compose.runtime.derivedStateOf {
+            chapters.lastOrNull { it.start <= positionSProvider() }
         }
     }
 
@@ -92,13 +92,13 @@ fun ThumbnailPreview(
             BoxWithConstraints {
                 val screenWidth = maxWidth
                 val timerWidth = 96.dp // Width + padding.extraSmall
-                
+
                 // Subtract insets from seekbarWidth to precisely align the preview card
                 val seekbarWidth = screenWidth - startInset - endInset - timerWidth - timerWidth
 
                 Card(
                     modifier = Modifier
-                        .offset { 
+                        .offset {
                             val positionS = positionSProvider()
                             val progress = if (durationS > 0L) {
                                 (positionS.toFloat() / durationS.toFloat()).coerceIn(0f, 1f)

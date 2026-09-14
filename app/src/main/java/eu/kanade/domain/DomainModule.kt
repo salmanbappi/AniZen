@@ -45,6 +45,7 @@ import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.data.updates.UpdatesRepositoryImpl
+import tachiyomi.domain.anime.interactor.CalculateUserAffinity
 import tachiyomi.domain.anime.interactor.FetchInterval
 import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.anime.interactor.GetAnimeByUrlAndSourceId
@@ -54,7 +55,6 @@ import tachiyomi.domain.anime.interactor.GetCustomAnimeInfo
 import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
 import tachiyomi.domain.anime.interactor.GetFavorites
 import tachiyomi.domain.anime.interactor.GetLibraryAnime
-import tachiyomi.domain.anime.interactor.CalculateUserAffinity
 import tachiyomi.domain.anime.interactor.GetMergedReferencesById
 import tachiyomi.domain.anime.interactor.GetSeasonsByAnimeId
 import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
@@ -104,8 +104,8 @@ import tachiyomi.domain.history.repository.ActivityLogRepository
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
-import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.interactor.GetRelatedAnime
+import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.interactor.GetSourcesWithNonLibraryAnime
 import tachiyomi.domain.source.repository.SourceRepository
 import tachiyomi.domain.source.repository.StubSourceRepository

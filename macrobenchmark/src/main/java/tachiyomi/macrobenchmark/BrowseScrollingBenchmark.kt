@@ -14,8 +14,8 @@ import org.junit.runner.RunWith
 
 /**
  * Benchmark to measure the frame timing (smoothness) of the Browse Source screen.
- * 
- * Rationale: Scrolling through potentially thousands of sources or media items 
+ *
+ * Rationale: Scrolling through potentially thousands of sources or media items
  * is the ultimate stress test for image loading and UI thread performance.
  */
 @RunWith(AndroidJUnit4::class)
@@ -34,21 +34,21 @@ class BrowseScrollingBenchmark {
         setupBlock = {
             pressHome()
             startActivityAndWait()
-            
+
             // Navigate to Browse
             device.findObject(By.text("Browse")).click()
             device.waitForIdle()
-            
+
             // Navigate to first source (e.g. Gogoanime)
             device.findObject(By.res("sources_list"))?.children?.firstOrNull()?.click()
-            
+
             // Wait for media items to load
             device.wait(Until.hasObject(By.res("browse_grid")), 15_000)
-        }
+        },
     ) {
         val browseGrid = device.findObject(By.res("browse_grid"))
         browseGrid.setGestureMargin(device.displayWidth / 4)
-        
+
         // Measure sustained fling performance
         repeat(5) {
             browseGrid.fling(Direction.DOWN)

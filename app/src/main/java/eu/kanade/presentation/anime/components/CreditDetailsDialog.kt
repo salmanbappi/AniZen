@@ -2,11 +2,11 @@ package eu.kanade.presentation.anime.components
 
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -235,7 +235,7 @@ private fun CreditPageContent(
     val processedBio = remember(biography) {
         biography?.let {
             it.replace(Regex("<br\\s*/?>"), "\n")
-              .trim()
+                .trim()
         }
     }
 

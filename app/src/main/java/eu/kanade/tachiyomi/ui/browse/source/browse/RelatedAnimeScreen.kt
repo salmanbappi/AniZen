@@ -24,9 +24,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Favorite
-import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -52,18 +50,17 @@ import eu.kanade.presentation.browse.components.BrowseSourceToolbar
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
-import eu.kanade.tachiyomi.ui.home.HomeScreen
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ListGroupHeader
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import tachiyomi.presentation.core.util.plus
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import tachiyomi.domain.source.model.StubSource
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 class RelatedAnimeScreen(val animeId: Long) : Screen() {
 
@@ -137,7 +134,7 @@ class RelatedAnimeScreen(val animeId: Long) : Screen() {
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
                             TextButton(
-                                onClick = { 
+                                onClick = {
                                     if (allFavorite) {
                                         screenModel.removeSelectionFromLibrary()
                                     } else {
@@ -149,14 +146,14 @@ class RelatedAnimeScreen(val animeId: Long) : Screen() {
                                     Icon(
                                         imageVector = if (allFavorite) Icons.Outlined.Delete else Icons.Outlined.Favorite,
                                         contentDescription = null,
-                                        tint = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                        tint = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current,
                                     )
                                     Text(
                                         text = stringResource(
-                                            if (allFavorite) MR.strings.action_remove else MR.strings.add_to_library
+                                            if (allFavorite) MR.strings.action_remove else MR.strings.add_to_library,
                                         ),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                        color = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current,
                                     )
                                 }
                             }
@@ -192,9 +189,9 @@ class RelatedAnimeScreen(val animeId: Long) : Screen() {
         val orientation = LocalConfiguration.current.orientation
         val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        
+
         val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
-        
+
         val columns = if (displayMode == LibraryDisplayMode.List) {
             GridCells.Fixed(1)
         } else {
@@ -213,7 +210,7 @@ class RelatedAnimeScreen(val animeId: Long) : Screen() {
             contentPadding = contentPadding + PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(CommonAnimeItemDefaults.GridVerticalSpacer),
             horizontalArrangement = Arrangement.spacedBy(CommonAnimeItemDefaults.GridHorizontalSpacer),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         ) {
             state.items.forEach { (keyword, animes) ->
                 item(key = "header-$keyword", span = { GridItemSpan(maxLineSpan) }) {
@@ -228,7 +225,7 @@ class RelatedAnimeScreen(val animeId: Long) : Screen() {
                 ) { _: Int, anime: tachiyomi.domain.anime.model.Anime ->
                     val isFavorite = anime.id in state.favoriteIds
                     val isSelected = anime.id in selectionIds
-                    
+
                     when (displayMode) {
                         LibraryDisplayMode.ComfortableGrid -> {
                             BrowseSourceComfortableGridItem(

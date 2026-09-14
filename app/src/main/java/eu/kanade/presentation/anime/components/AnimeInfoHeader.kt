@@ -2,44 +2,37 @@ package eu.kanade.presentation.anime.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.HourglassEmpty
-import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.AttachMoney
@@ -48,13 +41,12 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.HourglassDisabled
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.HourglassDisabled
-import eu.kanade.tachiyomi.source.getNameForAnimeInfo
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,7 +54,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -85,12 +76,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,40 +87,34 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
-import eu.kanade.presentation.anime.components.MarkdownRender
+import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.presentation.anime.components.DISALLOWED_MARKDOWN_TYPES
+import eu.kanade.presentation.anime.components.MarkdownRender
+import eu.kanade.presentation.anime.components.RatioSwitchToPanorama
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.track.AnimeTracker
+import eu.kanade.tachiyomi.source.getNameForAnimeInfo
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.ui.anime.track.TrackItem
 import eu.kanade.tachiyomi.util.system.copyToClipboard
-import eu.kanade.tachiyomi.util.system.toast
-import eu.kanade.presentation.anime.components.AnimeCover
-import eu.kanade.presentation.anime.components.RatioSwitchToPanorama
-import eu.kanade.tachiyomi.util.system.CoverColorObserver
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
-import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
 import tachiyomi.presentation.core.components.material.TextButton
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
-import androidx.compose.foundation.shape.RoundedCornerShape
-import tachiyomi.presentation.core.util.tvFocusHighlight
-import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.clickableNoIndication
+import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.secondaryItemAlpha
+import tachiyomi.presentation.core.util.tvFocusHighlight
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import kotlin.math.roundToInt
-
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
 
 @Composable
 fun AnimeInfoBox(
@@ -277,7 +259,7 @@ fun AnimeActionRow(
 
     Column(
         modifier = modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -285,7 +267,7 @@ fun AnimeActionRow(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnimeActionButton(
                     title = if (favorite) stringResource(MR.strings.in_library) else stringResource(MR.strings.add_to_library),
@@ -306,7 +288,7 @@ fun AnimeActionRow(
                             else -> pluralStringResource(
                                 MR.plurals.day,
                                 count = nextUpdateDays,
-                                nextUpdateDays
+                                nextUpdateDays,
                             )
                         }
                     },
@@ -383,7 +365,7 @@ fun ExpandableAnimeDescription(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .alpha(0.3f),
                 thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -709,33 +691,52 @@ private fun AnimeContentInfo(
                 else -> stringResource(MR.strings.unknown)
             },
         )
-        
+
         val scoreText = remember(score) {
             if (score != null && score > 0) {
                 String.format("%.1f", score)
-            } else null
+            } else {
+                null
+            }
         }
         if (scoreText != null) {
             Spacer(modifier = Modifier.width(4.dp))
             InfoChip(
                 icon = Icons.Default.Star,
                 text = scoreText,
-                iconTint = Color(0xFFFFD700) // Gold
+                iconTint = Color(0xFFFFD700), // Gold
             )
         }
 
         Spacer(modifier = Modifier.width(4.dp))
         var isRevealed by remember { mutableStateOf(false) }
-        val displayText = if (isRevealed) sourceName
-        else if (isStubSource) sourceName
-        else if (sourceName.contains("Local")) stringResource(MR.strings.local_source)
-        else "Global"
+        val displayText = if (isRevealed) {
+            sourceName
+        } else if (isStubSource) {
+            sourceName
+        } else if (sourceName.contains("Local")) {
+            stringResource(MR.strings.local_source)
+        } else {
+            "Global"
+        }
 
         InfoChip(
-            icon = if (isStubSource) Icons.Filled.Warning else if (sourceName.contains("Local")) Icons.Outlined.DoneAll else Icons.Outlined.Public,
+            icon = if (isStubSource) {
+                Icons.Filled.Warning
+            } else if (sourceName.contains("Local")) {
+                Icons.Outlined.DoneAll
+            } else {
+                Icons.Outlined.Public
+            },
             text = displayText,
-            iconTint = if (isStubSource) MaterialTheme.colorScheme.error else if (isRevealed) MaterialTheme.colorScheme.primary else null,
-            onClick = { isRevealed = !isRevealed }
+            iconTint = if (isStubSource) {
+                MaterialTheme.colorScheme.error
+            } else if (isRevealed) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                null
+            },
+            onClick = { isRevealed = !isRevealed },
         )
 
         MergedSourcesInfo(mergedSources)
@@ -773,13 +774,13 @@ private fun InfoChip(
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
-                tint = iconTint ?: MaterialTheme.colorScheme.primary
+                tint = iconTint ?: MaterialTheme.colorScheme.primary,
             )
             AnimatedContent(
                 targetState = text,
@@ -787,13 +788,13 @@ private fun InfoChip(
                     (fadeIn() + scaleIn(initialScale = 0.9f))
                         .togetherWith(fadeOut())
                 },
-                label = "chipText"
+                label = "chipText",
             ) { targetText ->
                 Text(
                     text = targetText,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

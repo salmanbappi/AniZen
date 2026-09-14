@@ -2,8 +2,8 @@ package mihon.domain.extensionrepo.interactor
 
 import logcat.LogPriority
 import mihon.domain.extensionrepo.exception.SaveExtensionRepoException
-import mihon.domain.extensionrepo.model.KEIYOUSHI_SIGNATURE
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import mihon.domain.extensionrepo.model.KEIYOUSHI_SIGNATURE
 import mihon.domain.extensionrepo.model.SALMANBAPPI_SIGNATURE
 import mihon.domain.extensionrepo.model.YUZONO_SIGNATURE
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository

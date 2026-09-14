@@ -13,4 +13,3 @@ class EpisodeDetails(
     @SerialName("preview_url")
     val preview_url: String? = null,
 )
-

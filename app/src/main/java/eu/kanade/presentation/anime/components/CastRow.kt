@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +36,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,12 +51,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import eu.kanade.tachiyomi.animesource.model.Credit
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CastRow(
     cast: List<Credit>,
@@ -68,7 +69,7 @@ fun CastRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier,
     ) {
-        items(cast.size, key = { it }) { idx ->
+        items(cast.size, key = { "${cast[it].name}_$it" }) { idx ->
             val credit = cast[idx]
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
@@ -151,26 +152,46 @@ fun CastRow(
                             shape = CircleShape,
                         )
 
-                    val ctx = LocalContext.current
-                    if (!credit.image_url.isNullOrBlank()) {
-                        val request = ImageRequest.Builder(ctx)
-                            .data(credit.image_url)
-                            .crossfade(true)
-                            .build()
+                    Box(
+                        modifier = imageModifier,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val ctx = LocalContext.current
+                        if (credit.image_url.isNullOrBlank()) {
+                            PersonPlaceholder(modifier = Modifier.fillMaxSize())
+                            return@Box
+                        }
 
-                        SubcomposeAsyncImage(
+                        var isLoading by remember(credit.image_url) { mutableStateOf(true) }
+                        var isError by remember(credit.image_url) { mutableStateOf(false) }
+
+                        if (isLoading) {
+                            ShimmerPlaceholder(modifier = Modifier.fillMaxSize())
+                        }
+                        if (isError) {
+                            PersonPlaceholder(modifier = Modifier.fillMaxSize())
+                        }
+
+                        val request = remember(credit.image_url) {
+                            ImageRequest.Builder(ctx)
+                                .data(credit.image_url)
+                                .crossfade(true)
+                                .build()
+                        }
+
+                        AsyncImage(
                             model = request,
                             contentDescription = credit.name,
-                            modifier = imageModifier,
-                            loading = {
-                                ShimmerPlaceholder(modifier = imageModifier)
+                            modifier = Modifier.fillMaxSize(),
+                            onSuccess = {
+                                isLoading = false
+                                isError = false
                             },
-                            error = {
-                                PersonPlaceholder(modifier = imageModifier)
+                            onError = {
+                                isLoading = false
+                                isError = true
                             },
                         )
-                    } else {
-                        PersonPlaceholder(modifier = imageModifier)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

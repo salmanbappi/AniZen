@@ -61,13 +61,13 @@ fun GlobalSearchToolbar(
                 Column(modifier = Modifier.align(Alignment.BottomStart)) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
                     ) {
                         Text(
                             text = "$progress / $total",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     LinearProgressIndicator(

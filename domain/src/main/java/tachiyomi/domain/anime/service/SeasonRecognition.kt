@@ -29,7 +29,7 @@ object SeasonRecognition {
         "zen" to 0.1,
         "kou" to 0.3,
         "1st cour" to 0.1,
-        "2nd cour" to 0.2
+        "2nd cour" to 0.2,
     )
     private val jpPartsRegex = Regex("""\b(?:zenpen|chuuhen|kouhen|zen|kou|1st cour|2nd cour)\b""", RegexOption.IGNORE_CASE)
 
@@ -50,7 +50,7 @@ object SeasonRecognition {
 
     private val textOrdinalMap = mapOf(
         "first" to 1.0, "second" to 2.0, "third" to 3.0, "fourth" to 4.0, "fifth" to 5.0,
-        "sixth" to 6.0, "seventh" to 7.0, "eighth" to 8.0, "ninth" to 9.0, "tenth" to 10.0
+        "sixth" to 6.0, "seventh" to 7.0, "eighth" to 8.0, "ninth" to 9.0, "tenth" to 10.0,
     )
     private val textOrdinals = Regex("""\b(${textOrdinalMap.keys.joinToString("|")})\b\s+(?:season|part|cour|volume|arc|chapter)""", RegexOption.IGNORE_CASE)
 
@@ -70,12 +70,12 @@ object SeasonRecognition {
         "I" to 1.0, "II" to 2.0, "III" to 3.0, "IV" to 4.0, "V" to 5.0,
         "VI" to 6.0, "VII" to 7.0, "VIII" to 8.0, "IX" to 9.0, "X" to 10.0,
         "XI" to 11.0, "XII" to 12.0, "XIII" to 13.0, "XIV" to 14.0, "XV" to 15.0,
-        "XVI" to 16.0, "XVII" to 17.0, "XVIII" to 18.0, "XIX" to 19.0, "XX" to 20.0
+        "XVI" to 16.0, "XVII" to 17.0, "XVIII" to 18.0, "XIX" to 19.0, "XX" to 20.0,
     )
 
     private val stopwords = setOf(
         "the", "of", "and", "in", "to", "for", "with", "is", "at", "from", "on", "by", "an", "as",
-        "no", "wa", "wo", "ni", "ga", "de", "mo", "to", "da", "na", "ka"
+        "no", "wa", "wo", "ni", "ga", "de", "mo", "to", "da", "na", "ka",
     )
 
     fun getSignatureWords(title: String): Set<String> {
@@ -88,18 +88,16 @@ object SeasonRecognition {
     }
 
     /**
-     * Sorts words alphabetically and compares. 
+     * Sorts words alphabetically and compares.
      * Handles "Attack on Titan" vs "Titan, Attack on"
      */
     fun tokenSortSimilarity(s1: String, s2: String): Double {
         val sig1 = getSignatureWords(s1).sorted().joinToString("")
         val sig2 = getSignatureWords(s2).sorted().joinToString("")
         if (sig1.isEmpty() || sig2.isEmpty()) return 0.0
-        
+
         return diceCoefficient(sig1, sig2)
     }
-
-
 
     fun diceCoefficient(s1: String, s2: String): Double {
         val str1 = s1.lowercase().replace(Regex("""\s+"""), "")
@@ -170,13 +168,13 @@ object SeasonRecognition {
 
         val m = matches.toDouble()
         val jaro = (m / len1 + m / len2 + (m - transpositions / 2.0) / m) / 3.0
-        
+
         // Winkler adjustment
         var prefix = 0
         for (i in 0 until Math.min(4, Math.min(len1, len2))) {
             if (str1[i] == str2[i]) prefix++ else break
         }
-        
+
         return jaro + prefix * 0.1 * (1.0 - jaro)
     }
 
@@ -197,7 +195,7 @@ object SeasonRecognition {
             .replace(Regex("""(?i)\s+(?:Final\s+Season|Final\s+Part|The\s+Final\s+Season|The\s+Final\s+Part|Conclusion|Ending)$"""), "")
             .replace(Regex("""\s+"""), " ")
             .trim()
-            
+
         return cleaned
     }
 
@@ -208,7 +206,7 @@ object SeasonRecognition {
         "sao" to "sword art online",
         "danmachi" to "is it wrong to try to pick up girls in a dungeon",
         "ten-sura" to "that time i got reincarnated as a slime",
-        "slime" to "that time i got reincarnated as a slime"
+        "slime" to "that time i got reincarnated as a slime",
     )
 
     /**
@@ -217,7 +215,7 @@ object SeasonRecognition {
     fun isAcronymMatch(query: String, candidate: String): Boolean {
         val q = query.lowercase().trim()
         val c = candidate.lowercase().trim()
-        
+
         // 1. Predefined map
         if (acronymMap[q]?.let { c.contains(it) } == true) return true
         if (acronymMap[c]?.let { q.contains(it) } == true) return true
@@ -227,18 +225,18 @@ object SeasonRecognition {
             .filter { it.length > 1 }
             .mapNotNull { it.firstOrNull() }
             .joinToString("")
-        
+
         if (generated == q) return true
 
         // 3. Fallback to substring matching on signature-based acronym
         val (short, long) = if (q.length < c.length) q to c else c to q
         if (short.length < 2 || short.any { it.isWhitespace() }) return false
-        
+
         val acronym = getSignatureWords(long)
             .sortedBy { long.indexOf(it) } // Keep original order
             .mapNotNull { it.firstOrNull() }
             .joinToString("")
-            
+
         return acronym.contains(short)
     }
 
@@ -256,7 +254,7 @@ object SeasonRecognition {
         }
 
         val rootTitle = getRootTitle(animeTitle)
-        
+
         // 1. Identification Check (BEFORE stripping tags)
         val rawLower = seasonName.lowercase()
             .replace(Regex("""\bno\.\s*"""), "#")
@@ -286,7 +284,7 @@ object SeasonRecognition {
         while (tagRegex.containsMatchIn(matchingContext)) {
             matchingContext = tagRegex.replace(matchingContext, "")
         }
-        
+
         matchingContext = matchingContext.replace(Regex("""\b\d{3,4}p?\b"""), "").trim()
 
         // 3. Dual-Layer Detection (Season + Part)
@@ -294,7 +292,7 @@ object SeasonRecognition {
         var part: Double? = null
 
         // Try to find Season (Priority)
-        ordinals.find(matchingContext)?.let { 
+        ordinals.find(matchingContext)?.let {
             val matchedText = it.value.lowercase()
             when {
                 matchedText.contains("season") || matchedText.contains("year") -> {
@@ -307,7 +305,7 @@ object SeasonRecognition {
         }
 
         if (season == null) {
-            basic.find(matchingContext)?.let { 
+            basic.find(matchingContext)?.let {
                 season = it.groups[1]?.value?.toDoubleOrNull()
             }
         }
@@ -357,17 +355,18 @@ object SeasonRecognition {
 
         // 4. Return format tag if found earlier
         if (formatTagValue != null) return formatTagValue
-        
+
         // Final check anchored to "Season" or "Part"
-        if (cleanSeasonName.contains(Regex("""(?i)final\s+(?:season|part|chapter)""")) || 
-            cleanSeasonName.endsWith("conclusion", ignoreCase = true)) {
+        if (cleanSeasonName.contains(Regex("""(?i)final\s+(?:season|part|chapter)""")) ||
+            cleanSeasonName.endsWith("conclusion", ignoreCase = true)
+        ) {
             return 99.0
         }
 
         // 5. Strict Identity Logic (Normalization)
         val rootAlpha = getAlphanumeric(rootTitle)
         val candidateAlpha = getAlphanumeric(seasonName)
-        
+
         if (rootAlpha == candidateAlpha && rootAlpha.isNotEmpty()) {
             return 1.0
         }
@@ -412,7 +411,9 @@ object SeasonRecognition {
                     if (trimmedAlpha.length == 1) {
                         val num = trimmedAlpha[0].code - ('a'.code - 1)
                         if (num in 1..9) num / 10.0 else 0.0
-                    } else 0.0
+                    } else {
+                        0.0
+                    }
                 }
             }
         }

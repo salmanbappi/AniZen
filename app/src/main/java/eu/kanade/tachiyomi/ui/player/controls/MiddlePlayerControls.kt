@@ -111,7 +111,7 @@ fun MiddlePlayerControls(
             else -> {
                 Box(
                     modifier = Modifier.size(96.dp),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     val showLoading = (isLoading || isLoadingEpisode) && showLoadingCircle
                     if (showLoading) {

@@ -25,10 +25,10 @@ class ChildFirstPathClassLoader(
 
         if (c == null && name != null) {
             // Optimization: Prioritize system loader for core classes to avoid overhead
-            if (name.startsWith("android.") || 
-                name.startsWith("java.") || 
-                name.startsWith("kotlin.") || 
-                name.startsWith("dalvik.") || 
+            if (name.startsWith("android.") ||
+                name.startsWith("java.") ||
+                name.startsWith("kotlin.") ||
+                name.startsWith("dalvik.") ||
                 name.startsWith("sun.")
             ) {
                 try {

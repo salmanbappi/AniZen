@@ -13,13 +13,13 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.system.notify
-import tachiyomi.core.common.Constants
-import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.i18n.MR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import tachiyomi.core.common.Constants
+import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 

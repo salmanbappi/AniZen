@@ -1,28 +1,25 @@
 package eu.kanade.tachiyomi.ui.history
 
-import androidx.activity.compose.BackHandler
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.NavItem
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.NavItem
 import eu.kanade.presentation.history.HistoryScreen
 import eu.kanade.presentation.history.components.HistoryDeleteAllDialog
 import eu.kanade.presentation.history.components.HistoryDeleteDialog
@@ -38,13 +35,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import tachiyomi.core.common.i18n.stringResource as stringResourceContext
-import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import tachiyomi.core.common.i18n.stringResource as stringResourceContext
 import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import androidx.compose.runtime.collectAsState
 
 data object HistoryTab : Tab {
 
@@ -55,7 +52,7 @@ data object HistoryTab : Tab {
         get() {
             val uiPreferences = remember { Injekt.get<UiPreferences>() }
             val visibleTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
-            val index = remember(visibleTabs) { 
+            val index = remember(visibleTabs) {
                 val i = visibleTabs.indexOf(NavItem.HISTORY.id)
                 if (i != -1) i.toUShort() else 5u
             }

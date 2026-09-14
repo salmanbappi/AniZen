@@ -52,7 +52,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.core.view.WindowCompat
@@ -63,11 +62,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.media.AudioAttributesCompat
 import androidx.media.AudioFocusRequestCompat
 import androidx.media.AudioManagerCompat
-import com.hippo.unifile.UniFile
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.theme.DynamicTachiyomiTheme
-import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.HttpServer
@@ -76,6 +73,8 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.PlayerData
+import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.torrentServer.service.TorrentServerService
@@ -104,20 +103,20 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
-import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.domain.custombuttons.model.CustomButton
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -126,11 +125,7 @@ import java.io.OutputStream
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.floor
-
-import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.data.download.DownloadProvider
-import eu.kanade.tachiyomi.util.storage.DiskUtil
-import uy.kohesive.injekt.injectLazy
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 class PlayerActivity : BaseActivity() {
     internal val viewModel by viewModels<PlayerViewModel>(factoryProducer = { PlayerViewModelProviderFactory(this) })
@@ -343,7 +338,7 @@ class PlayerActivity : BaseActivity() {
         castManager
         // <-- Cast
 
- binding.controls.setContent {
+        binding.controls.setContent {
             val uiPreferences = remember { Injekt.get<UiPreferences>() }
             val dynamicPlayerTheme by uiPreferences.dynamicPlayerTheme().collectAsStatePref()
             val anime by viewModel.currentAnime.collectAsState()
@@ -461,8 +456,6 @@ class PlayerActivity : BaseActivity() {
         }
         super.onUserLeaveHint()
     }
-
-
 
     override fun onStart() {
         super.onStart()
@@ -1108,7 +1101,8 @@ class PlayerActivity : BaseActivity() {
                 KeyEvent.KEYCODE_DPAD_CENTER,
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_NUMPAD_ENTER,
-                KeyEvent.KEYCODE_TAB -> {
+                KeyEvent.KEYCODE_TAB,
+                -> {
                     // Let Compose UI handle directional focus traversal and selections in dialogs/sheets
                     return super.onKeyDown(keyCode, event)
                 }
@@ -1135,18 +1129,21 @@ class PlayerActivity : BaseActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+            KeyEvent.KEYCODE_MEDIA_REWIND,
+            -> {
                 viewModel.handleLeftDoubleTap()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+            -> {
                 viewModel.handleRightDoubleTap()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_MENU -> {
+            KeyEvent.KEYCODE_MENU,
+            -> {
                 if (viewModel.controlsShown.value) {
                     return super.onKeyDown(keyCode, event)
                 } else {
@@ -1158,7 +1155,8 @@ class PlayerActivity : BaseActivity() {
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER,
             KeyEvent.KEYCODE_SPACE,
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            -> {
                 viewModel.pauseUnpause()
                 if (viewModel.paused.value) {
                     viewModel.showControls()
@@ -1186,7 +1184,8 @@ class PlayerActivity : BaseActivity() {
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER,
             KeyEvent.KEYCODE_TAB,
-            KeyEvent.KEYCODE_BACK -> {
+            KeyEvent.KEYCODE_BACK,
+            -> {
                 // Keep D-Pad and navigation keys within Android / Compose UI lifecycle
                 return super.onKeyUp(keyCode, event)
             }

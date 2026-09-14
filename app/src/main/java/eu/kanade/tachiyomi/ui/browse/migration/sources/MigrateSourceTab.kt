@@ -6,16 +6,13 @@ import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Numbers
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.SortByAlpha
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.flow.map
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -26,6 +23,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.tachiyomi.ui.browse.migration.anime.MigrateAnimeScreen
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.flow.map
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -43,7 +41,7 @@ fun Screen.migrateSourceTab(): TabContent {
     val migrationHelpGuide = stringResource(MR.strings.migration_help_guide)
     val actionSelectAll = stringResource(MR.strings.action_select_all)
     val actionSelectNone = stringResource(SYMR.strings.select_none)
-    
+
     val actionSortAlpha = stringResource(MR.strings.action_sort_alpha)
     val actionSortCount = stringResource(MR.strings.action_sort_count)
     val sortModeTitle = if (sortingMode == SetMigrateSorting.Mode.ALPHABETICAL) {
@@ -51,7 +49,7 @@ fun Screen.migrateSourceTab(): TabContent {
     } else {
         actionSortCount
     }
-    
+
     val actionAsc = stringResource(MR.strings.action_asc)
     val actionDesc = stringResource(MR.strings.action_desc)
     val sortDirTitle = if (sortingDirection == SetMigrateSorting.Direction.ASCENDING) {

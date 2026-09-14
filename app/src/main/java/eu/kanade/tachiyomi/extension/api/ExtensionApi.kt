@@ -8,15 +8,20 @@ import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
-import eu.kanade.tachiyomi.network.parseAs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import logcat.LogPriority
 import mihon.domain.extensionrepo.interactor.GetExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import okio.BufferedSource
+import okio.buffer
+import okio.gzip
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.lang.withIOContext
@@ -24,13 +29,6 @@ import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
 import java.time.Instant
 import kotlin.time.Duration.Companion.days
-
-import okio.BufferedSource
-import okio.buffer
-import okio.gzip
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.doubleOrNull
 
 internal class ExtensionApi {
 
@@ -161,7 +159,7 @@ internal class ExtensionApi {
                     isTorrent = it.torrent == 1 || it.isTorrent,
                     sources = it.sources?.map(extensionSourceMapper).orEmpty(),
                     apkName = it.apk,
-                    iconUrl = "${normalizedRepoUrl}/icon/${it.pkg}.png",
+                    iconUrl = "$normalizedRepoUrl/icon/${it.pkg}.png",
                     repoUrl = normalizedRepoUrl,
                     author = author,
                     contentWarning = contentWarning,

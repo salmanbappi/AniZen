@@ -16,12 +16,12 @@ class GetSeasonsByAnimeId(
 ) {
 
     suspend fun await(
-        animeId: Long, 
+        animeId: Long,
         virtualSeasons: List<Anime> = emptyList(),
         useHierarchicalSeasons: Boolean = true,
     ): List<Season> {
         val anime = animeRepository.getAnimeById(animeId) ?: return emptyList()
-        
+
         // 1. Get real hierarchical seasons from DB
         val parentId = if (useHierarchicalSeasons) (anime.parentId ?: anime.id) else anime.id
         val dbSeasons = animeRepository.getAnimeSeasonsById(parentId).map { it.anime }
@@ -30,7 +30,7 @@ class GetSeasonsByAnimeId(
                 Season(
                     anime = it,
                     seasonNumber = it.seasonNumber ?: SeasonRecognition.parseSeasonNumber(anime.title, it.title),
-                    isPrimary = it.id == anime.id
+                    isPrimary = it.id == anime.id,
                 )
             }.sortedBy { it.seasonNumber }
         }
@@ -44,7 +44,7 @@ class GetSeasonsByAnimeId(
                 Season(
                     anime = mergedAnime,
                     seasonNumber = mergedAnime.seasonNumber ?: SeasonRecognition.parseSeasonNumber(anime.title, mergedAnime.title),
-                    isPrimary = ref?.isInfoAnime ?: false
+                    isPrimary = ref?.isInfoAnime ?: false,
                 )
             }.sortedBy { it.seasonNumber }
         }
@@ -52,11 +52,11 @@ class GetSeasonsByAnimeId(
         // 3. Fallback: Virtual Discovery Seasons
         if (virtualSeasons.isNotEmpty()) {
             val all = (listOf(anime) + virtualSeasons).distinctBy { it.url.trimEnd('/') }
-            return all.map { 
+            return all.map {
                 Season(
                     anime = it,
                     seasonNumber = it.seasonNumber ?: SeasonRecognition.parseSeasonNumber(anime.title, it.title),
-                    isPrimary = it.id == anime.id
+                    isPrimary = it.id == anime.id,
                 )
             }.sortedBy { it.seasonNumber }
         }
@@ -66,13 +66,13 @@ class GetSeasonsByAnimeId(
     }
 
     fun subscribe(
-        animeId: Long, 
+        animeId: Long,
         virtualSeasonsFlow: Flow<List<Anime>>? = null,
         useHierarchicalSeasons: Boolean = true,
     ): Flow<List<Season>> = flow {
         val anime = animeRepository.getAnimeById(animeId) ?: return@flow
         val parentId = if (useHierarchicalSeasons) (anime.parentId ?: anime.id) else anime.id
-        
+
         val animeFlow = animeRepository.getAnimeByIdAsFlow(animeId)
         val dbSeasonsFlow = animeRepository.getAnimeSeasonsByIdAsFlow(parentId)
         val mergedAnimesFlow = animeMergeRepository.subscribeMergedAnimeById(animeId)
@@ -95,17 +95,17 @@ class GetSeasonsByAnimeId(
         dbSeasons: List<Anime>,
         mergedAnimes: List<Anime>,
         references: List<tachiyomi.domain.anime.model.MergedAnimeReference>,
-        virtualSeasons: List<Anime>
+        virtualSeasons: List<Anime>,
     ): List<Season> {
         if (anime == null) return emptyList()
-        
+
         // 1. Prioritize Hierarchical Seasons
         if (dbSeasons.isNotEmpty()) {
             return dbSeasons.map {
                 Season(
                     anime = it,
                     seasonNumber = it.seasonNumber ?: SeasonRecognition.parseSeasonNumber(anime.title, it.title),
-                    isPrimary = it.id == anime.id
+                    isPrimary = it.id == anime.id,
                 )
             }.sortedBy { it.seasonNumber }
         }
@@ -117,7 +117,7 @@ class GetSeasonsByAnimeId(
                 Season(
                     anime = mergedAnime,
                     seasonNumber = mergedAnime.seasonNumber ?: SeasonRecognition.parseSeasonNumber(anime.title, mergedAnime.title),
-                    isPrimary = ref?.isInfoAnime ?: false
+                    isPrimary = ref?.isInfoAnime ?: false,
                 )
             }.sortedBy { it.seasonNumber }
         }
@@ -129,7 +129,7 @@ class GetSeasonsByAnimeId(
                 Season(
                     it,
                     seasonNumber = it.seasonNumber ?: SeasonRecognition.parseSeasonNumber(anime.title, it.title),
-                    isPrimary = it.id == anime.id
+                    isPrimary = it.id == anime.id,
                 )
             }.sortedBy { it.seasonNumber }
         }

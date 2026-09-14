@@ -31,14 +31,14 @@ class LibraryScrollingBenchmark {
         setupBlock = {
             pressHome()
             startActivityAndWait()
-            
+
             // Wait for the library content to load
             device.wait(Until.hasObject(By.res("library_grid")), 10_000)
-        }
+        },
     ) {
         val libraryList = device.findObject(By.res("library_grid"))
         libraryList.setGestureMargin(device.displayWidth / 5)
-        
+
         // Fling down several times to measure frame drops
         repeat(3) {
             libraryList.fling(Direction.DOWN)

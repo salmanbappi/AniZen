@@ -228,7 +228,7 @@ private fun LogEntryRow(log: SystemLogEntry) {
 @Composable
 private fun SourceNodeAuditCard(node: SourceNode) {
     var expanded by remember { mutableStateOf(false) }
-    
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -276,19 +276,19 @@ private fun SourceNodeAuditCard(node: SourceNode) {
                     Text("LATENCY", style = MaterialTheme.typography.labelSmall, fontSize = 7.sp, modifier = Modifier.secondaryItemAlpha())
                 }
             }
-            
+
             if (expanded) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp).alpha(0.1f))
-                
+
                 Text("TECHNICAL DETAILS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 InfoRow("Package ID", node.pkgName)
                 InfoRow("IPv4 Address", node.network.ipAddress)
                 InfoRow("Encryption", "Encrypted via ${node.network.tlsVersion}")
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CapabilityBadge("API BASE", node.capabilities.isApi)
                     CapabilityBadge("LATEST UPDATE", node.capabilities.latestSupport)

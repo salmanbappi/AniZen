@@ -7,8 +7,6 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.databinding.DownloadItemBinding
 import eu.kanade.tachiyomi.util.view.popupMenu
-import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.i18n.MR
 
 /**
  * Class used to hold the data of a download.
@@ -66,7 +64,7 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         }
         binding.granularProgress.visibility = View.VISIBLE
         binding.granularProgress.bind(download)
-        
+
         if (download.progress == 0) {
             binding.downloadProgress.isIndeterminate = true
         } else {
@@ -85,7 +83,7 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         val engine = download.engineType ?: "Normal"
         val isDash = engine.contains("DASH")
         val isHls = engine == "HLS"
-        
+
         // 1DM+ Core Status Logic
         val statusText = buildString {
             when (download.status) {
@@ -123,24 +121,24 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
                 }
                 append("\n")
             }
-            
+
             // Line 3: Connection Intelligence
             append("Threads: ").append(if (isDash) 1 else download.activeThreads).append(" Active")
             if (download.totalSegments > 0) {
                 append(" • ").append(if (isHls) "Segments: " else "Parts: ")
                 append(download.downloadedSegments).append("/").append(download.totalSegments)
             }
-            
+
             // Line 4: Engine Identity
             append("\nEngine: ").append(
                 when {
                     isDash -> "DASH (FFmpeg Adaptive)"
                     isHls -> "HLS (Sequential Merge)"
                     else -> "Normal (Direct Multi-threaded)"
-                }
+                },
             )
         }
-        
+
         binding.downloadProgressText.text = statusText
 
         // Update Engine Icon & Visibility

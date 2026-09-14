@@ -38,7 +38,6 @@ import androidx.compose.ui.zIndex
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.util.secondaryItemAlpha
-import tachiyomi.presentation.core.util.tvFocusHighlight
 import tachiyomi.presentation.core.util.tvGlowFocusHighlight
 
 @Composable

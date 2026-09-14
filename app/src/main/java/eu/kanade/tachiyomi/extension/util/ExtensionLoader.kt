@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -282,7 +281,7 @@ object ExtensionLoader {
         val libVersion = (
             appInfo.metaData?.get(METADATA_EXTENSION_LIB)
                 ?: appInfo.metaData?.get("tachiyomix.extensionLib")
-        )?.let {
+            )?.let {
             when (it) {
                 is Int -> if (it != 0) it.toDouble() else null
                 is Float -> it.toDouble()

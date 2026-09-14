@@ -36,7 +36,6 @@ data class ALItemTitle(
     val native: String? = null,
 )
 
-
 @Serializable
 data class ItemCover(
     val large: String,

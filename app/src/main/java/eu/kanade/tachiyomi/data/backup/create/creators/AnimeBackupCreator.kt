@@ -3,10 +3,9 @@ package eu.kanade.tachiyomi.data.backup.create.creators
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.BackupAnime
-import eu.kanade.tachiyomi.data.backup.models.BackupEpisode
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
-import eu.kanade.tachiyomi.data.backup.models.backupTrackMapper
 import eu.kanade.tachiyomi.data.backup.models.backupEpisodeMapper
+import eu.kanade.tachiyomi.data.backup.models.backupTrackMapper
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.category.interactor.GetCategories
@@ -95,7 +94,7 @@ private fun Anime.toBackupAnime() =
         lastModifiedAt = this@toBackupAnime.lastModifiedAt
         favoriteModifiedAt = this@toBackupAnime.favoriteModifiedAt
         version = this@toBackupAnime.version
-        
+
         // AY -->
         parentId = this@toBackupAnime.parentId
         seasonNumber = this@toBackupAnime.seasonNumber ?: -1.0

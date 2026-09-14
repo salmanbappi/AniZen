@@ -124,4 +124,3 @@ fun Activity.enableHighRefreshRate() {
         // Gracefully ignore on devices that do not permit display mode switching
     }
 }
-

@@ -22,10 +22,10 @@ class AnimeFillerListFetcher(
 
         try {
             var showUrl: String? = null
-            
+
             // Clean title by removing non-alphanumeric characters (except spaces)
             val alphanumericTitle = titleClean.lowercase().replace(Regex("[^a-z0-9\\s]"), "").trim()
-            
+
             // 1. Try Direct URL first
             val slug = alphanumericTitle.replace(Regex("\\s+"), "-")
             val directUrl = "$baseUrl/shows/$slug"
@@ -40,7 +40,7 @@ class AnimeFillerListFetcher(
             if (showUrl == null) {
                 showUrl = performSearch(alphanumericTitle)
             }
-            
+
             // 3. Fallback to Normalized Search (e.g., Shippuuden -> Shippuden)
             if (showUrl == null) {
                 val normalizedTitle = alphanumericTitle

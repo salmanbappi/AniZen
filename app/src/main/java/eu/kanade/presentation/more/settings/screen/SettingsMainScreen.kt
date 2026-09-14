@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.outlined.CallToAction
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.DateRange
@@ -42,8 +41,8 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.more.components.MoreItem
 import eu.kanade.presentation.more.components.MoreSection
-import eu.kanade.presentation.more.settings.screen.about.AboutScreen
 import eu.kanade.presentation.more.settings.screen.NavigationSettingsScreen
+import eu.kanade.presentation.more.settings.screen.about.AboutScreen
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
 import kotlinx.collections.immutable.persistentListOf
@@ -51,10 +50,10 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import cafe.adriel.voyager.core.screen.Screen as VoyagerScreen
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 object SettingsMainScreen : Screen() {
     @Composable
@@ -172,7 +171,7 @@ object SettingsMainScreen : Screen() {
                         icon = Icons.Outlined.Info,
                         screen = AboutScreen,
                     ),
-                )
+                ),
             )
         }
 
@@ -208,7 +207,7 @@ object SettingsMainScreen : Screen() {
                     state = state,
                     contentPadding = PaddingValues(16.dp),
                     modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     groupedItems.forEach { (category, items) ->
                         item(key = "settings-category-$category") {

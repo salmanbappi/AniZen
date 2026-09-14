@@ -6,8 +6,8 @@ import eu.kanade.domain.ui.model.NavConfig
 import eu.kanade.domain.ui.model.NavConfigSerializer
 import eu.kanade.domain.ui.model.NavConfigValidator
 import eu.kanade.domain.ui.model.NavItem
-import eu.kanade.domain.ui.model.NavPresets
 import eu.kanade.domain.ui.model.NavLabelVisibility
+import eu.kanade.domain.ui.model.NavPresets
 import eu.kanade.domain.ui.model.NavStyle
 import eu.kanade.domain.ui.model.PanoramaMode
 import eu.kanade.domain.ui.model.StartScreen
@@ -74,10 +74,10 @@ class UiPreferences(
     fun bottomNavBehaviors() = preferenceStore.getObject(
         "bottom_nav_behaviors_v1",
         persistentMapOf<String, NavBehavior>(),
-        { map -> 
-            map.entries.joinToString(";") { (id, b) -> 
-                "$id:${b.onLongClick.javaClass.simpleName},${b.onDoubleTap.javaClass.simpleName}" 
-            } 
+        { map ->
+            map.entries.joinToString(";") { (id, b) ->
+                "$id:${b.onLongClick.javaClass.simpleName},${b.onDoubleTap.javaClass.simpleName}"
+            }
         },
         { str ->
             val map = mutableMapOf<String, NavBehavior>()
@@ -89,13 +89,13 @@ class UiPreferences(
                     if (actions.size == 2) {
                         map[tabId] = NavBehavior(
                             onLongClick = NavConfigSerializer.parseAction(actions[0]),
-                            onDoubleTap = NavConfigSerializer.parseAction(actions[1])
+                            onDoubleTap = NavConfigSerializer.parseAction(actions[1]),
                         )
                     }
                 }
             }
             map.toImmutableMap()
-        }
+        },
     )
 
     fun bottomNavConfigVersion() = preferenceStore.getInt("bottom_nav_config_version", 0)
@@ -122,7 +122,7 @@ class UiPreferences(
         val lastVisible = bottomNavTabs().get()
         val lastHidden = bottomNavHiddenTabs().get()
         val lastBehaviors = bottomNavBehaviors().get()
-        
+
         try {
             val validated = NavConfigValidator.validate(config)
             bottomNavTabs().set(validated.visibleTabs)

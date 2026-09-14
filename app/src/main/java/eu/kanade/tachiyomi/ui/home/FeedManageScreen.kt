@@ -107,7 +107,7 @@ class FeedManageScreen : Screen() {
                         IconButton(onClick = { showAddCategoryDialog = true }) {
                             Icon(imageVector = Icons.Outlined.Add, contentDescription = "Add Category")
                         }
-                        
+
                         val currentCategoryId = state.categories.getOrNull(pagerState.currentPage)?.id
                         val currentCategoryName = state.categories.getOrNull(pagerState.currentPage)?.name
                         if (currentCategoryId != null) {
@@ -300,7 +300,7 @@ class FeedManageScreen : Screen() {
                 },
             )
         }
-        
+
         // Move Feed Item Dialog
         if (moveFeedItem != null) {
             val feed = moveFeedItem!!.feed

@@ -1,6 +1,8 @@
 package eu.kanade.presentation.updates
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,30 +11,27 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.FlipToBack
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material.icons.outlined.Panorama
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.togetherWith
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
+import eu.kanade.domain.ui.ContainerStyle
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.PanoramaMode
 import eu.kanade.presentation.anime.components.AnimeBottomActionMenu
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
+import eu.kanade.presentation.components.PanoramaModeToggle
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.updates.UpdatesItem
@@ -51,11 +50,6 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.LocalDate
 import kotlin.time.Duration.Companion.seconds
-
-import eu.kanade.domain.ui.ContainerStyle
-import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.PanoramaMode
-import eu.kanade.presentation.components.PanoramaModeToggle
 import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 @Composable
@@ -139,7 +133,7 @@ fun UpdateScreen(
                 ).togetherWith(
                     soup.compose.material.motion.animation.materialFadeThroughOut(
                         durationMillis = 250,
-                    )
+                    ),
                 )
             },
             label = "updatesContent",
@@ -170,18 +164,18 @@ fun UpdateScreen(
                         ) {
                             updatesLastUpdatedItem(lastUpdated)
 
-                        updatesUiItems(
-                            uiModels = state.uiModels,
-                            expandedState = state.expandedState,
-                            onToggleExpand = onToggleExpand,
-                            selectionMode = state.selectionMode,
-                            onUpdateSelected = onUpdateSelected,
-                            onClickCover = onClickCover,
-                            onClickUpdate = onOpenEpisode,
-                            onDownloadEpisode = onDownloadEpisode,
-                            useContainer = useContainer,
-                            usePanorama = effectivePanorama,
-                        )
+                            updatesUiItems(
+                                uiModels = state.uiModels,
+                                expandedState = state.expandedState,
+                                onToggleExpand = onToggleExpand,
+                                selectionMode = state.selectionMode,
+                                onUpdateSelected = onUpdateSelected,
+                                onClickCover = onClickCover,
+                                onClickUpdate = onOpenEpisode,
+                                onDownloadEpisode = onDownloadEpisode,
+                                useContainer = useContainer,
+                                usePanorama = effectivePanorama,
+                            )
                         }
                     }
                 }
@@ -321,6 +315,9 @@ sealed interface UpdatesUiModel {
     ) : Item(item, position, isExpandable)
 
     enum class ItemPosition {
-        SINGLE, TOP, MIDDLE, BOTTOM
+        SINGLE,
+        TOP,
+        MIDDLE,
+        BOTTOM,
     }
 }

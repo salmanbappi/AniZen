@@ -2,8 +2,8 @@ package eu.kanade.tachiyomi.ui.anime.track
 
 import eu.kanade.tachiyomi.data.track.Tracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
-import kotlin.math.roundToInt
 import tachiyomi.domain.track.model.Track
+import kotlin.math.roundToInt
 
 data class TrackItem(val track: Track?, val tracker: Tracker)
 

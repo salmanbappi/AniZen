@@ -36,7 +36,6 @@ import eu.kanade.presentation.components.AdaptiveSheet
 import mihon.domain.migration.models.MigrationFlag
 import mihon.feature.common.utils.getLabel
 import tachiyomi.core.common.preference.Preference
-import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Button

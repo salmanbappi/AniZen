@@ -60,14 +60,14 @@ fun InterpolationStatsOverlay() {
     val containerFps by PlayerStats.containerFps.collectAsState(0.0)
     val displayFps by PlayerStats.displayFps.collectAsState(0.0)
     val actualFps by PlayerStats.estimatedDisplayFps.collectAsState(0.0)
-    
+
     val isInterpolating by PlayerStats.isInterpolating.collectAsState(false)
     val videoSync by PlayerStats.videoSync.collectAsState("")
     val tscale by PlayerStats.tscale.collectAsState("")
     val delayedFrames by PlayerStats.delayedFrames.collectAsState(0L)
     val mistime by PlayerStats.mistime.collectAsState(0.0)
     val voPasses by PlayerStats.voPasses.collectAsState(0L)
-    
+
     val hwdec by PlayerStats.hwdec.collectAsState("")
     val videoW by PlayerStats.videoW.collectAsState(0L)
     val videoH by PlayerStats.videoH.collectAsState(0L)
@@ -93,7 +93,7 @@ fun InterpolationStatsOverlay() {
     )
 
     Column(
-        Modifier.padding(16.dp)
+        Modifier.padding(16.dp),
     ) {
         Text(text = "SMOOTH MOTION DEBUG (PAGE 6)", style = baseStyle.copy(color = Color(0xFF33BBFF)))
         Spacer(Modifier.height(8.dp))
@@ -102,29 +102,41 @@ fun InterpolationStatsOverlay() {
         val isDirect = hwdec == "mediacodec"
         // Improved detection: Check if output frames > 1 OR display FPS is high OR algorithm is active
         val isWorking = isInterpolating && !isDirect && (voPasses > 1 || actualFps > (vfFps + 5) || (tscale.isNotEmpty() && tscale != "none"))
-        
+
         val statusText = when {
             isWorking -> "ACTIVE"
             isDirect -> "BYPASSED (Direct HWDEC)"
             isInterpolating && !isWorking -> "WAITING (Preparing frames)"
             else -> "OFF"
         }
-        StatLine("Status", statusText, baseStyle.copy(color = if (isDirect) Color.Red else if (statusText == "ACTIVE") Color.Green else Color.Unspecified))
+        StatLine(
+            "Status",
+            statusText,
+            baseStyle.copy(
+                color = if (isDirect) {
+                    Color.Red
+                } else if (statusText == "ACTIVE") {
+                    Color.Green
+                } else {
+                    Color.Unspecified
+                },
+            ),
+        )
         StatLine("Sync Mode", videoSync, baseStyle)
         StatLine("Scaler", tscale.ifEmpty { "none" }, baseStyle)
-        
+
         Spacer(Modifier.height(12.dp))
 
         // FPS Details with fallbacks
         val finalSourceFps = listOf(sourceFps, containerFps, vfFps).firstOrNull { it > 0.0 } ?: 0.0
         val finalActualFps = if (actualFps > 0) actualFps else vfFps
-        
+
         StatLine("Source Rate", "${format.format(finalSourceFps)} fps", baseStyle)
         StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 58) Color.Green else Color.Unspecified))
         StatLine("Refresh Rate", "${format.format(displayFps)} Hz", baseStyle)
-        
+
         Spacer(Modifier.height(8.dp))
-        
+
         StatLine("Mistime", "${(mistime * 1000).toInt()} ms", baseStyle)
         StatLine("Dropped", "$delayedFrames frames", baseStyle.copy(color = if (delayedFrames > 0) Color.Red else Color.Unspecified))
 
@@ -134,7 +146,7 @@ fun InterpolationStatsOverlay() {
         val finalW = listOf(dwidth, videoW, videoOutW).firstOrNull { it > 0L } ?: 0L
         val finalH = listOf(dheight, videoH, videoOutH).firstOrNull { it > 0L } ?: 0L
         Row {
-            StatLine("Res", "${finalW}x${finalH}", baseStyle)
+            StatLine("Res", "${finalW}x$finalH", baseStyle)
             Text(" | ", style = baseStyle)
             StatLine("HW", hwdec.ifEmpty { "no" }, baseStyle)
         }

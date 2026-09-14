@@ -1,7 +1,6 @@
 package eu.kanade.presentation.library.components
 
 import android.content.res.Configuration
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,22 +13,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import eu.kanade.domain.ui.UiPreferences
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import eu.kanade.core.preference.PreferenceMutableState
-import eu.kanade.tachiyomi.ui.library.LibraryItem
+import eu.kanade.domain.ui.UiPreferences
 import kotlinx.collections.immutable.ImmutableList
 import tachiyomi.domain.library.model.LibraryAnime
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.util.plus
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 @Composable
 fun LibraryPager(
@@ -48,7 +46,7 @@ fun LibraryPager(
     onClickContinueWatching: ((LibraryAnime) -> Unit)?,
     onFolderClick: ((eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder) -> Unit)? = null,
     onFolderLongClick: ((eu.kanade.tachiyomi.ui.library.LibraryDisplayItem.Folder) -> Unit)? = null,
-    ) {
+) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val columns by remember(isLandscape) { getColumnsForOrientation(isLandscape) }
@@ -138,6 +136,7 @@ fun LibraryPager(
 
     content(0)
 }
+
 @Composable
 private fun LibraryPagerEmptyScreen(
     searchQuery: String?,

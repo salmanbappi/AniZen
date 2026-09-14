@@ -4,21 +4,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.foundation.background
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,7 +55,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -71,27 +66,19 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastFilter
-import androidx.compose.ui.util.fastForEach
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabNavigator
-import eu.kanade.core.preference.asState
-import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.NavBehavior
-import eu.kanade.domain.ui.model.NavLabelVisibility
-import eu.kanade.domain.ui.model.NavItem
 import eu.kanade.domain.ui.model.NavAction
+import eu.kanade.domain.ui.model.NavBehavior
+import eu.kanade.domain.ui.model.NavItem
+import eu.kanade.domain.ui.model.NavLabelVisibility
 import eu.kanade.presentation.util.Screen
-import eu.kanade.presentation.util.Tab
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
@@ -99,26 +86,24 @@ import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
-import mihon.feature.airingschedule.AiringScheduleTab
-import tachiyomi.presentation.core.i18n.stringResource
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import mihon.feature.airingschedule.AiringScheduleTab
 import soup.compose.material.motion.animation.materialFadeThroughIn
 import soup.compose.material.motion.animation.materialFadeThroughOut
 import tachiyomi.core.common.preference.PreferenceStore
-import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.NavigationBar
 import tachiyomi.presentation.core.components.material.NavigationRail
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.pluralStringResource
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
+import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 object HomeScreen : Screen() {
 
@@ -129,7 +114,7 @@ object HomeScreen : Screen() {
     private const val TAB_NAVIGATOR_KEY = "HomeTabs"
 
     private val uiPreferences: UiPreferences by injectLazy()
-    private val defaultTab = uiPreferences.startScreen().get().tab.let { 
+    private val defaultTab = uiPreferences.startScreen().get().tab.let {
         if (it.isEnabled()) it else LibraryTab
     }
 
@@ -262,12 +247,12 @@ object HomeScreen : Screen() {
                                     .fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium,
                                 color = MaterialTheme.colorScheme.primaryContainer,
-                                tonalElevation = 4.dp
+                                tonalElevation = 4.dp,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
                                     Column(modifier = Modifier.weight(1f)) {
@@ -276,7 +261,7 @@ object HomeScreen : Screen() {
                                     }
                                     TextButton(
                                         onClick = { adaptiveEngine.dismissDecision() },
-                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
                                     ) {
                                         Text("Dismiss")
                                     }
@@ -284,8 +269,8 @@ object HomeScreen : Screen() {
                                         onClick = { adaptiveEngine.applyDecision(decision) },
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.primary,
-                                            contentColor = MaterialTheme.colorScheme.onPrimary
-                                        )
+                                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        ),
                                     ) {
                                         Text("Apply")
                                     }
@@ -358,7 +343,7 @@ object HomeScreen : Screen() {
 
         val selected = tabNavigator.current.key == tab.key
         val haptic = LocalHapticFeedback.current
-        
+
         val title = stringResource(navItem.titleRes)
 
         val onClick: () -> Unit = remember(selected, navItem.id, tabNavigator, tab, scope, navigator, executor) {
@@ -401,7 +386,9 @@ object HomeScreen : Screen() {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            } else null
+            } else {
+                null
+            }
         }
 
         with(rowScope) {
@@ -499,7 +486,9 @@ object HomeScreen : Screen() {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            } else null
+            } else {
+                null
+            }
         }
 
         NavigationRailItem(
@@ -507,7 +496,7 @@ object HomeScreen : Screen() {
             onClick = onClick,
             modifier = if (
                 behavior.onLongClick != NavAction.Default ||
-                    behavior.onDoubleTap != NavAction.Default
+                behavior.onDoubleTap != NavAction.Default
             ) {
                 Modifier.combinedClickable(
                     onLongClick = onLongClick,
@@ -539,7 +528,7 @@ object HomeScreen : Screen() {
             targetValue = if (selected && animatedTransitions) 1.15f else 1f,
             animationSpec = tween(
                 durationMillis = 200,
-                easing = androidx.compose.animation.core.FastOutSlowInEasing
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
             ),
             label = "iconScale",
         )

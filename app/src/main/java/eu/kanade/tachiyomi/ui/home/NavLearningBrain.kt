@@ -5,16 +5,14 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.NavConfig
 import eu.kanade.domain.ui.model.NavItem
 import eu.kanade.domain.ui.model.NavPresets
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableMap
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 enum class BrainStrategy {
-    CLASSIC,  // Long-term balanced habits
+    CLASSIC, // Long-term balanced habits
     TRENDING, // Short-term (24h) focus
-    FOCUS     // Only the absolute #1 most used extra tab
+    FOCUS, // Only the absolute #1 most used extra tab
 }
 
 object NavLearningBrain {
@@ -43,15 +41,15 @@ object NavLearningBrain {
             val tabId = trace.tabId ?: return@forEach
             val ageMs = (now - trace.timestamp).coerceAtLeast(0L)
             val ageDays = ageMs.toFloat() / dayMs
-            
+
             // Recency weighting
             var weight = (1.0f / (1.0f + ageDays)).coerceAtLeast(0.1f)
-            
+
             // Boost very recent actions for Trending
             if (strategy == BrainStrategy.TRENDING && ageMs <= dayMs) {
                 weight *= 5.0f // Heavy focus on the last 24 hours
             }
-            
+
             scores[tabId] = (scores[tabId] ?: 0f) + weight
         }
 
@@ -77,7 +75,7 @@ object NavLearningBrain {
         return NavConfig(
             visibleTabs = visible.distinct().toImmutableList(),
             hiddenTabs = hidden.distinct().toImmutableList(),
-            behaviorMap = Injekt.get<UiPreferences>().bottomNavBehaviors().get()
+            behaviorMap = Injekt.get<UiPreferences>().bottomNavBehaviors().get(),
         )
     }
 

@@ -3,21 +3,19 @@ package eu.kanade.presentation.anime.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import kotlin.math.roundToInt
-import tachiyomi.domain.anime.model.SeasonAnime
-import tachiyomi.domain.anime.model.SeasonDisplayMode
 import eu.kanade.presentation.library.components.AnimeComfortableGridItem
 import eu.kanade.presentation.library.components.AnimeCompactGridItem
 import eu.kanade.presentation.library.components.AnimeListItem
 import eu.kanade.presentation.library.components.DownloadsBadge
-import eu.kanade.presentation.library.components.LanguageBadge
 import eu.kanade.presentation.library.components.UnviewedBadge
-import eu.kanade.presentation.util.formatEpisodeNumber
 import eu.kanade.tachiyomi.ui.anime.AnimeSeasonItem
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.AnimeCover
+import tachiyomi.domain.anime.model.SeasonAnime
+import tachiyomi.domain.anime.model.SeasonDisplayMode
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import kotlin.math.roundToInt
 
 @Composable
 fun AnimeSeasonListItem(

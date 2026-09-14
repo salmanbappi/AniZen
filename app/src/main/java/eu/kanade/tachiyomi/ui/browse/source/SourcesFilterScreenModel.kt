@@ -7,6 +7,7 @@ import eu.kanade.domain.source.interactor.GetLanguagesWithSources
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.presentation.browse.SourceUiModel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -16,8 +17,6 @@ import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.SortedMap
-
-import eu.kanade.presentation.browse.SourceUiModel
 import java.util.TreeMap
 
 class SourcesFilterScreenModel(
@@ -38,11 +37,11 @@ class SourcesFilterScreenModel(
                 val items = TreeMap<SourceUiModel.Header, List<SourceUiModel.Item>> { h1, h2 ->
                     h1.language.compareTo(h2.language)
                 }
-                
+
                 languagesWithSources.forEach { (lang, sources) ->
                     items[mapper.mapHeader(lang)] = sources.map { mapper.map(it, headerKey = lang) }
                 }
-                
+
                 Triple(items, enabledLanguages, disabledSources)
             }
                 .catch { throwable ->

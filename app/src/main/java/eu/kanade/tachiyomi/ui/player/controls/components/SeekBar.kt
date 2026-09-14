@@ -159,8 +159,8 @@ fun VideoTimer(
         onTextLayout = onTextLayout,
         style = MaterialTheme.typography.labelLarge.copy(
             fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
-            fontFeatureSettings = "tnum"
-        )
+            fontFeatureSettings = "tnum",
+        ),
     )
 }
 

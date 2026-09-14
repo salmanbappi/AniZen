@@ -4,8 +4,6 @@ import android.content.Context
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.util.storage.DiskUtil
-import tachiyomi.core.common.storage.nameWithoutExtension
-import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.source.localanime.io.LocalAnimeSourceFileSystem
 import java.io.InputStream
 

@@ -9,27 +9,27 @@ object PlayerStats {
     val containerFps = MutableStateFlow(0.0)
     val displayFps = MutableStateFlow(0.0)
     val estimatedDisplayFps = MutableStateFlow(0.0)
-    
+
     val videoW = MutableStateFlow(0L)
     val videoH = MutableStateFlow(0L)
     val dwidth = MutableStateFlow(0L)
     val dheight = MutableStateFlow(0L)
     val videoOutW = MutableStateFlow(0L)
     val videoOutH = MutableStateFlow(0L)
-    
+
     val videoCodec = MutableStateFlow("")
     val videoBitrate = MutableStateFlow(0L)
     val videoPixFmt = MutableStateFlow("")
     val videoLevels = MutableStateFlow("")
     val videoPrimaries = MutableStateFlow("")
     val hwdec = MutableStateFlow("")
-    
+
     val videoSync = MutableStateFlow("")
     val tscale = MutableStateFlow("")
     val isInterpolating = MutableStateFlow(false)
     val voPasses = MutableStateFlow(0L)
     val isAdaptiveDowngraded = MutableStateFlow(false)
-    
+
     val delayedFrames = MutableStateFlow(0L)
     val mistime = MutableStateFlow(0.0)
 

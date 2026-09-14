@@ -1,14 +1,13 @@
 package mihon.feature.airingschedule
 
-import logcat.LogPriority
-import tachiyomi.core.common.util.system.logcat
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
 
 /**

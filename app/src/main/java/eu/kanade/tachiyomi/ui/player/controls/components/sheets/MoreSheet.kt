@@ -39,7 +39,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardAlt
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -173,7 +172,7 @@ fun MoreSheet(
             ) {
                 itemsIndexed(
                     items = Decoder.entries.minus(Decoder.Auto),
-                    key = { _, it -> "ms-decoder-${it.name}" }
+                    key = { _, it -> "ms-decoder-${it.name}" },
                 ) { _, decoder ->
                     FilterChip(
                         selected = decoder == selectedDecoder,
@@ -189,7 +188,7 @@ fun MoreSheet(
             ) {
                 items(
                     count = 7,
-                    key = { "ms-stats-page-$it" }
+                    key = { "ms-stats-page-$it" },
                 ) { page ->
                     FilterChip(
                         label = {
@@ -211,7 +210,7 @@ fun MoreSheet(
                             val wasInternalPage = statisticsPage in 1..5
                             val isPageSix = page == 6
                             val wasPageSix = statisticsPage == 6
-                            
+
                             if (isPageSix) {
                                 // If switching TO page 6, hide internal stats and show native Page 6
                                 if (wasInternalPage) {
@@ -223,7 +222,7 @@ fun MoreSheet(
                                 if (wasPageSix) {
                                     MPVLib.command(arrayOf("script-message", "hide-page-6"))
                                 }
-                                
+
                                 if (isInternalPage) {
                                     // If switching TO an internal page (1-5)
                                     if (statisticsPage == 0 || wasPageSix) {
@@ -283,7 +282,7 @@ fun MoreSheet(
             ) {
                 itemsIndexed(
                     items = AudioChannels.entries,
-                    key = { _, it -> "ms-audio-channels-${it.name}" }
+                    key = { _, it -> "ms-audio-channels-${it.name}" },
                 ) { _, it ->
                     FilterChip(
                         selected = audioChannels == it,
@@ -307,7 +306,7 @@ fun MoreSheet(
             ) {
                 itemsIndexed(
                     items = LongPressAction.entries,
-                    key = { _, it -> "ms-lp-playing-${it.name}" }
+                    key = { _, it -> "ms-lp-playing-${it.name}" },
                 ) { _, action ->
                     FilterChip(
                         selected = longPressAction == action,
@@ -323,7 +322,7 @@ fun MoreSheet(
             ) {
                 itemsIndexed(
                     items = PausedLongPressAction.entries,
-                    key = { _, it -> "ms-lp-paused-${it.name}" }
+                    key = { _, it -> "ms-lp-paused-${it.name}" },
                 ) { _, action ->
                     FilterChip(
                         selected = pausedLongPressAction == action,

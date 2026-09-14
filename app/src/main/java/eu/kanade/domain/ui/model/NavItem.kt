@@ -23,32 +23,32 @@ sealed interface NavAction {
     val isDangerous: Boolean get() = false
 
     data object Default : NavAction
-    
+
     data object OpenExtensions : NavAction {
         override val cooldownMs = 1000L
     }
-    
+
     data object OpenSettings : NavAction
-    
+
     data object ClearHistory : NavAction {
         override val requiresConfirmation = true
         override val isDangerous = true
         override val cooldownMs = 5000L
     }
-    
+
     data object RefreshUpdates : NavAction {
         override val cooldownMs = 10000L
     }
-    
+
     data object OpenDownloads : NavAction
-    
+
     data object GlobalSearch : NavAction
-    
+
     data class CustomRoute(val route: String) : NavAction
-    
+
     companion object {
         val ALL = listOf(
-            Default, OpenExtensions, OpenSettings, ClearHistory, 
+            Default, OpenExtensions, OpenSettings, ClearHistory,
             RefreshUpdates, OpenDownloads, GlobalSearch
         )
     }
@@ -121,10 +121,10 @@ object NavConfigSerializer {
             val version = parts[0].removePrefix("v").toInt()
             val visible = parts[1].split(",").filter { it.isNotBlank() }
             val hidden = parts[2].split(",").filter { it.isNotBlank() }
-            
+
             val allItems = NavItem.entries.map { it.id }.toSet()
             if (visible.any { it !in allItems } || hidden.any { it !in allItems }) return null
-            
+
             val behaviorMap = mutableMapOf<String, NavBehavior>()
             if (parts.size >= 4) {
                 parts[3].split(";").filter { it.isNotBlank() }.forEach { entry ->
@@ -141,7 +141,7 @@ object NavConfigSerializer {
                     }
                 }
             }
-            
+
             val config = NavConfig(version, visible.toImmutableList(), hidden.toImmutableList(), behaviorMap.toImmutableMap())
             NavMigrator.migrate(config)
         } catch (e: Exception) {
@@ -200,7 +200,7 @@ object NavConfigValidator {
                 if (visible.size < MAX_BOTTOM_TABS) visible.add(id) else hidden.add(id)
             }
         }
-        
+
         // Prevent missing tabs from completely vanishing from the UI
         ALL_STANDARD_TABS.forEach { id ->
             if (!visible.contains(id) && !hidden.contains(id)) {
@@ -225,8 +225,8 @@ object NavConfigValidator {
         }
 
         return NavConfig(
-            version = NavConfig.CURRENT_VERSION, 
-            visibleTabs = visible.toImmutableList(), 
+            version = NavConfig.CURRENT_VERSION,
+            visibleTabs = visible.toImmutableList(),
             hiddenTabs = hidden.toImmutableList(),
             behaviorMap = config.behaviorMap
         )

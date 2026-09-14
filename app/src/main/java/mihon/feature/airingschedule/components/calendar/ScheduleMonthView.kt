@@ -121,7 +121,7 @@ fun ScheduleMonthView(
                 }
                 displayDates.forEach { date ->
                     val dayEntries = entriesByDate[date].orEmpty().sortedBy { it.airingAt }
-                    item(key = "header_${date}") {
+                    item(key = "header_$date") {
                         MonthDateHeader(date = date, count = dayEntries.size)
                     }
                     items(
@@ -138,11 +138,12 @@ fun ScheduleMonthView(
                             val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
                             candidateKeys.firstNotNullOfOrNull { libraryAnimeIdByTitle[it] }
                         }
-                        val isInLibrary = matchedAnimeId != null || remember(entry.scheduleId, libraryAnimeTitles) {
-                            val candidates = ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
-                            val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
-                            candidateKeys.any { it in libraryAnimeTitles }
-                        }
+                        val isInLibrary = matchedAnimeId != null ||
+                            remember(entry.scheduleId, libraryAnimeTitles) {
+                                val candidates = ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+                                val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
+                                candidateKeys.any { it in libraryAnimeTitles }
+                            }
                         ScheduleAnimeCard(
                             entry = entry,
                             titleLanguage = titleLanguage,
@@ -153,8 +154,11 @@ fun ScheduleMonthView(
                             isInLibrary = isInLibrary,
                             notifyState = bellState,
                             onSearchClick = {
-                                if (matchedAnimeId != null) onOpenAnime(matchedAnimeId)
-                                else onSearchAnime(it)
+                                if (matchedAnimeId != null) {
+                                    onOpenAnime(matchedAnimeId)
+                                } else {
+                                    onSearchAnime(it)
+                                }
                             },
                             onAddToLibraryClick = { onSearchAnime(it) },
                             onToggleNotifyOnce = { onToggleAlert(entry) },
@@ -197,7 +201,7 @@ fun ScheduleMonthView(
             }
             displayDates.forEach { date ->
                 val dayEntries = entriesByDate[date].orEmpty().sortedBy { it.airingAt }
-                item(key = "header_${date}") {
+                item(key = "header_$date") {
                     MonthDateHeader(date = date, count = dayEntries.size)
                 }
                 items(
@@ -214,11 +218,12 @@ fun ScheduleMonthView(
                         val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
                         candidateKeys.firstNotNullOfOrNull { libraryAnimeIdByTitle[it] }
                     }
-                    val isInLibrary = matchedAnimeId != null || remember(entry.scheduleId, libraryAnimeTitles) {
-                        val candidates = ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
-                        val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
-                        candidateKeys.any { it in libraryAnimeTitles }
-                    }
+                    val isInLibrary = matchedAnimeId != null ||
+                        remember(entry.scheduleId, libraryAnimeTitles) {
+                            val candidates = ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
+                            val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
+                            candidateKeys.any { it in libraryAnimeTitles }
+                        }
                     ScheduleAnimeCard(
                         entry = entry,
                         titleLanguage = titleLanguage,
@@ -229,8 +234,11 @@ fun ScheduleMonthView(
                         isInLibrary = isInLibrary,
                         notifyState = bellState,
                         onSearchClick = {
-                            if (matchedAnimeId != null) onOpenAnime(matchedAnimeId)
-                            else onSearchAnime(it)
+                            if (matchedAnimeId != null) {
+                                onOpenAnime(matchedAnimeId)
+                            } else {
+                                onSearchAnime(it)
+                            }
                         },
                         onAddToLibraryClick = { onSearchAnime(it) },
                         onToggleNotifyOnce = { onToggleAlert(entry) },

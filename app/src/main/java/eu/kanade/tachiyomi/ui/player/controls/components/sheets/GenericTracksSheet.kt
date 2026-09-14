@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -62,7 +61,7 @@ fun <T> GenericTracksSheet(
             LazyColumn {
                 itemsIndexed(
                     items = tracks,
-                    key = { index, _ -> "track-$index" }
+                    key = { index, _ -> "track-$index" },
                 ) { _, it ->
                     track(it)
                 }
@@ -117,8 +116,9 @@ fun getTrackTitle(track: VideoTrack): String {
                 track.id == -1 -> track.name
                 track.language.isNullOrBlank() && track.name.isNotBlank() -> stringResource(MR.strings.player_sheets_track_title_wo_lang, track.id, track.name)
                 !track.language.isNullOrBlank() && track.name.isNotBlank() -> {
-                    if (track.name.contains(track.language, ignoreCase = true) || 
-                        track.language.contains(track.name, ignoreCase = true)) {
+                    if (track.name.contains(track.language, ignoreCase = true) ||
+                        track.language.contains(track.name, ignoreCase = true)
+                    ) {
                         stringResource(MR.strings.player_sheets_track_title_wo_lang, track.id, track.name)
                     } else {
                         stringResource(MR.strings.player_sheets_track_title_w_lang, track.id, track.name, track.language)

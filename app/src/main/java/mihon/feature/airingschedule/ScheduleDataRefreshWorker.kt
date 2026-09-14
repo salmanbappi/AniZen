@@ -4,13 +4,13 @@ import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.Data
 import androidx.work.WorkRequest
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
@@ -95,7 +95,10 @@ class ScheduleDataRefreshWorker(
 
     companion object {
         private const val WORK_NAME = "ScheduleDataRefreshWorker"
-        private val cacheJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        private val cacheJson = Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
 
         private fun Context.cacheFile() = java.io.File(filesDir, "schedule_cache.json")
 

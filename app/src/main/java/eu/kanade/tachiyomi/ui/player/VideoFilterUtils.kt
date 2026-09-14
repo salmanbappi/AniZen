@@ -25,7 +25,7 @@ import logcat.logcat
 
 fun applyFilter(filter: VideoFilters, value: Int, prefs: DecoderPreferences) {
     val property = filter.mpvProperty
-    
+
     MPVLib.setPropertyInt(property, value)
 }
 
@@ -54,8 +54,6 @@ fun applyDebandSetting(setting: DebandSettings, value: Int) {
     MPVLib.setPropertyInt(setting.mpvProperty, value)
 }
 
-
-
 fun buildVFChain(decoderPreferences: DecoderPreferences): String {
     val useYuv420p = decoderPreferences.useYUV420P().get()
 
@@ -73,7 +71,7 @@ fun applyTheme(theme: VideoFilterTheme, prefs: DecoderPreferences) {
     prefs.gammaFilter().set(theme.gamma)
     prefs.hueFilter().set(theme.hue)
     prefs.sharpenFilter().set(theme.sharpen)
-    
+
     // Reset deband
     prefs.debandFilter().set(0)
     prefs.grainFilter().set(0)
@@ -87,10 +85,10 @@ fun applyTheme(theme: VideoFilterTheme, prefs: DecoderPreferences) {
     MPVLib.setPropertyInt("gamma", theme.gamma)
     MPVLib.setPropertyInt("hue", theme.hue)
     MPVLib.setPropertyInt("sharpen", theme.sharpen)
-    
+
     // Apply VF chain once
     MPVLib.setPropertyString("vf", buildVFChain(prefs))
-    
+
     // Reset deband engine properties
     MPVLib.setPropertyBoolean("deband", false)
     MPVLib.setPropertyInt("deband-iterations", 1)
@@ -101,7 +99,7 @@ fun applyTheme(theme: VideoFilterTheme, prefs: DecoderPreferences) {
 
 fun applyAnime4K(prefs: DecoderPreferences, manager: Anime4KManager, isInit: Boolean = false) {
     val enabled = prefs.enableAnime4K().get()
-    
+
     // DEFENSIVE: Anime4K is incompatible with gpu-next in current builds
     val gpuNext = prefs.gpuNext().get()
     if (enabled && gpuNext) {
@@ -126,7 +124,7 @@ fun applyAnime4K(prefs: DecoderPreferences, manager: Anime4KManager, isInit: Boo
 
     val chain = if (enabled) manager.getShaderChain(mode, quality) else ""
     logcat("Anime4K", LogPriority.DEBUG) { "Applying Anime4K chain (enabled=$enabled): $chain" }
-    
+
     if (chain.isNotEmpty()) {
         if (isInit) {
             MPVLib.setOptionString("glsl-shaders", chain)

@@ -270,6 +270,7 @@ object ExtensionUiModel {
         data class Resource(val textRes: StringResource) : Header
         data class Text(val text: String) : Header
     }
+
     @androidx.compose.runtime.Immutable
     data class Item(
         val extension: Extension,

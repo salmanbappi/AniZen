@@ -34,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -209,7 +208,7 @@ private fun <T> WheelPicker(
             ) {
                 itemsIndexed(
                     items = items,
-                    key = { index, _ -> "wheel-item-$index" }
+                    key = { index, _ -> "wheel-item-$index" },
                 ) { index, item ->
                     Box(
                         modifier = Modifier

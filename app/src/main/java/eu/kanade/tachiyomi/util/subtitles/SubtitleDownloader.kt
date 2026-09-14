@@ -75,7 +75,7 @@ object SubtitleDownloader {
         val ext = getCleanExtension(track.url)
         val safeEpisodeName = DiskUtil.buildValidFilename(episode.name)
         val safeLang = DiskUtil.buildValidFilename(track.lang.ifBlank { "sub" })
-        return "${safeEpisodeName}.${safeLang}.$ext"
+        return "$safeEpisodeName.$safeLang.$ext"
     }
 
     fun isSubtitleDownloaded(

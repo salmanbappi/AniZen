@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,14 +25,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -42,29 +40,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import eu.kanade.domain.ui.UiPreferences
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import eu.kanade.presentation.anime.components.AnimeCover
-import eu.kanade.presentation.components.AppBar
 import kotlinx.coroutines.launch
 import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.source.model.FeedSavedSearchCategory
-import tachiyomi.domain.source.model.SavedSearch
-import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
-import tachiyomi.presentation.core.components.material.Scaffold
-import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.components.SkeletonAnimeCard
+import tachiyomi.presentation.core.components.SkeletonFeedIsland
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
-import tachiyomi.presentation.core.components.SkeletonFeedIsland
-import tachiyomi.presentation.core.components.SkeletonAnimeCard
 import tachiyomi.presentation.core.util.plus
-import tachiyomi.presentation.core.util.secondaryItemAlpha
+import uy.kohesive.injekt.api.get
 
 @Composable
 fun FeedScreen(
@@ -93,7 +80,7 @@ fun FeedScreen(
             }
         }
     }
-    
+
     val pagerState = rememberPagerState { visibleCategories.size }
 
     // Use derivedStateOf for smooth tab tracking at high refresh rates
@@ -137,7 +124,7 @@ fun FeedScreen(
                                 text = category.name,
                                 style = MaterialTheme.typography.titleSmall,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
                             )
                         },
                     )
@@ -159,7 +146,7 @@ fun FeedScreen(
                     start = 16.dp,
                     end = 16.dp,
                     top = 8.dp,
-                    bottom = contentPadding.calculateBottomPadding() + 8.dp
+                    bottom = contentPadding.calculateBottomPadding() + 8.dp,
                 )
             }
 
@@ -168,7 +155,7 @@ fun FeedScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = listPadding,
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     items(3, key = { "skeleton-$it" }) {
                         SkeletonFeedIsland()
@@ -200,12 +187,12 @@ fun FeedScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = listPadding,
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     itemsIndexed(
                         items = items,
                         key = { _, it -> "feed-${it.feed.id}" },
-                        contentType = { _, _ -> "feed_island" }
+                        contentType = { _, _ -> "feed_island" },
                     ) { _, item ->
                         FeedIsland(
                             item = item,
@@ -240,10 +227,10 @@ private fun FeedIsland(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 2.dp
+        tonalElevation = 2.dp,
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp)
+            modifier = Modifier.padding(vertical = 12.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -258,7 +245,7 @@ private fun FeedIsland(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 if (item.isLoading) {
@@ -269,7 +256,7 @@ private fun FeedIsland(
                         strokeWidth = 2.dp,
                     )
                 }
-                
+
                 androidx.compose.material3.TextButton(
                     onClick = onSeeAllClick,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
@@ -280,14 +267,14 @@ private fun FeedIsland(
                     )
                 }
             }
-            
+
             if (item.animeList.isEmpty()) {
                 // PULSING PLACEHOLDERS INSIDE THE SECTION WHILE FETCHING
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     repeat(4) {
                         SkeletonAnimeCard(width = 100.dp)
@@ -296,19 +283,18 @@ private fun FeedIsland(
             } else {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     itemsIndexed(
                         items = item.animeList,
                         key = { _, anime -> "anime-${item.feed.id}-${anime.id}" },
-                        contentType = { _, _ -> "anime_card" }
+                        contentType = { _, _ -> "anime_card" },
                     ) { _, anime ->
                         FeedCard(
                             anime = anime,
                             onClick = { onAnimeClick(anime) },
                             usePanorama = usePanorama,
                         )
-
                     }
                 }
             }
@@ -327,7 +313,7 @@ private fun FeedCard(
 
     Column(
         modifier = Modifier.width(width),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         entry(
             data = anime,
@@ -340,7 +326,7 @@ private fun FeedCard(
             style = MaterialTheme.typography.labelMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.height(32.dp)
+            modifier = Modifier.height(32.dp),
         )
     }
 }

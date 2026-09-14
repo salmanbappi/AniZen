@@ -51,6 +51,7 @@ import eu.kanade.tachiyomi.data.coil.AnimeKeyer
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
 import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.di.AppModule
@@ -59,10 +60,9 @@ import eu.kanade.tachiyomi.di.SYPreferenceModule
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
-import eu.kanade.tachiyomi.util.system.DeviceUtil
-import eu.kanade.tachiyomi.util.system.GLUtil
-import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
+import eu.kanade.tachiyomi.util.system.DeviceUtil
+import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
@@ -83,17 +83,17 @@ import logcat.LogcatLogger
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
 import mihon.telemetry.TelemetryConfig
+import okio.Path.Companion.toPath
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.domain.storage.service.StorageManager
+import tachiyomi.data.Database
 import tachiyomi.domain.anime.repository.CustomAnimeRepository
 import tachiyomi.domain.source.service.SourceManager
-import tachiyomi.data.Database
-import eu.kanade.tachiyomi.data.download.DownloadManager
+import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.util.TvDevice
 import tachiyomi.presentation.widget.WidgetManager
@@ -105,7 +105,6 @@ import java.io.File
 import java.security.Security
 import java.text.SimpleDateFormat
 import java.util.Locale
-import okio.Path.Companion.toPath
 
 class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
 
@@ -168,13 +167,13 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             // Warm the cover color/ratio cache so the first library scroll is already
             // smooth instead of extracting + measuring on the fly (KMK).
             CoverColorObserver.load()
-            
+
             // Dismiss stuck downloader notifications
             val downloadManager = Injekt.get<DownloadManager>()
             withUIContext<Unit> {
                 downloadManager.dismissNotifications()
             }
-            
+
             val syncPreferences: SyncPreferences = Injekt.get()
             val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
             if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppStart) {

@@ -20,28 +20,24 @@ package eu.kanade.tachiyomi.ui.player
 import android.content.Context
 import android.os.Build
 import android.os.Environment
-import android.view.Surface
 import android.util.AttributeSet
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
+import eu.kanade.tachiyomi.ui.player.applyAnime4K
+import eu.kanade.tachiyomi.ui.player.buildVFChain
 import eu.kanade.tachiyomi.ui.player.controls.components.panels.toColorHexString
 import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
-import eu.kanade.tachiyomi.ui.player.applyAnime4K
-import eu.kanade.tachiyomi.ui.player.buildVFChain
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.util.system.DeviceTierManager
-import eu.kanade.tachiyomi.util.system.findActivity
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPVLib
-import logcat.LogPriority
-import logcat.logcat
 import uy.kohesive.injekt.injectLazy
 import kotlin.reflect.KProperty
 
@@ -186,7 +182,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
     override fun initOptions(vo: String) {
         initialized = true
         setVo(if (decoderPreferences.gpuNext().get()) "gpu-next" else "gpu")
-        
+
         MPVLib.setPropertyBoolean("pause", true)
         MPVLib.setOptionString("profile", "fast")
         val isSmoothMotion = decoderPreferences.smoothMotion().get()
@@ -196,7 +192,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
             "no"
         }
         MPVLib.setOptionString("hwdec", defaultHwdec)
-        
+
         // Gated Defaults with HQ toggle
         val isHighQuality = decoderPreferences.highQualityScaling().get()
         val scaler = if (isHighQuality) "spline36" else "bilinear"
@@ -257,10 +253,10 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         MPVLib.setOptionString("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024}")
 
         applyPlaybackStrategy()
-        
+
         MPVLib.setOptionString("hr-seek", "default")
         MPVLib.setOptionString("sub-auto", "fuzzy")
-        
+
         val screenshotDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
         screenshotDir.mkdirs()
         MPVLib.setOptionString("screenshot-directory", screenshotDir.path)
@@ -275,7 +271,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
 
         MPVLib.setOptionString("speed", playerPreferences.playerSpeed().get().toString())
         MPVLib.setOptionString("vd-lavc-film-grain", "cpu")
-        
+
         setupSubtitlesOptions()
         setupAudioOptions()
     }

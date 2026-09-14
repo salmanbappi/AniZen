@@ -38,14 +38,14 @@ object StremioSubtitleResolver {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return listOf(track)
                 val body = response.body?.string() ?: return listOf(track)
-                
+
                 val data = json.decodeFromString<StremioResponse>(body)
                 if (data.subtitles.isEmpty()) return listOf(track)
 
                 data.subtitles.map { sub ->
                     Track(
                         url = sub.url,
-                        lang = if (sub.lang.isNotBlank()) sub.lang else track.lang
+                        lang = if (sub.lang.isNotBlank()) sub.lang else track.lang,
                     )
                 }
             }
@@ -56,13 +56,13 @@ object StremioSubtitleResolver {
 
     @Serializable
     private data class StremioResponse(
-        val subtitles: List<StremioSub> = emptyList()
+        val subtitles: List<StremioSub> = emptyList(),
     )
 
     @Serializable
     private data class StremioSub(
         val id: String? = null,
         val url: String,
-        val lang: String = ""
+        val lang: String = "",
     )
 }

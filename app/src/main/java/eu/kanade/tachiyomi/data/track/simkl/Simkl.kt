@@ -6,9 +6,9 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.AnimeTracker
 import eu.kanade.tachiyomi.data.track.BaseTracker
+import eu.kanade.tachiyomi.data.track.ImportStatusFilter
 import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.ImportableTracker
-import eu.kanade.tachiyomi.data.track.ImportStatusFilter
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.data.track.simkl.SimklApi.Companion.POSTERS_URL
 import eu.kanade.tachiyomi.data.track.simkl.dto.SimklOAuth
@@ -190,7 +190,7 @@ class Simkl(id: Long) : BaseTracker(id, "Simkl"), AnimeTracker, ImportableTracke
                 statusFilter = mappedStatusFilter,
                 startDate = 0L,
                 finishDate = 0L,
-                trackingUrl = "https://simkl.com/${if (isMovie) "movies" else "anime"}/${resultData.ids.simkl}"
+                trackingUrl = "https://simkl.com/${if (isMovie) "movies" else "anime"}/${resultData.ids.simkl}",
             )
         }
     }

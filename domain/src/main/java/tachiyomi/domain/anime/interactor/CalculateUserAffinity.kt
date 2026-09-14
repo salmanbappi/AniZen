@@ -2,11 +2,8 @@ package tachiyomi.domain.anime.interactor
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.library.model.LibraryAnime
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.model.Track
 
 class CalculateUserAffinity(
     private val getLibraryAnime: GetLibraryAnime,
@@ -29,13 +26,17 @@ class CalculateUserAffinity(
         library.forEach { libAnime ->
             val anime = libAnime.anime
             val animeTracks = trackMap[anime.id] ?: emptyList()
-            
+
             // Core Formula: (score - 5) * (seen / total)
             // Use 5.0 as neutral score if no tracks available
             val score = animeTracks.map { it.score }.filter { it > 0 }.average().takeIf { !it.isNaN() } ?: 5.0
             val progress = if (libAnime.totalEpisodes > 0) {
                 libAnime.seenCount.toFloat() / libAnime.totalEpisodes
-            } else if (libAnime.hasStarted) 0.5f else 0.0f
+            } else if (libAnime.hasStarted) {
+                0.5f
+            } else {
+                0.0f
+            }
 
             val weight = (score.toFloat() - 5f) * progress
 

@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
-import eu.kanade.tachiyomi.ui.player.PreloadMode
 import eu.kanade.tachiyomi.ui.player.PlayerOrientation
+import eu.kanade.tachiyomi.ui.player.PreloadMode
 import eu.kanade.tachiyomi.ui.player.VideoAspect
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
@@ -76,7 +76,7 @@ class PlayerPreferences(
     fun disableAniSkipOnChapters() = preferenceStore.getBoolean("pref_disabled_ani_skip_chapters", true)
 
     // Filler skip
-    
+
     fun skipFillerEpisodes() = preferenceStore.getBoolean("pref_skip_filler_episodes", false)
 
     // PiP

@@ -8,8 +8,6 @@ import android.os.Build
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.glance.GlanceId
@@ -42,8 +40,8 @@ import kotlinx.coroutines.flow.map
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.AnimeCover
-import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.presentation.widget.R
 import tachiyomi.presentation.widget.components.CoverHeight
 import tachiyomi.presentation.widget.components.CoverWidth
@@ -80,7 +78,11 @@ class FeedGlanceWidget(
             .appWidgetBackgroundRadius()
 
         val manager = GlanceAppWidgetManager(context)
-        val sizes = try { manager.getAppWidgetSizes(id) } catch (e: Exception) { emptyList() }
+        val sizes = try {
+            manager.getAppWidgetSizes(id)
+        } catch (e: Exception) {
+            emptyList()
+        }
         val (rowCount, columnCount) = sizes
             .maxByOrNull { it.height.value * it.width.value }
             ?.calculateRowAndColumnCount(topPadding, bottomPadding)
@@ -97,7 +99,7 @@ class FeedGlanceWidget(
                     .map { updates ->
                         val animeList = updates
                             .distinctBy { it.animeId }
-                            .map { 
+                            .map {
                                 Anime.create().copy(
                                     id = it.animeId,
                                     source = it.sourceId,

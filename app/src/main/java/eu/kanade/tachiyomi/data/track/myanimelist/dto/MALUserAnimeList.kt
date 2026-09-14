@@ -29,7 +29,7 @@ data class MALUserAnimeListItem(
             episodesSeen = listStatus.numEpisodesWatched.toInt(),
             isRewatching = listStatus.isRewatching,
             startDate = listStatus.startDate ?: "",
-            finishDate = listStatus.finishDate ?: ""
+            finishDate = listStatus.finishDate ?: "",
         )
     }
 }

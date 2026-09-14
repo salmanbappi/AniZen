@@ -25,7 +25,6 @@ data class ALUserListMediaList(
     val mediaList: List<ALUserListItem>,
 )
 
-
 @Serializable
 data class ALUserListItem(
     val id: Long,

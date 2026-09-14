@@ -84,19 +84,19 @@ class InfrastructureScreenModel(
     fun runDiagnostics() {
         if (_isRefreshing.value) return
         _isRefreshing.value = true
-        
+
         screenModelScope.launchIO {
             val disabledSourceIds = sourcePreferences.disabledSources().get()
             val sources = sourceManager.getOnlineSources()
                 .filter { !it.isLocal() }
                 .filter { it.id.toString() !in disabledSourceIds }
-            
+
             // Populate state with ALL sources immediately
             val initialNodes = sources.map { source ->
                 createPlaceholderNode(source)
             }
-            
-            mutableState.update { 
+
+            mutableState.update {
                 InfrastructureState.Success(InfrastructureReport(initialNodes, generateEmptyMetrics(initialNodes.size), emptyList()))
             }
 
@@ -165,12 +165,12 @@ class InfrastructureScreenModel(
         val name = source.name.lowercase()
         val className = source::class.java.simpleName.lowercase()
         val pkg = source::class.java.name.lowercase()
-        
+
         // Basic name heuristics
-        val nameMatch = className.contains("api") || 
-               className.contains("json") || 
+        val nameMatch = className.contains("api") ||
+               className.contains("json") ||
                className.contains("graphql") ||
-               name.contains("api") || 
+               name.contains("api") ||
                name.contains("json") ||
                pkg.contains("api") ||
                pkg.contains("json")
@@ -182,10 +182,10 @@ class InfrastructureScreenModel(
             val isParsed = source::class.java.name.contains("Parsed")
             if (isParsed) return false
 
-            source::class.java.declaredFields.any { 
+            source::class.java.declaredFields.any {
                 it.type.name.contains("kotlinx.serialization.json.Json") ||
                 it.name.contains("json")
-            } || source::class.java.methods.any { 
+            } || source::class.java.methods.any {
                 it.name.contains("parseAs") || it.returnType.name.contains("Json")
             }
         } catch (e: Exception) {
