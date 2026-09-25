@@ -12,7 +12,24 @@ import tachiyomi.core.common.util.system.logcat
 import kotlin.coroutines.resume
 
 object WebViewUtil {
-    const val SPOOF_PACKAGE_NAME = "org.chromium.chrome"
+    // ANZ -->
+    private const val CHROME_PACKAGE = "com.android.chrome"
+
+    fun spoofedPackageName(context: Context): String? { // ANZ
+        return try {
+            context.packageManager.getPackageInfo(CHROME_PACKAGE, PackageManager.GET_META_DATA)
+
+            CHROME_PACKAGE
+        } catch (_: PackageManager.NameNotFoundException) {
+            context.defaultBrowserPackageName().takeUnless { it.isNullOrBlank() } ?: run {
+                val packages = context.getAllInstalledPackages()
+                packages.firstOrNull { it.contains("chrome") }
+                    ?: packages.firstOrNull { it.contains("webview") }
+                    ?: packages.firstOrNull { it.contains("android") && it.contains("setting") }
+            }
+        }
+    }
+    // ANZ <--
 
     const val MINIMUM_WEBVIEW_VERSION = 118
 
@@ -72,6 +89,11 @@ fun WebView.setDefaultSettings() {
         useWideViewPort = true
         loadWithOverviewMode = true
         cacheMode = WebSettings.LOAD_DEFAULT
+
+        // ANZ -->
+        // Handle popups properly
+        setSupportMultipleWindows(true)
+        // ANZ <--
 
         // Allow zooming
         setSupportZoom(true)

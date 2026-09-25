@@ -337,7 +337,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 )
             }
             if (chromiumElement?.methodName.equals("getAll", ignoreCase = true)) {
-                return WebViewUtil.SPOOF_PACKAGE_NAME
+                // ANZ -->
+                return WebViewUtil.spoofedPackageName(applicationContext) ?: super.getPackageName()
+                // ANZ <--
             }
         } catch (_: Exception) {
         }

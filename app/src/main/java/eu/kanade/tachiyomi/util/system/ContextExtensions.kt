@@ -112,21 +112,6 @@ fun Context.openDiscordLoginActivity() {
 }
 // <-- AM (DISCORD)
 
-private fun Context.defaultBrowserPackageName(): String? {
-    val browserIntent = Intent(Intent.ACTION_VIEW, "http://".toUri())
-    val resolveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        packageManager.resolveActivity(
-            browserIntent,
-            PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()),
-        )
-    } else {
-        packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
-    }
-    return resolveInfo
-        ?.activityInfo?.packageName
-        ?.takeUnless { it in DeviceUtil.invalidDefaultBrowsers }
-}
-
 fun Context.createFileInCacheDir(name: String): File {
     val file = File(externalCacheDir, name)
     if (file.exists()) {
@@ -145,29 +130,10 @@ fun Context.getUriSize(uri: Uri): Long? {
     return UniFile.fromUri(this, uri)?.length()?.takeIf { it >= 0 }
 }
 
-/**
- * Returns true if [packageName] is installed.
- */
-fun Context.isPackageInstalled(packageName: String): Boolean {
-    return try {
-        packageManager.getApplicationInfo(packageName, 0)
-        true
-    } catch (e: PackageManager.NameNotFoundException) {
-        false
-    }
-}
-
 val Context.hasMiuiPackageInstaller get() = isPackageInstalled("com.miui.packageinstaller")
 
 val Context.isShizukuInstalled get() = isPackageInstalled("moe.shizuku.privileged.api") || Sui.isSui()
 
 fun Context.isInstalledFromFDroid(): Boolean {
     return false
-}
-
-fun Context.launchRequestPackageInstallsPermission() {
-    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-        data = Uri.parse("package:$packageName")
-        startActivity(this)
-    }
 }
