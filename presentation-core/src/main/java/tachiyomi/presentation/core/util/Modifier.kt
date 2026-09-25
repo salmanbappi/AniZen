@@ -1,11 +1,9 @@
 package tachiyomi.presentation.core.util
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,29 +13,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import tachiyomi.presentation.core.components.material.SECONDARY_ALPHA
-import kotlinx.coroutines.delay
 
+/**
+ * Draws a tinted rounded background behind the element when [isSelected] is true,
+ * adapting its opacity to the current dark or light theme.
+ */
+@Composable
 fun Modifier.selectedBackground(isSelected: Boolean): Modifier = if (isSelected) {
-    composed {
-        val alpha = if (isSystemInDarkTheme()) 0.16f else 0.22f
-        val color = MaterialTheme.colorScheme.secondary.copy(alpha = alpha)
-        Modifier.drawBehind {
+    val alpha = if (isSystemInDarkTheme()) 0.16f else 0.22f
+    val color = MaterialTheme.colorScheme.secondary.copy(alpha = alpha)
+    this.drawWithCache {
+        val cornerRadius = CornerRadius(12.dp.toPx())
+        onDrawBehind {
             drawRoundRect(
                 color = color,
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()),
+                cornerRadius = cornerRadius,
             )
         }
     }

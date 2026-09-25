@@ -2,13 +2,16 @@ package eu.kanade.presentation.anime
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,12 +41,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -59,27 +65,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.snap
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.material3.FabPosition
-import kotlin.math.roundToInt
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
@@ -94,32 +90,28 @@ import eu.kanade.presentation.anime.components.AnimeEpisodeListItem
 import eu.kanade.presentation.anime.components.AnimeInfoBox
 import eu.kanade.presentation.anime.components.AnimeSeasonListItem
 import eu.kanade.presentation.anime.components.AnimeToolbar
+import eu.kanade.presentation.anime.components.CreditDetailsDialog
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
 import eu.kanade.presentation.anime.components.EpisodeHeader
-import eu.kanade.presentation.anime.components.CreditDetailsDialog
-import eu.kanade.tachiyomi.animesource.model.Credit
 import eu.kanade.presentation.anime.components.ExpandableAnimeDescription
 import eu.kanade.presentation.anime.components.MissingEpisodeCountListItem
 import eu.kanade.presentation.anime.components.NextEpisodeAiringListItem
 import eu.kanade.presentation.components.relativeDateTimeText
 import eu.kanade.presentation.theme.DynamicTachiyomiTheme
 import eu.kanade.presentation.util.formatEpisodeNumber
-import eu.kanade.tachiyomi.util.lang.formatTime
-import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.animesource.model.Credit
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.download.model.Download
-import eu.kanade.tachiyomi.animesource.model.FetchType
-import tachiyomi.domain.anime.model.SeasonDisplayMode
-import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForAnimeInfo
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.ui.anime.AnimeScreenModel
 import eu.kanade.tachiyomi.ui.anime.EpisodeList
-import eu.kanade.tachiyomi.ui.browse.extension.details.SourcePreferencesScreen
+import eu.kanade.tachiyomi.util.lang.formatTime
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import eu.kanade.tachiyomi.util.system.copyToClipboard
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -128,6 +120,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.SeasonDisplayMode
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -150,7 +143,8 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.time.Instant
-import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 @Composable
 fun AnimeScreen(
@@ -428,7 +422,7 @@ private fun AnimeScreenSmallImpl(
             }
         }
     }
-    
+
     val currentSeasonCount = remember(listItem, state.anime.seasonGroupingMode) {
         if (state.anime.seasonGroupingMode == LibraryPreferences.SeasonGrouping.Tabs) {
             listItem.count { it is EpisodeList.Item }
@@ -854,9 +848,9 @@ private fun AnimeScreenSmallImpl(
                 }
             }
         }
-        
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnimeScreenLargeImpl(
@@ -937,7 +931,7 @@ fun AnimeScreenLargeImpl(
             }
         }
     }
-    
+
     val currentSeasonCount = remember(listItem, state.anime.seasonGroupingMode) {
         if (state.anime.seasonGroupingMode == LibraryPreferences.SeasonGrouping.Tabs) {
             listItem.count { it is EpisodeList.Item }
@@ -1144,7 +1138,7 @@ fun AnimeScreenLargeImpl(
                                     eu.kanade.presentation.anime.components.PrequelSequelBox(
                                         anime = state.anime,
                                         relations = state.relations,
-                                        onRelationClick = { onSearch(it, true) }
+                                        onRelationClick = { onSearch(it, true) },
                                     )
 
                                     // Cast Row — placed below tags
@@ -1167,53 +1161,52 @@ fun AnimeScreenLargeImpl(
                                         ) {
                                             Column(modifier = Modifier.padding(vertical = 12.dp)) {
                                                 DiscoveryHeader(
-                                                    onClick = { navigator.push(eu.kanade.tachiyomi.ui.browse.source.browse.RelatedAnimeScreen(state.anime.id)) }
+                                                    onClick = { navigator.push(eu.kanade.tachiyomi.ui.browse.source.browse.RelatedAnimeScreen(state.anime.id)) },
                                                 )
 
                                                 if (expandSuggestions) {
-                                                        if (combinedItems.isEmpty() && state.isSuggestionsLoading) {
-                                                            androidx.compose.foundation.lazy.LazyRow(
-                                                                modifier = Modifier.heightIn(min = 180.dp),
-                                                                contentPadding = PaddingValues(horizontal = 12.dp),
-                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                                userScrollEnabled = false,
-                                                            ) {
-                                                                items(5, key = { "skeleton-large-$it" }) {
-                                                                    SkeletonAnimeCard()
-                                                                }
+                                                    if (combinedItems.isEmpty() && state.isSuggestionsLoading) {
+                                                        androidx.compose.foundation.lazy.LazyRow(
+                                                            modifier = Modifier.heightIn(min = 180.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp),
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            userScrollEnabled = false,
+                                                        ) {
+                                                            items(5, key = { "skeleton-large-$it" }) {
+                                                                SkeletonAnimeCard()
                                                             }
-                                                        } else if (combinedItems.isEmpty() && !state.isSuggestionsLoading) {
-                                                            Text(
-                                                                text = "No suggestions found for this entry",
-                                                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).heightIn(min = 40.dp),
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        } else {
-                                                            androidx.compose.foundation.lazy.LazyRow(
-                                                                modifier = Modifier.heightIn(min = 180.dp),
-                                                                contentPadding = PaddingValues(horizontal = 12.dp),
-                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                            ) {
-                                                                itemsIndexed(
-                                                                    items = combinedItems,
-                                                                    key = { _, anime: tachiyomi.domain.anime.model.Anime -> "suggestion-large-${anime.id}" },
-                                                                ) { _, anime: tachiyomi.domain.anime.model.Anime ->
-                                                                    SuggestionItem(
-                                                                        anime = anime,
-                                                                        onClick = { navigator.push(eu.kanade.tachiyomi.ui.anime.AnimeScreen(anime.id)) }
-                                                                    )
-                                                                }
+                                                        }
+                                                    } else if (combinedItems.isEmpty() && !state.isSuggestionsLoading) {
+                                                        Text(
+                                                            text = "No suggestions found for this entry",
+                                                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).heightIn(min = 40.dp),
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        )
+                                                    } else {
+                                                        androidx.compose.foundation.lazy.LazyRow(
+                                                            modifier = Modifier.heightIn(min = 180.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp),
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        ) {
+                                                            itemsIndexed(
+                                                                items = combinedItems,
+                                                                key = { _, anime: tachiyomi.domain.anime.model.Anime -> "suggestion-large-${anime.id}" },
+                                                            ) { _, anime: tachiyomi.domain.anime.model.Anime ->
+                                                                SuggestionItem(
+                                                                    anime = anime,
+                                                                    onClick = { navigator.push(eu.kanade.tachiyomi.ui.anime.AnimeScreen(anime.id)) },
+                                                                )
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
-
+                                    }
                                 }
                             },
-                                        
+
                             endContent = {
                                 VerticalFastScroller(
                                     listState = episodeListState,
@@ -1239,7 +1232,7 @@ fun AnimeScreenLargeImpl(
                                                 )
                                             }
                                         }
-                                        
+
                                         if (state.anime.fetchType == FetchType.Seasons) {
                                             item(key = "season-header-large", contentType = AnimeScreenItem.EPISODE_HEADER) {
                                                 EpisodeHeader(
@@ -1368,7 +1361,7 @@ private fun EpisodeItemWrapper(
     showFileSize: Boolean,
     showEpisodeSummary: Boolean,
     showEpisodeThumbnail: Boolean,
-    fillerEpisodes: Set<Float>,
+    fillerEpisodes: ImmutableSet<Float>,
     isAnyEpisodeSelected: Boolean,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
     episodeSwipeEndAction: LibraryPreferences.EpisodeSwipeAction,
@@ -1381,7 +1374,7 @@ private fun EpisodeItemWrapper(
         is EpisodeList.Season -> {
             ListGroupHeader(
                 text = item.name,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
         is EpisodeList.MissingCount -> {
@@ -1421,7 +1414,9 @@ private fun EpisodeItemWrapper(
             val onDownloadClickMemo = remember(item.id, onDownloadEpisode) {
                 if (onDownloadEpisode != null) {
                     { action: EpisodeDownloadAction -> onDownloadEpisode(listOf(item), action) }
-                } else null
+                } else {
+                    null
+                }
             }
             val onEpisodeSwipeMemo = remember(item.id, onEpisodeSwipe) {
                 { action: LibraryPreferences.EpisodeSwipeAction -> onEpisodeSwipe(item, action) }
@@ -1521,7 +1516,7 @@ private fun SharedAnimeBottomActionMenu(
         }.takeIf { !alwaysUseExternalPlayer && selected.size == 1 },
         onInternalClicked = {
             onEpisodeClicked(selected.fastMap { it.episode }.first(), true)
-        }.takeIf { alwaysUseExternalPlayer && selected.size == 1 }
+        }.takeIf { alwaysUseExternalPlayer && selected.size == 1 },
     )
 }
 
@@ -1561,7 +1556,7 @@ private fun SuggestionItem(
                 modifier = Modifier.fillMaxWidth(),
                 ratio = ratio,
             )
-            
+
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -1613,7 +1608,7 @@ private fun DiscoveryHeader(
                 imageVector = Icons.Default.AutoAwesome,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
             )
             Text(
                 text = stringResource(tachiyomi.i18n.sy.SYMR.strings.az_recommends),
@@ -1625,7 +1620,7 @@ private fun DiscoveryHeader(
             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
             contentDescription = stringResource(MR.strings.label_more),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(20.dp),
         )
     }
 }
@@ -1637,7 +1632,7 @@ private fun LazyListScope.sharedEpisodeItems(
     showEpisodeSummary: Boolean,
     showEpisodeThumbnail: Boolean,
     episodes: List<EpisodeList>,
-    fillerEpisodes: Set<Float>,
+    fillerEpisodes: ImmutableSet<Float>,
     isAnyEpisodeSelected: Boolean,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
     episodeSwipeEndAction: LibraryPreferences.EpisodeSwipeAction,
@@ -1650,9 +1645,9 @@ private fun LazyListScope.sharedEpisodeItems(
         items = episodes,
         key = { index, item ->
             when (item) {
-                is EpisodeList.Item -> "anime-ep-${item.episode.id}"
-                is EpisodeList.MissingCount -> "anime-ms-${item.id}"
-                is EpisodeList.Season -> "anime-sn-${item.name}-$index"
+                is EpisodeList.Item -> item.episode.id
+                is EpisodeList.MissingCount -> item.id
+                is EpisodeList.Season -> "season_${item.name}_$index"
             }
         },
         contentType = { _, item ->
@@ -1800,4 +1795,3 @@ private fun DraggableAnimeFAB(
         )
     }
 }
-

@@ -47,46 +47,29 @@ class HosterLoader {
             }
             // ANZ <--
 
-            val availableHosters = hosterState.withIndex()
-                .filter { (_, state) -> state is HosterState.Ready }
+            var fallbackHosterIdx = -1
+            var fallbackVideoIdx = -1
 
-            // Check for first preferred
-            val isPreferred: (Pair<Video, Video.State>) -> Boolean = { (v, s) ->
-                v.preferred && (s == Video.State.READY || s == Video.State.QUEUE)
-            }
-            val prefHosterIdx = availableHosters.indexOfFirst {
-                (it.value as HosterState.Ready).let { hoster ->
-                    hoster.videoList zip hoster.videoState
-                }.any(isPreferred)
-            }
-            if (prefHosterIdx != -1) {
-                val videoList = (availableHosters[prefHosterIdx].value as HosterState.Ready).let { hoster ->
-                    hoster.videoList zip hoster.videoState
+            hosterFor@for ((hosterIdx, state) in hosterState.withIndex()) {
+                if (state !is HosterState.Ready) continue@hosterFor
+                val videos = state.videoList
+                val states = state.videoState
+                val limit = minOf(videos.size, states.size)
+
+                videoFor@for (videoIdx in 0 until limit) {
+                    val video = videos[videoIdx]
+                    val videoState = states[videoIdx]
+                    val isValid = videoState == Video.State.READY || videoState == Video.State.QUEUE
+
+                    if (!isValid) continue@videoFor
+                    if (video.preferred) return hosterIdx to videoIdx
+                    if (fallbackHosterIdx == -1) {
+                        fallbackHosterIdx = hosterIdx
+                        fallbackVideoIdx = videoIdx
+                    }
                 }
-                val prefVideoIdx = videoList.indexOfFirst(isPreferred)
-                return availableHosters[prefHosterIdx].index to prefVideoIdx
             }
-
-            // Check for first video (we no longer require videoUrl to be non-empty,
-            // because unresolved videos from extensions like Torrent/Stremio
-            // intentionally have empty URLs until they are clicked/resolved).
-            val firstValid: (Pair<Video, Video.State>) -> Boolean = { (v, s) ->
-                s == Video.State.READY || s == Video.State.QUEUE
-            }
-            val firstAvailableHosterIdx = availableHosters.indexOfFirst {
-                (it.value as HosterState.Ready).let { hoster ->
-                    hoster.videoList zip hoster.videoState
-                }.any(firstValid)
-            }
-            if (firstAvailableHosterIdx != -1) {
-                val videoList = (availableHosters[firstAvailableHosterIdx].value as HosterState.Ready).let { hoster ->
-                    hoster.videoList zip hoster.videoState
-                }
-                val firstVideoIdx = videoList.indexOfFirst(firstValid)
-                return availableHosters[firstAvailableHosterIdx].index to firstVideoIdx
-            }
-
-            // No success
+            if (fallbackHosterIdx != -1) return fallbackHosterIdx to fallbackVideoIdx
             return Pair(-1, -1)
         }
 

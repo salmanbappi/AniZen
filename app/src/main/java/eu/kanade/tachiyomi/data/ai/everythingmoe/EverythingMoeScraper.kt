@@ -9,16 +9,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import logcat.LogPriority
 import okhttp3.Request
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
-import logcat.LogPriority
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -39,12 +37,36 @@ class EverythingMoeScraper(
     private val cacheFile: File by lazy {
         File(context.cacheDir, "everythingmoe_cache.json")
     }
+    private val timedClient by lazy {
+        networkHelper.client.newBuilder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+    }
 
     companion object {
         private const val BASE_URL = "https://everythingmoe.com"
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        private val DECIMAL_ENTITY_PATTERN = Regex("""&#(\d+);""")
+        private val META_DESCRIPTION_PATTERN = Regex("""<meta\s+name="description"\s+content="([^"]+)"""", RegexOption.IGNORE_CASE)
+        private val CARD_PATTERN = Regex("""<a[^>]+href="/s/([a-zA-Z0-9_-]+)"[^>]*data-link="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+        private val HTML_TAGS_PATTERN = Regex("""<[^>]+>""")
+        private val WHITESPACE_PATTERN = Regex("""\s+""")
+        private val SLUG_PATTERN = Regex("""href="/s/([a-zA-Z0-9_-]+)"""")
+        private val DOMAIN_TLD_PATTERN = Regex("""\b(en|dub|sub|hd|all|app|tv|to|is|me|org|com|net|co)\b""", RegexOption.IGNORE_CASE)
+        private val NON_ALPHANUMERIC_PATTERN = Regex("""[^a-zA-Z0-9]""")
+        private val NON_LOWER_ALPHANUMERIC_PATTERN = Regex("""[^a-z0-9]""")
+        private val NON_SLUG_CHAR_PATTERN = Regex("""[^a-z0-9-]""")
+        private val QUERY_SPLIT_PATTERN = Regex("""[^a-zA-Z0-9_-]""")
+
+        private val STOP_WORDS = setOf(
+            "the", "and", "for", "with", "from", "anime", "extension", "extensions",
+            "source", "sources", "stream", "working", "check", "what", "which", "down",
+            "dead", "mirror", "mirrors", "link", "links",
+        )
     }
 
     init {
@@ -123,8 +145,7 @@ class EverythingMoeScraper(
             .replace("&lt;", "<")
             .replace("&gt;", ">")
             .replace("&nbsp;", " ")
-        val decimalRegex = """&#(\d+);""".toRegex()
-        res = decimalRegex.replace(res) { m ->
+        res = DECIMAL_ENTITY_PATTERN.replace(res) { m ->
             val code = m.groupValues[1].toIntOrNull()
             if (code != null) code.toChar().toString() else m.value
         }
@@ -178,11 +199,6 @@ class EverythingMoeScraper(
             val request = Request.Builder()
                 .url("$BASE_URL/s/$exactSlug")
                 .header("User-Agent", USER_AGENT)
-                .build()
-
-            val timedClient = networkHelper.client.newBuilder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
                 .build()
 
             timedClient.newCall(request).execute().use { response ->
@@ -266,14 +282,13 @@ class EverythingMoeScraper(
                             time = rTime,
                             vote = rVote,
                             type = rType,
-                        )
+                        ),
                     )
                 }
             }
         }
 
-        val metaDescRegex = """<meta\s+name="description"\s+content="([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
-        val description = metaDescRegex.find(html)?.groupValues?.getOrNull(1)?.trim()
+        val description = META_DESCRIPTION_PATTERN.find(html)?.groupValues?.getOrNull(1)?.trim()
 
         return EverythingMoeSite(
             slug = slug,
@@ -309,11 +324,6 @@ class EverythingMoeScraper(
             }
 
             try {
-                val timedClient = networkHelper.client.newBuilder()
-                    .connectTimeout(15, TimeUnit.SECONDS)
-                    .readTimeout(20, TimeUnit.SECONDS)
-                    .build()
-
                 // 1. Fetch Master Database Cache (/data/cache/main.json) - 912 sites + section arrays instantly
                 val mainCacheReq = Request.Builder()
                     .url("$BASE_URL/data/cache/main.json")
@@ -403,12 +413,11 @@ class EverythingMoeScraper(
                 timedClient.newCall(dirReq).execute().use { response ->
                     if (response.isSuccessful) {
                         val html = response.body.string()
-                        val cardRegex = """<a[^>]+href="/s/([a-zA-Z0-9_-]+)"[^>]*data-link="([^"]+)"[^>]*>(.*?)</a>""".toRegex(RegexOption.DOT_MATCHES_ALL)
-                        for (match in cardRegex.findAll(html)) {
+                        for (match in CARD_PATTERN.findAll(html)) {
                             val exactSlug = match.groupValues[1]
                             val directUrl = match.groupValues[2].trim()
                             val inner = match.groupValues[3]
-                            val title = inner.replace("""<[^>]+>""".toRegex(), " ").replace("""\s+""".toRegex(), " ").trim()
+                            val title = inner.replace(HTML_TAGS_PATTERN, " ").replace(WHITESPACE_PATTERN, " ").trim()
                             val lowerSlug = exactSlug.lowercase()
                             slugLookup[lowerSlug] = exactSlug
 
@@ -427,8 +436,7 @@ class EverythingMoeScraper(
                             }
                         }
 
-                        val slugRegex = """href="/s/([a-zA-Z0-9_-]+)"""".toRegex()
-                        val slugs = slugRegex.findAll(html).map { it.groupValues[1] }.distinct().toList()
+                        val slugs = SLUG_PATTERN.findAll(html).map { it.groupValues[1] }.distinct().toList()
                         for (exactSlug in slugs) {
                             val lowerSlug = exactSlug.lowercase()
                             slugLookup[lowerSlug] = exactSlug
@@ -445,8 +453,8 @@ class EverythingMoeScraper(
     }
 
     private fun cleanTitle(raw: String): String {
-        return raw.replace(Regex("""\b(en|dub|sub|hd|all|app|tv|to|is|me|org|com|net|co)\b""", RegexOption.IGNORE_CASE), "")
-            .replace("[^a-zA-Z0-9]".toRegex(), "")
+        return raw.replace(DOMAIN_TLD_PATTERN, "")
+            .replace(NON_ALPHANUMERIC_PATTERN, "")
             .lowercase()
             .trim()
     }
@@ -480,17 +488,17 @@ class EverythingMoeScraper(
         // Tier 2: Candidate Slugs from Extension Title, Source Name, and Package Name
         val slugCandidates = mutableListOf<String>()
         if (!extensionTitle.isNullOrBlank()) {
-            slugCandidates.add(extensionTitle.lowercase().replace("[^a-z0-9]".toRegex(), ""))
-            slugCandidates.add(extensionTitle.lowercase().replace(" ", "-").replace("[^a-z0-9-]".toRegex(), ""))
+            slugCandidates.add(extensionTitle.lowercase().replace(NON_LOWER_ALPHANUMERIC_PATTERN, ""))
+            slugCandidates.add(extensionTitle.lowercase().replace(" ", "-").replace(NON_SLUG_CHAR_PATTERN, ""))
             slugCandidates.add(cleanTitle(extensionTitle))
         }
         if (sourceName.isNotBlank()) {
-            slugCandidates.add(sourceName.lowercase().replace("[^a-z0-9]".toRegex(), ""))
-            slugCandidates.add(sourceName.lowercase().replace(" ", "-").replace("[^a-z0-9-]".toRegex(), ""))
+            slugCandidates.add(sourceName.lowercase().replace(NON_LOWER_ALPHANUMERIC_PATTERN, ""))
+            slugCandidates.add(sourceName.lowercase().replace(" ", "-").replace(NON_SLUG_CHAR_PATTERN, ""))
             slugCandidates.add(cleanTitle(sourceName))
         }
         if (!pkgName.isNullOrBlank()) {
-            slugCandidates.add(pkgName.substringAfterLast(".").lowercase().replace("[^a-z0-9]".toRegex(), ""))
+            slugCandidates.add(pkgName.substringAfterLast(".").lowercase().replace(NON_LOWER_ALPHANUMERIC_PATTERN, ""))
         }
 
         for (cand in slugCandidates.distinct().filter { it.isNotBlank() }) {
@@ -568,10 +576,10 @@ class EverythingMoeScraper(
         }
 
         // 2. Queried/Mentioned Sources from Directory (Not installed)
-        val queryWords = query.lowercase().split("[^a-zA-Z0-9_-]".toRegex()).filter { it.length >= 3 }
+        val queryWords = query.lowercase().split(QUERY_SPLIT_PATTERN).filter { it.length >= 3 }
         val mentionedSites = mutableListOf<EverythingMoeSite>()
         for (word in queryWords) {
-            if (word in listOf("the", "and", "for", "with", "from", "anime", "extension", "extensions", "source", "sources", "stream", "working", "check", "what", "which", "down", "dead", "mirror", "mirrors", "link", "links")) continue
+            if (word in STOP_WORDS) continue
             val site = matchExtensionOrSource(word, word, null, null)
             if (site != null && (site.tags.isNotEmpty() || site.url.isNotBlank()) && mentionedSites.none { it.slug.equals(site.slug, ignoreCase = true) }) {
                 val alreadyInstalled = installedMatched.any { it.third.slug.equals(site.slug, ignoreCase = true) }
@@ -611,7 +619,7 @@ class EverythingMoeScraper(
             val posPct = (pos * 100) / totalReviews
             val mixedPct = (mixed * 100) / totalReviews
             val negPct = (neg * 100) / totalReviews
-            " | **Sentiment**: 🟢 ${posPct}% Pos ($pos) / 🟡 ${mixedPct}% Mixed ($mixed) / 🔴 ${negPct}% Neg ($neg)"
+            " | **Sentiment**: 🟢 $posPct% Pos ($pos) / 🟡 $mixedPct% Mixed ($mixed) / 🔴 $negPct% Neg ($neg)"
         } else {
             ""
         }
@@ -665,7 +673,9 @@ class EverythingMoeScraper(
                         } catch (e: Exception) {
                             null
                         }
-                    } else null
+                    } else {
+                        null
+                    }
 
                     val timeTag = if (dateStr != null) " ($dateStr)" else ""
                     sb.append("    - [$author]$timeTag: \"$clean\"\n")
