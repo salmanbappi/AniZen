@@ -35,7 +35,11 @@ fun AnnouncementCard(entry: AnnouncementEntry, onClick: () -> Unit) {
                     .size(width = 90.dp, height = 130.dp)
                     .clip(RoundedCornerShape(8.dp)),
             )
-            Column(modifier = Modifier.padding(start = 12.dp)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp),
+            ) {
                 CategoryBadge(category = entry.category)
                 Text(
                     text = entry.title,
@@ -50,6 +54,7 @@ fun AnnouncementCard(entry: AnnouncementEntry, onClick: () -> Unit) {
                 Text(
                     text = expectedOrCountdownText(entry),
                     style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -60,10 +65,13 @@ fun AnnouncementCard(entry: AnnouncementEntry, onClick: () -> Unit) {
 @Composable
 private fun CategoryBadge(category: AnnouncementCategory) {
     val (backgroundColor, label) = when (category) {
-        AnnouncementCategory.ADAPTATION -> Color(0xFF2D6CDF) to "Adaptation"
-        AnnouncementCategory.SEQUEL -> Color(0xFF3FA34D) to "Sequel"
         AnnouncementCategory.NEW_SEASON -> Color(0xFFC98A1F) to "New Season"
+        AnnouncementCategory.ADAPTATION -> Color(0xFF2D6CDF) to "Adaptation"
+        AnnouncementCategory.SPIN_OFF -> Color(0xFF7C4DFF) to "Spin-off"
+        AnnouncementCategory.REMAKE -> Color(0xFF00897B) to "Remake"
+        AnnouncementCategory.ORIGINAL -> Color(0xFF546E7A) to "Original"
         AnnouncementCategory.MOVIE -> Color(0xFFD23B6E) to "Movie"
+        AnnouncementCategory.SPECIAL -> Color(0xFF8E44AD) to "Special / OVA / ONA"
     }
     Surface(color = backgroundColor, shape = RoundedCornerShape(50)) {
         Text(

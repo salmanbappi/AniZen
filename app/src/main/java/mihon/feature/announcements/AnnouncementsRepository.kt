@@ -23,8 +23,9 @@ class AnnouncementsRepository(
     suspend fun getAnnouncements(forceRefresh: Boolean = false): Result = withIOContext {
         val cached = readCache()
         val cacheAge = System.currentTimeMillis() - preferences.lastFetchedAt().get()
+        val refreshAfter = preferences.autoRefresh().get().durationMillis()
 
-        if (!forceRefresh && cached != null && cacheAge < STALE_THRESHOLD_MS) {
+        if (!forceRefresh && cached != null && (refreshAfter == null || cacheAge < refreshAfter)) {
             return@withIOContext Result.Success(cached, fromCache = true)
         }
 
@@ -93,7 +94,4 @@ class AnnouncementsRepository(
         )
     }
 
-    companion object {
-        private const val STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000L
-    }
 }

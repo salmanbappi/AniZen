@@ -24,19 +24,17 @@ object AnnouncementTextBuilder {
     fun categoryFor(
         format: String?,
         source: String?,
+        relationType: String?,
         hasPrequelEdge: Boolean,
-        currentTitle: String,
-        relatedTitle: String?,
-    ): AnnouncementCategory? {
+    ): AnnouncementCategory {
         return when {
             format == "MOVIE" -> AnnouncementCategory.MOVIE
-            hasPrequelEdge -> if (isSameFranchise(currentTitle, relatedTitle)) {
-                AnnouncementCategory.NEW_SEASON
-            } else {
-                AnnouncementCategory.SEQUEL
-            }
+            format in SPECIAL_FORMATS -> AnnouncementCategory.SPECIAL
+            hasPrequelEdge -> AnnouncementCategory.NEW_SEASON
+            relationType == "SPIN_OFF" -> AnnouncementCategory.SPIN_OFF
+            relationType == "REMAKE" -> AnnouncementCategory.REMAKE
             source in ADAPTABLE_SOURCES -> AnnouncementCategory.ADAPTATION
-            else -> null
+            else -> AnnouncementCategory.ORIGINAL
         }
     }
 
@@ -59,7 +57,7 @@ object AnnouncementTextBuilder {
                     "$title is getting a $fmt adaptation."
                 }
             }
-            AnnouncementCategory.SEQUEL, AnnouncementCategory.NEW_SEASON -> {
+            AnnouncementCategory.NEW_SEASON -> {
                 when {
                     relatedTitle != null && relatedYear != null ->
                         "A new season of $relatedTitle has been confirmed, continuing the story from $relatedYear."
@@ -73,24 +71,18 @@ object AnnouncementTextBuilder {
                 val yearClause = expectedYear?.let { ", expected in $it." } ?: "."
                 "$title is getting a new $fmt$yearClause"
             }
+            AnnouncementCategory.SPIN_OFF ->
+                "$title is a confirmed spin-off of the AniList franchise."
+            AnnouncementCategory.REMAKE ->
+                "$title is a confirmed remake of an existing anime."
+            AnnouncementCategory.ORIGINAL ->
+                "$title is an original anime project."
+            AnnouncementCategory.SPECIAL ->
+                "$title is a new ${formatLabel(format)} release."
         }
     }
 
-    private fun isSameFranchise(currentTitle: String, relatedTitle: String?): Boolean {
-        if (relatedTitle == null) return false
-        val overlapWords = significantWords(currentTitle).intersect(significantWords(relatedTitle))
-        val relatedWordCount = significantWords(relatedTitle).size
-        if (relatedWordCount == 0) return false
-        return overlapWords.size.toFloat() / relatedWordCount >= 0.5f
-    }
-
-    private fun significantWords(text: String): Set<String> = text
-        .lowercase()
-        .split(Regex("[^a-z0-9]+"))
-        .filter { it.isNotBlank() && it !in STOP_WORDS }
-        .toSet()
-
-    private val STOP_WORDS = setOf("the", "a", "an", "of", "in", "on", "season", "part", "final")
     private val ADAPTABLE_SOURCES =
         setOf("MANGA", "LIGHT_NOVEL", "VISUAL_NOVEL", "GAME", "WEB_NOVEL")
+    private val SPECIAL_FORMATS = setOf("SPECIAL", "OVA", "ONA")
 }

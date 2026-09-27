@@ -44,7 +44,7 @@ class AnnouncementsFallbackApi(
     }
 
     private fun JikanAnimeDto.toAnnouncementEntry(): AnnouncementEntry? {
-        val titleText = title ?: return null
+        val titleText = titleEnglish ?: title ?: return null
         return AnnouncementEntry(
             // Keep fallback ids in a separate namespace so a MAL id cannot
             // collide with an AniList id in the cache or watchlist.
@@ -79,6 +79,7 @@ private data class JikanUpcomingResponse(val data: List<JikanAnimeDto> = emptyLi
 private data class JikanAnimeDto(
     @SerialName("mal_id") val malId: Int,
     val title: String? = null,
+    @SerialName("title_english") val titleEnglish: String? = null,
     val type: String? = null,
     val images: JikanImagesDto? = null,
 )

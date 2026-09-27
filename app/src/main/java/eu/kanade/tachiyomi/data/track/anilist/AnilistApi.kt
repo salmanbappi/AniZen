@@ -54,6 +54,8 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
         .addInterceptor(interceptor)
         .build()
 
+    fun newPublicCall(request: okhttp3.Request) = rateLimitedClient.newCall(request)
+
     suspend fun addLibAnime(track: Track): Track {
         return withIOContext {
             val query = """
