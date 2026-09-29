@@ -27,7 +27,7 @@ class AnnouncementsApi(
         val pageResults = coroutineScope {
             (1..pageLimit).map { page ->
                 async {
-                    runCatching { fetchPage(page) }.getOrNull()
+                    fetchPage(page, QUERY_POPULARITY)
                 }
             }.awaitAll()
         }
@@ -36,7 +36,6 @@ class AnnouncementsApi(
         val results = mutableListOf<AnnouncementEntry>()
 
         for (pageResult in pageResults) {
-            if (pageResult == null) continue
             for (dto in pageResult.media) {
                 if (seenIds.add(dto.id)) {
                     dto.toAnnouncementEntry()?.let { results.add(it) }
@@ -47,9 +46,14 @@ class AnnouncementsApi(
         results
     }
 
-    private suspend fun fetchPage(page: Int): PageResult {
+    suspend fun fetchNewestAnnouncements(): List<AnnouncementEntry> = withIOContext {
+        val pageResult = fetchPage(1, QUERY_NEWEST_IDS)
+        pageResult.media.mapNotNull { it.toAnnouncementEntry() }
+    }
+
+    private suspend fun fetchPage(page: Int, query: String = QUERY_POPULARITY): PageResult {
         val requestBody = GraphQlRequest(
-            query = QUERY,
+            query = query,
             variables = mapOf("page" to page, "perPage" to PER_PAGE),
         )
         val request = Request.Builder()
@@ -143,11 +147,42 @@ class AnnouncementsApi(
         private const val MAX_PAGES = 5
         private const val MAX_ENTRIES = MAX_PAGES * PER_PAGE
 
-        private const val QUERY = """
+        private const val QUERY_POPULARITY = """
             query Announcements(${'$'}page: Int, ${'$'}perPage: Int) {
                 Page(page: ${'$'}page, perPage: ${'$'}perPage) {
                     pageInfo { hasNextPage }
                     media(status: NOT_YET_RELEASED, sort: [POPULARITY_DESC], type: ANIME) {
+                        id
+                        title { english userPreferred romaji }
+                        format
+                        source
+                        averageScore
+                        popularity
+                        isAdult
+                        startDate { year month day }
+                        coverImage { extraLarge medium color }
+                        bannerImage
+                        relations {
+                            edges {
+                                relationType(version: 2)
+                                node {
+                                    id
+                                    title { english userPreferred romaji }
+                                    startDate { year }
+                                    type
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
+        private const val QUERY_NEWEST_IDS = """
+            query Announcements(${'$'}page: Int, ${'$'}perPage: Int) {
+                Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+                    pageInfo { hasNextPage }
+                    media(status: NOT_YET_RELEASED, sort: [ID_DESC], type: ANIME) {
                         id
                         title { english userPreferred romaji }
                         format

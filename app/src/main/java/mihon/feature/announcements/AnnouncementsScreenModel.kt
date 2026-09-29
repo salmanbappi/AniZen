@@ -173,11 +173,13 @@ class AnnouncementsScreenModel(
         preferences.yearFilter().set("")
         preferences.sort().set(AnnouncementSort.AIRING_SOON)
         preferences.includeAdult().set(false)
+        preferences.autoRefresh().set(AnnouncementAutoRefresh.OFF)
         mutableState.value = current.copy(
             selectedCategory = null,
             selectedYear = null,
             sort = AnnouncementSort.AIRING_SOON,
             includeAdult = false,
+            autoRefresh = AnnouncementAutoRefresh.OFF,
         )
     }
 }

@@ -29,16 +29,36 @@ class AnnouncementsRepository(
             return@withIOContext Result.Success(cached, fromCache = true)
         }
 
-        val fromApi = try {
-            api.fetchAnnouncements()
-        } catch (e: Exception) {
-            logcat(LogPriority.WARN, e) {
-                "AnnouncementsRepository: AniList fetch failed, trying MAL fallback"
+        val entries = if (cached.isNullOrEmpty()) {
+            val fromApi = try {
+                api.fetchAnnouncements()
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, e) {
+                    "AnnouncementsRepository: Initial AniList fetch failed, trying MAL fallback"
+                }
+                emptyList()
             }
-            emptyList()
-        }
+            fromApi.ifEmpty { fallbackApi.fetchAnnouncements() }
+        } else {
+            val fromApi = try {
+                val newest = api.fetchNewestAnnouncements()
+                val popularTop = api.fetchAnnouncements(maxPages = 1)
+                (newest + popularTop).distinctBy { it.mediaId }
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, e) {
+                    "AnnouncementsRepository: Incremental AniList fetch failed, keeping cache"
+                }
+                emptyList()
+            }
 
-        val entries = fromApi.ifEmpty { fallbackApi.fetchAnnouncements() }
+            if (fromApi.isNotEmpty()) {
+                val updatedIds = fromApi.map { it.mediaId }.toSet()
+                val remainingCached = cached.filter { it.mediaId !in updatedIds }
+                pruneAired(fromApi + remainingCached)
+            } else {
+                cached
+            }
+        }
 
         if (entries.isNotEmpty()) {
             writeCache(entries)
@@ -63,19 +83,32 @@ class AnnouncementsRepository(
     fun isWatchlisted(mediaId: Int): Boolean =
         mediaId.toString() in preferences.watchlistMediaIds().get()
 
+    private fun pruneAired(entries: List<AnnouncementEntry>): List<AnnouncementEntry> {
+        val cutoff = System.currentTimeMillis() - TWO_DAYS_MILLIS
+        return entries.filter { entry ->
+            entry.exactReleaseDate == null || entry.exactReleaseDate >= cutoff
+        }
+    }
+
     private fun readCache(): List<AnnouncementEntry>? {
         val raw = preferences.cacheBlob().get()
         if (raw.isBlank()) return null
         return try {
-            json.decodeFromString<List<AnnouncementEntry>>(raw)
+            val parsed = json.decodeFromString<List<AnnouncementEntry>>(raw)
+            pruneAired(parsed)
         } catch (_: Exception) {
             null
         }
     }
 
     private fun writeCache(entries: List<AnnouncementEntry>) {
-        preferences.cacheBlob().set(json.encodeToString(entries))
+        val pruned = pruneAired(entries)
+        preferences.cacheBlob().set(json.encodeToString(pruned))
         preferences.lastFetchedAt().set(System.currentTimeMillis())
+    }
+
+    companion object {
+        private const val TWO_DAYS_MILLIS = 2 * 24 * 60 * 60 * 1000L
     }
 
     private fun checkWatchlistForConfirmedDates(entries: List<AnnouncementEntry>) {
