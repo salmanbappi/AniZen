@@ -2,8 +2,11 @@ package eu.kanade.tachiyomi.ui.browse
 
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Panorama
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -30,6 +33,7 @@ import eu.kanade.tachiyomi.ui.browse.source.sourcesTab
 import eu.kanade.tachiyomi.ui.home.FeedManageScreen
 import eu.kanade.tachiyomi.ui.home.FeedTab
 import eu.kanade.tachiyomi.ui.main.MainActivity
+import mihon.feature.announcements.AnnouncementSort
 import mihon.feature.announcements.AnnouncementsTab
 import mihon.feature.announcements.AnnouncementsScreenModel
 import kotlinx.collections.immutable.persistentListOf
@@ -39,6 +43,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.theme.active
 import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -77,6 +82,12 @@ data object BrowseTab : Tab {
         val extensionsScreenModel = rememberScreenModel { ExtensionsScreenModel() }
         val animeExtensionsState by extensionsScreenModel.state.collectAsStateFlow()
         val announcementsScreenModel = rememberScreenModel { AnnouncementsScreenModel() }
+        val announcementsState by announcementsScreenModel.state.collectAsStateFlow()
+        val hasAnnouncementsFilters = remember(announcementsState) {
+            val s = announcementsState as? AnnouncementsScreenModel.State.Success
+            s != null && (s.selectedYear != null || s.includeAdult || s.sort != AnnouncementSort.AIRING_SOON)
+        }
+        val activeFilterTint = MaterialTheme.colorScheme.active
 
         val sourcesTab = sourcesTab()
         val extensionsTab = extensionsTab(extensionsScreenModel)
@@ -94,6 +105,8 @@ data object BrowseTab : Tab {
             feedMode,
             effectivePanorama,
             announcementsScreenModel,
+            hasAnnouncementsFilters,
+            activeFilterTint,
         ) {
             buildList {
                 add(sourcesTab)
@@ -133,6 +146,19 @@ data object BrowseTab : Tab {
                     eu.kanade.presentation.components.TabContent(
                         titleRes = MR.strings.announcements,
                         searchEnabled = false,
+                        actions = persistentListOf(
+                            AppBar.Action(
+                                title = stringResource(MR.strings.action_filter),
+                                icon = Icons.Outlined.FilterList,
+                                iconTint = if (hasAnnouncementsFilters) activeFilterTint else null,
+                                onClick = { announcementsScreenModel.openFilters() },
+                            ),
+                            AppBar.Action(
+                                title = "Reload",
+                                icon = Icons.Outlined.Refresh,
+                                onClick = { announcementsScreenModel.load(forceRefresh = true) },
+                            ),
+                        ),
                         content = { contentPadding, _ ->
                             AnnouncementsTab.Content(contentPadding, announcementsScreenModel)
                         },

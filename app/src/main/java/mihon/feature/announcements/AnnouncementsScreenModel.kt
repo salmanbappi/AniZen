@@ -1,5 +1,8 @@
 package mihon.feature.announcements
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.collections.immutable.ImmutableList
@@ -11,7 +14,29 @@ import uy.kohesive.injekt.api.get
 class AnnouncementsScreenModel(
     private val repository: AnnouncementsRepository = AnnouncementsRepository(),
     private val preferences: AnnouncementsPreferences = Injekt.get(),
-) : StateScreenModel<AnnouncementsScreenModel.State>(State.Loading) {
+) : StateScreenModel<AnnouncementsScreenModel.State>(
+    repository.getCached()?.let { cached ->
+        State.Success(
+            allEntries = cached.toImmutableList(),
+            selectedCategory = null,
+            selectedYear = preferences.yearFilter().get().toIntOrNull(),
+            sort = preferences.sort().get(),
+            includeAdult = preferences.includeAdult().get(),
+            autoRefresh = preferences.autoRefresh().get(),
+            fromCache = true,
+        )
+    } ?: State.Loading,
+) {
+    var showFiltersDialog by mutableStateOf(false)
+        private set
+
+    fun openFilters() {
+        showFiltersDialog = true
+    }
+
+    fun closeFilters() {
+        showFiltersDialog = false
+    }
 
     sealed interface State {
         data object Loading : State
@@ -72,7 +97,9 @@ class AnnouncementsScreenModel(
     fun load(forceRefresh: Boolean = false) {
         screenModelScope.launch {
             val previous = state as? State.Success
-            mutableState.value = State.Loading
+            if (previous == null || forceRefresh) {
+                mutableState.value = State.Loading
+            }
             when (val result = repository.getAnnouncements(forceRefresh)) {
                 is AnnouncementsRepository.Result.Success -> {
                     mutableState.value = State.Success(
@@ -86,7 +113,11 @@ class AnnouncementsScreenModel(
                     )
                 }
                 is AnnouncementsRepository.Result.Failure -> {
-                    mutableState.value = State.Error(result.cachedEntries.toImmutableList())
+                    if (previous != null) {
+                        mutableState.value = previous
+                    } else {
+                        mutableState.value = State.Error(result.cachedEntries.toImmutableList())
+                    }
                 }
             }
         }

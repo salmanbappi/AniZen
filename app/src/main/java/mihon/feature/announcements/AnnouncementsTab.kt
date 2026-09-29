@@ -13,16 +13,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -62,14 +58,20 @@ object AnnouncementsTab {
                 contentPadding = contentPadding,
                 state = current,
                 onSelectCategory = screenModel::selectCategory,
-                onSelectYear = screenModel::selectYear,
-                onSelectSort = screenModel::setSort,
-                onSetIncludeAdult = screenModel::setIncludeAdult,
-                onSetAutoRefresh = screenModel::setAutoRefresh,
-                onRefresh = { screenModel.load(forceRefresh = true) },
                 onCardClick = { entry ->
                     navigator.push(AnnouncementDetailScreen(entry))
                 },
+            )
+        }
+
+        if (screenModel.showFiltersDialog && state is AnnouncementsScreenModel.State.Success) {
+            FiltersDialog(
+                state = state as AnnouncementsScreenModel.State.Success,
+                onDismiss = screenModel::closeFilters,
+                onSelectSort = screenModel::setSort,
+                onSelectYear = screenModel::selectYear,
+                onSetIncludeAdult = screenModel::setIncludeAdult,
+                onSetAutoRefresh = screenModel::setAutoRefresh,
             )
         }
     }
@@ -123,73 +125,10 @@ object AnnouncementsTab {
         contentPadding: PaddingValues,
         state: AnnouncementsScreenModel.State.Success,
         onSelectCategory: (AnnouncementCategory?) -> Unit,
-        onSelectYear: (Int?) -> Unit,
-        onSelectSort: (AnnouncementSort) -> Unit,
-        onSetIncludeAdult: (Boolean) -> Unit,
-        onSetAutoRefresh: (AnnouncementAutoRefresh) -> Unit,
-        onRefresh: () -> Unit,
         onCardClick: (AnnouncementEntry) -> Unit,
     ) {
-        var showFilters by remember { mutableStateOf(false) }
-        var showSortMenu by remember { mutableStateOf(false) }
-
         Column(modifier = Modifier.fillMaxSize()) {
             CategoryChipsRow(selected = state.selectedCategory, onSelect = onSelectCategory)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box {
-                    FilterChip(
-                        selected = false,
-                        onClick = { showSortMenu = true },
-                        label = { Text("Sort: ${state.sort.displayName()}") },
-                    )
-                    DropdownMenu(
-                        expanded = showSortMenu,
-                        onDismissRequest = { showSortMenu = false },
-                    ) {
-                        AnnouncementSort.entries.forEach { sort ->
-                            DropdownMenuItem(
-                                text = { Text(sort.displayName()) },
-                                leadingIcon = {
-                                    RadioButton(
-                                        selected = state.sort == sort,
-                                        onClick = null,
-                                    )
-                                },
-                                onClick = {
-                                    onSelectSort(sort)
-                                    showSortMenu = false
-                                },
-                            )
-                        }
-                    }
-                }
-                FilterChip(
-                    selected = state.selectedYear != null || state.includeAdult,
-                    onClick = { showFilters = true },
-                    label = {
-                        Text(
-                            if (state.selectedYear == null && !state.includeAdult) {
-                                "Filters"
-                            } else {
-                                "Filters active"
-                            },
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.Tune, contentDescription = null)
-                    },
-                )
-                TextButton(onClick = onRefresh) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
-                    Text("Refresh", modifier = Modifier.padding(start = 4.dp))
-                }
-            }
             LazyColumn(
                 contentPadding = contentPadding,
                 modifier = Modifier.fillMaxSize(),
@@ -198,16 +137,6 @@ object AnnouncementsTab {
                     AnnouncementCard(entry = entry, onClick = { onCardClick(entry) })
                 }
             }
-        }
-
-        if (showFilters) {
-            FiltersDialog(
-                state = state,
-                onDismiss = { showFilters = false },
-                onSelectYear = onSelectYear,
-                onSetIncludeAdult = onSetIncludeAdult,
-                onSetAutoRefresh = onSetAutoRefresh,
-            )
         }
     }
 
@@ -241,16 +170,18 @@ object AnnouncementsTab {
     private fun FiltersDialog(
         state: AnnouncementsScreenModel.State.Success,
         onDismiss: () -> Unit,
+        onSelectSort: (AnnouncementSort) -> Unit,
         onSelectYear: (Int?) -> Unit,
         onSetIncludeAdult: (Boolean) -> Unit,
         onSetAutoRefresh: (AnnouncementAutoRefresh) -> Unit,
     ) {
         var showYears by remember { mutableStateOf(false) }
         var showRefreshOptions by remember { mutableStateOf(false) }
+        var showSortMenu by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Filters") },
+            title = { Text("Announcement Filters") },
             text = {
                 Column(
                     modifier = Modifier
@@ -258,6 +189,33 @@ object AnnouncementsTab {
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Text("Sort by", style = MaterialTheme.typography.labelLarge)
+                    Box {
+                        OutlinedButton(onClick = { showSortMenu = true }) {
+                            Text(state.sort.displayName())
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false },
+                        ) {
+                            AnnouncementSort.entries.forEach { sort ->
+                                DropdownMenuItem(
+                                    text = { Text(sort.displayName()) },
+                                    leadingIcon = {
+                                        RadioButton(
+                                            selected = state.sort == sort,
+                                            onClick = null,
+                                        )
+                                    },
+                                    onClick = {
+                                        onSelectSort(sort)
+                                        showSortMenu = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+
                     Text("Year", style = MaterialTheme.typography.labelLarge)
                     Box {
                         OutlinedButton(onClick = { showYears = true }) {
@@ -285,12 +243,14 @@ object AnnouncementsTab {
                             }
                         }
                     }
+
                     FilterSwitchRow(
-                        label = "18+",
+                        label = "Include 18+ Content",
                         checked = state.includeAdult,
                         onCheckedChange = onSetIncludeAdult,
                     )
-                    Text("Auto refresh", style = MaterialTheme.typography.labelLarge)
+
+                    Text("Auto refresh interval", style = MaterialTheme.typography.labelLarge)
                     Box {
                         OutlinedButton(onClick = { showRefreshOptions = true }) {
                             Text(state.autoRefresh.displayName())
@@ -315,6 +275,17 @@ object AnnouncementsTab {
             confirmButton = {
                 TextButton(onClick = onDismiss) {
                     Text("Done")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onSelectSort(AnnouncementSort.AIRING_SOON)
+                        onSelectYear(null)
+                        onSetIncludeAdult(false)
+                    },
+                ) {
+                    Text("Reset")
                 }
             },
         )

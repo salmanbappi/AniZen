@@ -1,6 +1,9 @@
 package mihon.feature.announcements
 
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -20,23 +23,25 @@ class AnnouncementsApi(
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     suspend fun fetchAnnouncements(maxPages: Int = MAX_PAGES): List<AnnouncementEntry> = withIOContext {
+        val pageLimit = maxPages.coerceIn(1, MAX_PAGES)
+        val pageResults = coroutineScope {
+            (1..pageLimit).map { page ->
+                async {
+                    runCatching { fetchPage(page) }.getOrNull()
+                }
+            }.awaitAll()
+        }
+
         val seenIds = mutableSetOf<Int>()
         val results = mutableListOf<AnnouncementEntry>()
-        val pageLimit = maxPages.coerceIn(1, MAX_PAGES)
 
-        for (page in 1..pageLimit) {
-            val pageResult = fetchPage(page)
-            val mediaList = pageResult.media
-            if (mediaList.isEmpty()) break
-
-            mediaList.forEach { dto ->
+        for (pageResult in pageResults) {
+            if (pageResult == null) continue
+            for (dto in pageResult.media) {
                 if (seenIds.add(dto.id)) {
                     dto.toAnnouncementEntry()?.let { results.add(it) }
                 }
             }
-
-            if (results.size >= MAX_ENTRIES) break
-            if (!pageResult.hasNextPage) break
         }
 
         results
@@ -128,8 +133,8 @@ class AnnouncementsApi(
     }
 
     companion object {
-        private const val PER_PAGE = 25
-        private const val MAX_PAGES = 50
+        private const val PER_PAGE = 50
+        private const val MAX_PAGES = 5
         private const val MAX_ENTRIES = MAX_PAGES * PER_PAGE
 
         private const val QUERY = """

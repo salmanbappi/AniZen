@@ -49,6 +49,8 @@ class AnnouncementsRepository(
         return@withIOContext Result.Failure(cached ?: emptyList())
     }
 
+    fun getCached(): List<AnnouncementEntry>? = readCache()
+
     fun findCached(mediaId: Int): AnnouncementEntry? =
         readCache()?.firstOrNull { it.mediaId == mediaId }
 
