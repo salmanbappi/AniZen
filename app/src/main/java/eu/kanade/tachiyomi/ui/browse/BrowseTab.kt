@@ -88,6 +88,7 @@ data object BrowseTab : Tab {
             s != null && (s.selectedYear != null || s.includeAdult || s.sort != AnnouncementSort.AIRING_SOON)
         }
         val activeFilterTint = MaterialTheme.colorScheme.active
+        val filterTitle = stringResource(MR.strings.action_filter)
 
         val sourcesTab = sourcesTab()
         val extensionsTab = extensionsTab(extensionsScreenModel)
@@ -107,6 +108,7 @@ data object BrowseTab : Tab {
             announcementsScreenModel,
             hasAnnouncementsFilters,
             activeFilterTint,
+            filterTitle,
         ) {
             buildList {
                 add(sourcesTab)
@@ -148,7 +150,7 @@ data object BrowseTab : Tab {
                         searchEnabled = false,
                         actions = persistentListOf(
                             AppBar.Action(
-                                title = stringResource(MR.strings.action_filter),
+                                title = filterTitle,
                                 icon = Icons.Outlined.FilterList,
                                 iconTint = if (hasAnnouncementsFilters) activeFilterTint else null,
                                 onClick = { announcementsScreenModel.openFilters() },
