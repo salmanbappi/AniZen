@@ -45,15 +45,20 @@ class AnnouncementsFallbackApi(
 
     private fun JikanAnimeDto.toAnnouncementEntry(): AnnouncementEntry? {
         val titleText = titleEnglish ?: title ?: return null
+        val category = AnnouncementTextBuilder.categoryFor(
+            format = type,
+            source = null,
+            title = titleText,
+        )
         return AnnouncementEntry(
             // Keep fallback ids in a separate namespace so a MAL id cannot
             // collide with an AniList id in the cache or watchlist.
             mediaId = -malId,
             title = titleText,
-            category = AnnouncementCategory.ADAPTATION,
+            category = category,
             description = AnnouncementTextBuilder.buildDescription(
                 title = titleText,
-                category = AnnouncementCategory.ADAPTATION,
+                category = category,
                 format = type,
                 source = null,
                 relatedTitle = null,

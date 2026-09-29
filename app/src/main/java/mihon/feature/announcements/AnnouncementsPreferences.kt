@@ -4,9 +4,11 @@ import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
 class AnnouncementsPreferences(private val preferenceStore: PreferenceStore) {
-    fun cacheBlob() = preferenceStore.getString("announcements_cache_all", "")
+    fun cacheBlob() = preferenceStore.getString("announcements_cache_v3", "")
 
-    fun lastFetchedAt() = preferenceStore.getLong("announcements_last_fetched_all", 0L)
+    fun lastFetchedAt() = preferenceStore.getLong("announcements_last_fetched_v3", 0L)
+
+    fun categoryFilter() = preferenceStore.getString("announcements_category_filter", "")
 
     fun watchlistMediaIds() =
         preferenceStore.getStringSet("announcement_watchlist_media_ids", emptySet())

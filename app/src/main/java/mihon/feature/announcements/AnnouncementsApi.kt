@@ -74,15 +74,19 @@ class AnnouncementsApi(
 
     private fun MediaDto.toAnnouncementEntry(): AnnouncementEntry? {
         val titleText = title.english ?: title.userPreferred ?: title.romaji ?: return null
-        val prequelEdge = relations?.edges?.firstOrNull { edge ->
-            edge.relationType == "PREQUEL" && edge.node.type == "ANIME"
-        }
-        val otherRelationType = relations?.edges?.firstOrNull { edge ->
-            edge.node.type == "ANIME" && edge.relationType in setOf("SPIN_OFF", "REMAKE")
-        }?.relationType
-        val relatedEdge = prequelEdge ?: relations?.edges?.firstOrNull { edge ->
-            edge.node.type == "ANIME" &&
-                edge.relationType in setOf("PARENT", "SPIN_OFF", "REMAKE", "SEQUEL")
+        val animeEdges = relations?.edges?.filter { it.node.type == "ANIME" } ?: emptyList()
+
+        val prequelEdge = animeEdges.firstOrNull { it.relationType == "PREQUEL" }
+        val parentEdge = animeEdges.firstOrNull { it.relationType == "PARENT" }
+        val sideStoryEdge = animeEdges.firstOrNull { it.relationType in setOf("SIDE_STORY", "SPIN_OFF") }
+        val alternativeEdge = animeEdges.firstOrNull { it.relationType in setOf("ALTERNATIVE", "REMAKE") }
+
+        val hasPrequelOrParent = prequelEdge != null || parentEdge != null
+        val hasSpinOffOrSideStory = sideStoryEdge != null
+        val hasAlternative = alternativeEdge != null
+
+        val relatedEdge = prequelEdge ?: parentEdge ?: sideStoryEdge ?: alternativeEdge ?: animeEdges.firstOrNull {
+            it.relationType in setOf("SEQUEL", "CHARACTER", "SUMMARY")
         }
         val relatedTitle = relatedEdge?.node?.title?.english
             ?: relatedEdge?.node?.title?.userPreferred
@@ -90,8 +94,10 @@ class AnnouncementsApi(
         val category = AnnouncementTextBuilder.categoryFor(
             format = format,
             source = source,
-            relationType = otherRelationType,
-            hasPrequelEdge = prequelEdge != null,
+            hasPrequelOrParent = hasPrequelOrParent,
+            hasSpinOffOrSideStory = hasSpinOffOrSideStory,
+            hasAlternative = hasAlternative,
+            title = titleText,
         )
 
         val relatedYear = relatedEdge?.node?.startDate?.year

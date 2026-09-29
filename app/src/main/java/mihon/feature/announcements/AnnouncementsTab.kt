@@ -4,38 +4,36 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.presentation.components.TabbedDialog
+import eu.kanade.presentation.components.TabbedDialogPaddings
+import kotlinx.collections.immutable.persistentListOf
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.CheckboxItem
+import tachiyomi.presentation.core.components.HeadingItem
+import tachiyomi.presentation.core.components.RadioItem
+import tachiyomi.presentation.core.components.SelectItem
+import tachiyomi.presentation.core.i18n.stringResource
 
 object AnnouncementsTab {
 
@@ -57,7 +55,6 @@ object AnnouncementsTab {
             is AnnouncementsScreenModel.State.Success -> SuccessState(
                 contentPadding = contentPadding,
                 state = current,
-                onSelectCategory = screenModel::selectCategory,
                 onCardClick = { entry ->
                     navigator.push(AnnouncementDetailScreen(entry))
                 },
@@ -65,13 +62,15 @@ object AnnouncementsTab {
         }
 
         if (screenModel.showFiltersDialog && state is AnnouncementsScreenModel.State.Success) {
-            FiltersDialog(
+            AnnouncementsFilterSheet(
                 state = state as AnnouncementsScreenModel.State.Success,
-                onDismiss = screenModel::closeFilters,
+                onDismissRequest = screenModel::closeFilters,
+                onSelectCategory = screenModel::selectCategory,
                 onSelectSort = screenModel::setSort,
                 onSelectYear = screenModel::selectYear,
                 onSetIncludeAdult = screenModel::setIncludeAdult,
                 onSetAutoRefresh = screenModel::setAutoRefresh,
+                onReset = screenModel::resetFilters,
             )
         }
     }
@@ -124,186 +123,146 @@ object AnnouncementsTab {
     private fun SuccessState(
         contentPadding: PaddingValues,
         state: AnnouncementsScreenModel.State.Success,
-        onSelectCategory: (AnnouncementCategory?) -> Unit,
         onCardClick: (AnnouncementEntry) -> Unit,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            CategoryChipsRow(selected = state.selectedCategory, onSelect = onSelectCategory)
-            LazyColumn(
-                contentPadding = contentPadding,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(state.filteredEntries, key = { it.mediaId }) { entry ->
-                    AnnouncementCard(entry = entry, onClick = { onCardClick(entry) })
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun CategoryChipsRow(
-        selected: AnnouncementCategory?,
-        onSelect: (AnnouncementCategory?) -> Unit,
-    ) {
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        LazyColumn(
+            contentPadding = contentPadding,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            item {
-                FilterChip(
-                    selected = selected == null,
-                    onClick = { onSelect(null) },
-                    label = { Text("All") },
-                )
-            }
-            items(AnnouncementCategory.entries.toList()) { category ->
-                FilterChip(
-                    selected = selected == category,
-                    onClick = { onSelect(category) },
-                    label = { Text(category.displayName()) },
-                )
+            items(state.filteredEntries, key = { it.mediaId }) { entry ->
+                AnnouncementCard(entry = entry, onClick = { onCardClick(entry) })
             }
         }
     }
 
     @Composable
-    private fun FiltersDialog(
+    private fun AnnouncementsFilterSheet(
         state: AnnouncementsScreenModel.State.Success,
-        onDismiss: () -> Unit,
+        onDismissRequest: () -> Unit,
+        onSelectCategory: (AnnouncementCategory?) -> Unit,
         onSelectSort: (AnnouncementSort) -> Unit,
         onSelectYear: (Int?) -> Unit,
         onSetIncludeAdult: (Boolean) -> Unit,
         onSetAutoRefresh: (AnnouncementAutoRefresh) -> Unit,
+        onReset: () -> Unit,
     ) {
-        var showYears by remember { mutableStateOf(false) }
-        var showRefreshOptions by remember { mutableStateOf(false) }
-        var showSortMenu by remember { mutableStateOf(false) }
-
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text("Announcement Filters") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text("Sort by", style = MaterialTheme.typography.labelLarge)
-                    Box {
-                        OutlinedButton(onClick = { showSortMenu = true }) {
-                            Text(state.sort.displayName())
-                        }
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false },
-                        ) {
-                            AnnouncementSort.entries.forEach { sort ->
-                                DropdownMenuItem(
-                                    text = { Text(sort.displayName()) },
-                                    leadingIcon = {
-                                        RadioButton(
-                                            selected = state.sort == sort,
-                                            onClick = null,
-                                        )
-                                    },
-                                    onClick = {
-                                        onSelectSort(sort)
-                                        showSortMenu = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    Text("Year", style = MaterialTheme.typography.labelLarge)
-                    Box {
-                        OutlinedButton(onClick = { showYears = true }) {
-                            Text(state.selectedYear?.toString() ?: "Any")
-                        }
-                        DropdownMenu(
-                            expanded = showYears,
-                            onDismissRequest = { showYears = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Any") },
-                                onClick = {
-                                    onSelectYear(null)
-                                    showYears = false
-                                },
-                            )
-                            state.availableYears.forEach { year ->
-                                DropdownMenuItem(
-                                    text = { Text(year.toString()) },
-                                    onClick = {
-                                        onSelectYear(year)
-                                        showYears = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    FilterSwitchRow(
-                        label = "Include 18+ Content",
-                        checked = state.includeAdult,
-                        onCheckedChange = onSetIncludeAdult,
-                    )
-
-                    Text("Auto refresh interval", style = MaterialTheme.typography.labelLarge)
-                    Box {
-                        OutlinedButton(onClick = { showRefreshOptions = true }) {
-                            Text(state.autoRefresh.displayName())
-                        }
-                        DropdownMenu(
-                            expanded = showRefreshOptions,
-                            onDismissRequest = { showRefreshOptions = false },
-                        ) {
-                            AnnouncementAutoRefresh.entries.forEach { refresh ->
-                                DropdownMenuItem(
-                                    text = { Text(refresh.displayName()) },
-                                    onClick = {
-                                        onSetAutoRefresh(refresh)
-                                        showRefreshOptions = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Done")
-                }
-            },
-            dismissButton = {
-                TextButton(
+        TabbedDialog(
+            onDismissRequest = onDismissRequest,
+            tabTitles = persistentListOf(
+                stringResource(MR.strings.action_filter),
+                stringResource(MR.strings.action_sort),
+            ),
+            tabOverflowMenuContent = { closeMenu ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(MR.strings.action_reset)) },
                     onClick = {
-                        onSelectSort(AnnouncementSort.AIRING_SOON)
-                        onSelectYear(null)
-                        onSetIncludeAdult(false)
+                        onReset()
+                        closeMenu()
                     },
-                ) {
-                    Text("Reset")
+                )
+            },
+        ) { page ->
+            Column(
+                modifier = Modifier
+                    .padding(vertical = TabbedDialogPaddings.Vertical)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                when (page) {
+                    0 -> FilterPage(
+                        state = state,
+                        onSelectCategory = onSelectCategory,
+                        onSelectYear = onSelectYear,
+                        onSetIncludeAdult = onSetIncludeAdult,
+                        onSetAutoRefresh = onSetAutoRefresh,
+                    )
+                    1 -> SortPage(
+                        state = state,
+                        onSelectSort = onSelectSort,
+                    )
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun FilterPage(
+        state: AnnouncementsScreenModel.State.Success,
+        onSelectCategory: (AnnouncementCategory?) -> Unit,
+        onSelectYear: (Int?) -> Unit,
+        onSetIncludeAdult: (Boolean) -> Unit,
+        onSetAutoRefresh: (AnnouncementAutoRefresh) -> Unit,
+    ) {
+        HeadingItem(text = "Category")
+        RadioItem(
+            label = "All",
+            selected = state.selectedCategory == null,
+            onClick = { onSelectCategory(null) },
+        )
+        AnnouncementCategory.entries.forEach { category ->
+            RadioItem(
+                label = category.displayName(),
+                selected = state.selectedCategory == category,
+                onClick = { onSelectCategory(category) },
+            )
+        }
+
+        HeadingItem(text = "Options")
+
+        val yearOptions = remember(state.availableYears) {
+            listOf("Any") + state.availableYears.map { it.toString() }
+        }
+        val selectedYearIndex = remember(state.selectedYear, state.availableYears) {
+            if (state.selectedYear != null) {
+                val idx = state.availableYears.indexOf(state.selectedYear)
+                if (idx >= 0) idx + 1 else 0
+            } else {
+                0
+            }
+        }
+        SelectItem(
+            label = "Year",
+            options = yearOptions.toTypedArray(),
+            selectedIndex = selectedYearIndex,
+            onSelect = { index ->
+                val year = if (index == 0) null else state.availableYears.getOrNull(index - 1)
+                onSelectYear(year)
+            },
+        )
+
+        CheckboxItem(
+            label = "Include 18+ Content",
+            checked = state.includeAdult,
+            onClick = { onSetIncludeAdult(!state.includeAdult) },
+        )
+
+        val refreshOptions = remember {
+            AnnouncementAutoRefresh.entries.map { it.displayName() }
+        }
+        val selectedRefreshIndex = remember(state.autoRefresh) {
+            AnnouncementAutoRefresh.entries.indexOf(state.autoRefresh).coerceAtLeast(0)
+        }
+        SelectItem(
+            label = "Auto Refresh Interval",
+            options = refreshOptions.toTypedArray(),
+            selectedIndex = selectedRefreshIndex,
+            onSelect = { index ->
+                onSetAutoRefresh(AnnouncementAutoRefresh.entries[index])
             },
         )
     }
 
     @Composable
-    private fun FilterSwitchRow(
-        label: String,
-        checked: Boolean,
-        onCheckedChange: (Boolean) -> Unit,
+    private fun SortPage(
+        state: AnnouncementsScreenModel.State.Success,
+        onSelectSort: (AnnouncementSort) -> Unit,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label)
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        HeadingItem(text = "Sort by")
+        AnnouncementSort.entries.forEach { sort ->
+            RadioItem(
+                label = sort.displayName(),
+                selected = state.sort == sort,
+                onClick = { onSelectSort(sort) },
+            )
         }
     }
 

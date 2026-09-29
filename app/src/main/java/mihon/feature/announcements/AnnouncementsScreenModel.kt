@@ -18,7 +18,7 @@ class AnnouncementsScreenModel(
     repository.getCached()?.let { cached ->
         State.Success(
             allEntries = cached.toImmutableList(),
-            selectedCategory = null,
+            selectedCategory = preferences.categoryFilter().get().takeIf { it.isNotEmpty() }?.let { runCatching { AnnouncementCategory.valueOf(it) }.getOrNull() },
             selectedYear = preferences.yearFilter().get().toIntOrNull(),
             sort = preferences.sort().get(),
             includeAdult = preferences.includeAdult().get(),
@@ -104,7 +104,8 @@ class AnnouncementsScreenModel(
                 is AnnouncementsRepository.Result.Success -> {
                     mutableState.value = State.Success(
                         allEntries = result.entries.toImmutableList(),
-                        selectedCategory = previous?.selectedCategory,
+                        selectedCategory = previous?.selectedCategory
+                            ?: preferences.categoryFilter().get().takeIf { it.isNotEmpty() }?.let { runCatching { AnnouncementCategory.valueOf(it) }.getOrNull() },
                         selectedYear = previous?.selectedYear ?: preferences.yearFilter().get().toIntOrNull(),
                         sort = previous?.sort ?: preferences.sort().get(),
                         includeAdult = previous?.includeAdult ?: preferences.includeAdult().get(),
@@ -127,7 +128,7 @@ class AnnouncementsScreenModel(
         val cached = (state as? State.Error)?.cachedEntries ?: return
         mutableState.value = State.Success(
             allEntries = cached,
-            selectedCategory = null,
+            selectedCategory = preferences.categoryFilter().get().takeIf { it.isNotEmpty() }?.let { runCatching { AnnouncementCategory.valueOf(it) }.getOrNull() },
             selectedYear = preferences.yearFilter().get().toIntOrNull(),
             sort = preferences.sort().get(),
             includeAdult = preferences.includeAdult().get(),
@@ -138,6 +139,7 @@ class AnnouncementsScreenModel(
 
     fun selectCategory(category: AnnouncementCategory?) {
         val current = state as? State.Success ?: return
+        preferences.categoryFilter().set(category?.name.orEmpty())
         mutableState.value = current.copy(selectedCategory = category)
     }
 
@@ -163,5 +165,19 @@ class AnnouncementsScreenModel(
         val current = state as? State.Success ?: return
         preferences.autoRefresh().set(autoRefresh)
         mutableState.value = current.copy(autoRefresh = autoRefresh)
+    }
+
+    fun resetFilters() {
+        val current = state as? State.Success ?: return
+        preferences.categoryFilter().set("")
+        preferences.yearFilter().set("")
+        preferences.sort().set(AnnouncementSort.AIRING_SOON)
+        preferences.includeAdult().set(false)
+        mutableState.value = current.copy(
+            selectedCategory = null,
+            selectedYear = null,
+            sort = AnnouncementSort.AIRING_SOON,
+            includeAdult = false,
+        )
     }
 }
