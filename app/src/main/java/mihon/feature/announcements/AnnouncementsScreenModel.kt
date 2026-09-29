@@ -96,7 +96,7 @@ class AnnouncementsScreenModel(
 
     fun load(forceRefresh: Boolean = false) {
         screenModelScope.launch {
-            val previous = state as? State.Success
+            val previous = mutableState.value as? State.Success
             if (previous == null || forceRefresh) {
                 mutableState.value = State.Loading
             }
@@ -125,7 +125,7 @@ class AnnouncementsScreenModel(
     }
 
     fun showCachedData() {
-        val cached = (state as? State.Error)?.cachedEntries ?: return
+        val cached = (mutableState.value as? State.Error)?.cachedEntries ?: return
         mutableState.value = State.Success(
             allEntries = cached,
             selectedCategory = preferences.categoryFilter().get().takeIf { it.isNotEmpty() }?.let { runCatching { AnnouncementCategory.valueOf(it) }.getOrNull() },
@@ -138,37 +138,37 @@ class AnnouncementsScreenModel(
     }
 
     fun selectCategory(category: AnnouncementCategory?) {
-        val current = state as? State.Success ?: return
+        val current = mutableState.value as? State.Success ?: return
         preferences.categoryFilter().set(category?.name.orEmpty())
         mutableState.value = current.copy(selectedCategory = category)
     }
 
     fun selectYear(year: Int?) {
-        val current = state as? State.Success ?: return
+        val current = mutableState.value as? State.Success ?: return
         preferences.yearFilter().set(year?.toString().orEmpty())
         mutableState.value = current.copy(selectedYear = year)
     }
 
     fun setSort(sort: AnnouncementSort) {
-        val current = state as? State.Success ?: return
+        val current = mutableState.value as? State.Success ?: return
         preferences.sort().set(sort)
         mutableState.value = current.copy(sort = sort)
     }
 
     fun setIncludeAdult(include: Boolean) {
-        val current = state as? State.Success ?: return
+        val current = mutableState.value as? State.Success ?: return
         preferences.includeAdult().set(include)
         mutableState.value = current.copy(includeAdult = include)
     }
 
     fun setAutoRefresh(autoRefresh: AnnouncementAutoRefresh) {
-        val current = state as? State.Success ?: return
+        val current = mutableState.value as? State.Success ?: return
         preferences.autoRefresh().set(autoRefresh)
         mutableState.value = current.copy(autoRefresh = autoRefresh)
     }
 
     fun resetFilters() {
-        val current = state as? State.Success ?: return
+        val current = mutableState.value as? State.Success ?: return
         preferences.categoryFilter().set("")
         preferences.yearFilter().set("")
         preferences.sort().set(AnnouncementSort.AIRING_SOON)

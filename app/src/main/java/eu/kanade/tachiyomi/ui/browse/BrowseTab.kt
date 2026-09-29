@@ -85,7 +85,7 @@ data object BrowseTab : Tab {
         val announcementsState by announcementsScreenModel.state.collectAsStateFlow()
         val hasAnnouncementsFilters = remember(announcementsState) {
             val s = announcementsState as? AnnouncementsScreenModel.State.Success
-            s != null && (s.selectedYear != null || s.includeAdult || s.sort != AnnouncementSort.AIRING_SOON)
+            s != null && (s.selectedCategory != null || s.selectedYear != null || s.includeAdult || s.sort != AnnouncementSort.AIRING_SOON)
         }
         val activeFilterTint = MaterialTheme.colorScheme.active
         val filterTitle = stringResource(MR.strings.action_filter)
