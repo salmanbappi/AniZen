@@ -299,6 +299,10 @@ private fun UpdatesUiItem(
                 data = update.coverData,
                 onClick = onClickCover,
                 ratio = ratio,
+                // ANZ -->
+                // Forced-on panorama has to measure the ratio itself; the default is the global pref.
+                measureRatio = usePanorama,
+                // ANZ <--
             )
         } else {
             val (_, ratio) = AnimeCover.getEntry(update.animeId, usePanoramaOverride = usePanorama)

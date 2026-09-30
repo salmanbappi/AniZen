@@ -334,6 +334,10 @@ private fun FeedCard(
             onClick = onClick,
             modifier = Modifier.fillMaxWidth(),
             ratio = ratio,
+            // ANZ -->
+            // Forced-on panorama has to measure the ratio itself; the default is the global pref.
+            measureRatio = usePanorama,
+            // ANZ <--
         )
         Text(
             text = anime.title,

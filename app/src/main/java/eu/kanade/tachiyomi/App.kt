@@ -45,6 +45,7 @@ import eu.kanade.presentation.anime.components.CoverSettings
 import eu.kanade.tachiyomi.core.security.PrivacyPreferences
 import eu.kanade.tachiyomi.crash.CrashActivity
 import eu.kanade.tachiyomi.crash.GlobalExceptionHandler
+import eu.kanade.tachiyomi.data.coil.AnimeBackgroundKeyer
 import eu.kanade.tachiyomi.data.coil.AnimeCoverFetcher
 import eu.kanade.tachiyomi.data.coil.AnimeCoverKeyer
 import eu.kanade.tachiyomi.data.coil.AnimeKeyer
@@ -276,7 +277,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(BufferedSourceFetcher.Factory())
                 add(AnimeCoverFetcher.AnimeCoverFactory(callFactoryLazy))
                 add(AnimeCoverFetcher.AnimeFactory(callFactoryLazy))
+                add(AnimeCoverFetcher.AnimeBackgroundFactory(callFactoryLazy))
                 add(AnimeCoverKeyer())
+                add(AnimeBackgroundKeyer())
                 add(AnimeKeyer())
             }
 
@@ -334,7 +337,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 )
             }
             if (chromiumElement?.methodName.equals("getAll", ignoreCase = true)) {
-                return WebViewUtil.SPOOF_PACKAGE_NAME
+                // ANZ -->
+                return WebViewUtil.spoofedPackageName(applicationContext) ?: super.getPackageName()
+                // ANZ <--
             }
         } catch (_: Exception) {
         }

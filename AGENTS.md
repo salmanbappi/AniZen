@@ -19,10 +19,23 @@ in git ancestry. The recorded content ancestor and all measurements live in
 
 | Rule | Required behaviour |
 |------|--------------------|
-| Branch | Work on a feature branch. `preview` is the active integration branch (CI: *Preview Build*). |
-| Never | Commit or push directly to `master`. |
+| Development | Work on a feature branch or `preview`. `preview` is the active integration and testing branch (CI: *Preview Build*). |
+| Release | After testing on `preview`, release to `master` by merging `preview` into `master` and pushing directly (triggers CI: *Official Release*). |
 | Never | Rewrite history — it invalidates every published release tag and the `r<commitCount>` preview tag scheme. |
-| Before push | Confirm `git branch --show-current` is not `master`. |
+| Never | Open a pull request. Integrate into `preview` by pushing or merging — that push is what triggers the build. |
+
+**How builds happen:**
+- **Preview builds:** `.github/workflows/preview.yml` runs on a **push to `preview`**, on a
+  `pull_request` targeting `preview`, and manually via `workflow_dispatch`. It runs `detekt`, then
+  `assemblePreview`, then publishes a preview release to `salmanbappi/anizen-preview` and posts an AI-generated
+  changelog to Discord. That release step has **no `if:` guard**, so every push to `preview` publishes.
+- **Official releases:** `.github/workflows/release.yml` runs on a **push to `master`**. It runs `detekt`,
+  bumps the version, commits the version bump, builds the release APK, and publishes the official release.
+
+Therefore: **make changes and test in `preview`, then release by merging `preview` into `master` and pushing to `master`.**
+Pushing a feature branch on its own triggers nothing — branches exist as scratch space.
+Do not open a pull request: a PR run publishes a release built from *unmerged* code, which desyncs
+the `r<commitCount>` tag scheme from what `preview` actually contains.
 
 ### Provenance markers
 
@@ -112,7 +125,8 @@ creating a branch. It never touches your working tree.
 1. Keep every `// ANZ` block; take upstream outside the markers.
 2. Preserve `// ANK`, `// KMK`, `// SY`, `// AY` blocks unless the review says otherwise.
 3. Prefer upstream's structure and re-apply AniZen behaviour inside the markers.
-4. Merge on a sync branch, then PR into `preview` — never merge straight into `preview`.
+4. Commit the result on the sync branch and push it — **never** merge straight into `preview`, and
+   do not open a pull request (see the Git rules above).
 
 ### 4. Guard before pushing
 

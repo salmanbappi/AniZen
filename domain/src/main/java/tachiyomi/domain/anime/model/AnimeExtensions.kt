@@ -12,6 +12,7 @@ fun Anime.toSAnime(): SAnime = SAnime.create().also {
     it.genre = genre.orEmpty().joinToString()
     it.status = status.toInt()
     it.thumbnail_url = thumbnailUrl
+    it.background_url = backgroundUrl
     it.initialized = initialized
 }
 
@@ -27,6 +28,7 @@ fun SAnimeSource.toDomainAnime(sourceId: Long): Anime {
         ogGenre = genre?.split(", ")?.map { it.trim() },
         ogStatus = status.toLong(),
         // SY <--
+        backgroundUrl = background_url,
         updateStrategy = update_strategy,
         initialized = initialized,
         source = sourceId,

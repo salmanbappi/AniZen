@@ -151,17 +151,20 @@ class DownloadCache(
         if (sourceDir != null) {
             val animeDir = sourceDir.animeDirs[provider.getAnimeDirName(animeTitle)]
             if (animeDir != null) {
+                // ANZ -->
+                val snapshot = synchronized(animeDir) { animeDir.episodeDirs.toSet() }
                 val matched = provider.getValidEpisodeDirNames(
                     episodeName,
                     episodeScanlator,
-                ).any { it in animeDir.episodeDirs }
+                ).any { it in snapshot }
                 if (matched) return true
 
                 if (episodeNumber >= 0.0) {
-                    return animeDir.episodeDirs.any { dirName ->
+                    return snapshot.any { dirName ->
                         parseEpisodeNumberFromDir(animeTitle, dirName, episodeScanlator) == episodeNumber
                     }
                 }
+                // ANZ <--
             }
         }
         return false
@@ -239,7 +242,9 @@ class DownloadCache(
         if (sourceDir != null) {
             val animeDir = sourceDir.animeDirs[provider.getAnimeDirName(anime.ogTitle)]
             if (animeDir != null) {
-                return animeDir.episodeDirs
+                // ANZ -->
+                return synchronized(animeDir) { animeDir.episodeDirs.toSet() }
+                // ANZ <--
             }
         }
         return emptySet()
@@ -272,7 +277,11 @@ class DownloadCache(
             }
 
             // Save the episode directory
-            animeDir.episodeDirs += episodeDirName
+            // ANZ -->
+            synchronized(animeDir) {
+                animeDir.episodeDirs += episodeDirName
+            }
+            // ANZ <--
         }
 
         notifyChanges()
@@ -288,11 +297,16 @@ class DownloadCache(
         rootDownloadsDirMutex.withLock {
             val sourceDir = rootDownloadsDir.sourceDirs[anime.source] ?: return
             val animeDir = sourceDir.animeDirs[provider.getAnimeDirName(anime.ogTitle)] ?: return
-            provider.getValidEpisodeDirNames(episode.name, episode.scanlator).forEach {
-                if (it in animeDir.episodeDirs) {
-                    animeDir.episodeDirs -= it
+            // ANZ -->
+            val names = provider.getValidEpisodeDirNames(episode.name, episode.scanlator)
+            synchronized(animeDir) {
+                names.forEach {
+                    if (it in animeDir.episodeDirs) {
+                        animeDir.episodeDirs -= it
+                    }
                 }
             }
+            // ANZ <--
         }
 
         notifyChanges()
@@ -308,13 +322,17 @@ class DownloadCache(
         rootDownloadsDirMutex.withLock {
             val sourceDir = rootDownloadsDir.sourceDirs[anime.source] ?: return
             val animeDir = sourceDir.animeDirs[provider.getAnimeDirName(anime.ogTitle)] ?: return
-            episodes.forEach { episode ->
-                provider.getValidEpisodeDirNames(episode.name, episode.scanlator).forEach {
-                    if (it in animeDir.episodeDirs) {
-                        animeDir.episodeDirs -= it
+            // ANZ -->
+            synchronized(animeDir) {
+                episodes.forEach { episode ->
+                    provider.getValidEpisodeDirNames(episode.name, episode.scanlator).forEach {
+                        if (it in animeDir.episodeDirs) {
+                            animeDir.episodeDirs -= it
+                        }
                     }
                 }
             }
+            // ANZ <--
         }
 
         notifyChanges()

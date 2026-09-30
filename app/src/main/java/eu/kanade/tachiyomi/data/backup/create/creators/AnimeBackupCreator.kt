@@ -87,6 +87,7 @@ private fun Anime.toBackupAnime() =
         genre = this@toBackupAnime.genre.orEmpty()
         status = this@toBackupAnime.status.toInt()
         thumbnailUrl = this@toBackupAnime.thumbnailUrl
+        backgroundUrl = this@toBackupAnime.backgroundUrl
         favorite = this@toBackupAnime.favorite
         dateAdded = this@toBackupAnime.dateAdded
         viewer_flags = this@toBackupAnime.viewerFlags.toInt()

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -41,10 +42,12 @@ class CloudflareInterceptor(
     ): Response {
         try {
             response.close()
-            cookieManager.remove(request.url, COOKIE_NAMES, 0)
-            android.webkit.CookieManager.getInstance().flush()
+            // ANZ -->
             val oldCookie = cookieManager.get(request.url)
                 .firstOrNull { it.name == "cf_clearance" }
+            cookieManager.remove(request.url, COOKIE_NAMES, 0)
+            android.webkit.CookieManager.getInstance().flush()
+            // ANZ <--
 
             val originalUserAgent = request.header("User-Agent") ?: run {
                 try {
@@ -148,7 +151,9 @@ class CloudflareInterceptor(
                     view.evaluateJavascript(
                         """
                         try {
-                            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+                            if ('webdriver' in navigator && navigator.webdriver) {
+                                Object.defineProperty(navigator, 'webdriver', { get: () => false });
+                            }
                             Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
                             Object.defineProperty(navigator, 'plugins', { get: () => [
                                 { description: "Portable Document Format", filename: "internal-pdf-viewer", name: "Chromium PDF Viewer" }
@@ -173,15 +178,30 @@ class CloudflareInterceptor(
                             .let { it != null && it != oldCookie }
                     }
 
+                    // ANZ -->
                     if (isCloudFlareBypassed()) {
                         cloudflareBypassed = true
                         latch.countDown()
+                        return
+                    }
+
+                    val title = (view.title ?: "").lowercase()
+                    if (title.contains("just a moment") ||
+                        title.contains("attention required") ||
+                        title.contains("un instant") ||
+                        title.contains("einen moment") ||
+                        title.contains("un momento") ||
+                        title.contains("один момент")
+                    ) {
+                        challengeFound = true
                     }
 
                     if (url == origRequestUrl && !challengeFound) {
                         // The first request didn't return the challenge, abort.
                         latch.countDown()
+                        return
                     }
+                    // ANZ <--
 
                     // Inject Turnstile auto-click script
                     view.evaluateJavascript(
@@ -257,9 +277,14 @@ class CloudflareInterceptor(
                     )
                 }
 
-                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                    if (request.isForMainFrame) {
-                        if (error.errorCode in ERROR_CODES) {
+                // ANZ -->
+                override fun onReceivedHttpError( // ANZ
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    errorResponse: WebResourceResponse?,
+                ) {
+                    if (request?.isForMainFrame == true) {
+                        if (errorResponse?.statusCode in ERROR_CODES) {
                             // Found the Cloudflare challenge page.
                             challengeFound = true
                         } else {
@@ -268,6 +293,14 @@ class CloudflareInterceptor(
                         }
                     }
                 }
+
+                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                    if (request.isForMainFrame) {
+                        // Network error occurred on main frame, unlock thread.
+                        latch.countDown()
+                    }
+                }
+                // ANZ <--
             }
 
             webview?.loadUrl(origRequestUrl, headers)

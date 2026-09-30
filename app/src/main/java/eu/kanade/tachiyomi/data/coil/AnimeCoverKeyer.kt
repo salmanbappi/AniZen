@@ -4,6 +4,7 @@ import coil3.key.Keyer
 import coil3.request.Options
 import eu.kanade.domain.anime.model.hasCustomCover
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import tachiyomi.domain.anime.model.AnimeBackground
 import tachiyomi.domain.anime.model.AnimeCover
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -28,5 +29,11 @@ class AnimeCoverKeyer(
         } else {
             "${data.url};${data.lastModified}"
         }
+    }
+}
+
+class AnimeBackgroundKeyer : Keyer<AnimeBackground> {
+    override fun key(data: AnimeBackground, options: Options): String {
+        return "${data.url};${data.lastModified}"
     }
 }

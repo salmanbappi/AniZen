@@ -467,9 +467,15 @@ fun AnimeListItem(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val height = remember(usePanorama) {
-        if (usePanorama == true) 96.dp else 76.dp
+    // ANZ -->
+    // Resolve the effective value before sizing the row: keying the height on the *nullable*
+    // parameter left callers that pass nothing (the season list) at the book height while their
+    // covers still rendered at the panorama aspect.
+    val panorama = usePanorama ?: CoverSettings.panoramaCover
+    val height = remember(panorama) {
+        if (panorama) 96.dp else 76.dp
     }
+    // ANZ <--
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -485,7 +491,6 @@ fun AnimeListItem(
             .padding(horizontal = 16.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val panorama = usePanorama ?: CoverSettings.panoramaCover
         val (entry, ratio) = AnimeCover.getEntry(
             coverData.animeId,
             usePanoramaOverride = panorama,

@@ -29,6 +29,7 @@ import okio.sink
 import okio.source
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.AnimeBackground
 import tachiyomi.domain.anime.model.AnimeCover
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.injectLazy
@@ -336,6 +337,32 @@ class AnimeCoverFetcher(
                 options = options,
                 coverFileLazy = lazy { coverCache.getCoverFile(data.url) },
                 customCoverFileLazy = lazy { coverCache.getCustomCoverFile(data.animeId) },
+                diskCacheKeyLazy = lazy { imageLoader.components.key(data, options)!! },
+                sourceLazy = lazy { sourceManager.get(data.sourceId) as? HttpSource },
+                callFactoryLazy = callFactoryLazy,
+                imageLoader = imageLoader,
+            )
+        }
+    }
+
+    class AnimeBackgroundFactory(
+        private val callFactoryLazy: Lazy<Call.Factory>,
+    ) : Fetcher.Factory<AnimeBackground> {
+
+        private val coverCache: CoverCache by injectLazy()
+        private val sourceManager: SourceManager by injectLazy()
+
+        override fun create(data: AnimeBackground, options: Options, imageLoader: ImageLoader): Fetcher {
+            return AnimeCoverFetcher(
+                url = data.url,
+                isLibraryAnime = data.isAnimeFavorite,
+                options = options,
+                // Reuse the cover cache directory but key by the background url so it never
+                // collides with the poster cover file.
+                coverFileLazy = lazy { coverCache.getCoverFile(data.url) },
+                // Backgrounds never use the poster's user custom cover; point the "custom" file at
+                // the background's own cache entry so a cached background is served straight from disk.
+                customCoverFileLazy = lazy { coverCache.getCoverFile(data.url) ?: File("") },
                 diskCacheKeyLazy = lazy { imageLoader.components.key(data, options)!! },
                 sourceLazy = lazy { sourceManager.get(data.sourceId) as? HttpSource },
                 callFactoryLazy = callFactoryLazy,

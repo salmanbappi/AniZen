@@ -839,7 +839,16 @@ fun PlayerControls(
             },
             speed = playbackSpeed ?: playerPreferences.playerSpeed().get(),
             speedPresets = speedPresets.map { it.toFloat() }.sorted().toPersistentList(),
-            onSpeedChange = { viewModel.mpv.setPropertyDouble("speed", it.toFixed(2).toDouble()) },
+            // ANZ -->
+            onSpeedChange = {
+                val newSpeed = it.toFixed(2)
+                if (viewModel.mpv.isInitialized) {
+                    viewModel.mpv.setPropertyDouble("speed", newSpeed.toDouble())
+                }
+                // Remember the choice so reopening the player starts at this speed again.
+                playerPreferences.playerSpeed().set(newSpeed)
+            },
+            // ANZ <--
             onMakeDefaultSpeed = { playerPreferences.playerSpeed().set(it.toFixed(2)) },
             onAddSpeedPreset = { playerPreferences.speedPresets() += it.toFixed(2).toString() },
             onRemoveSpeedPreset = { playerPreferences.speedPresets() -= it.toFixed(2).toString() },

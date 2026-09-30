@@ -35,6 +35,8 @@ fun Anime.copyFrom(other: SAnime): Anime {
     val author = other.author ?: ogAuthor
     val artist = other.artist ?: ogArtist
     val thumbnailUrl = other.thumbnail_url ?: ogThumbnailUrl
+    // Keep the existing background if the source returns null/empty to avoid "losing" it
+    val backgroundUrl = other.background_url?.takeIf { it.isNotEmpty() } ?: this.backgroundUrl
     val description = other.description ?: ogDescription
     val genres = if (other.genre != null) {
         other.getGenres()
@@ -50,6 +52,7 @@ fun Anime.copyFrom(other: SAnime): Anime {
         ogDescription = description,
         ogGenre = genres,
         // SY <--
+        backgroundUrl = backgroundUrl,
         // SY -->
         ogStatus = other.status.toLong(),
         // SY <--

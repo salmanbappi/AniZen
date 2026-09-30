@@ -77,6 +77,7 @@ data class BackupAnime(
             ogArtist = this@BackupAnime.artist,
             ogAuthor = this@BackupAnime.author,
             ogThumbnailUrl = this@BackupAnime.thumbnailUrl,
+            backgroundUrl = this@BackupAnime.backgroundUrl,
             ogDescription = this@BackupAnime.description,
             ogGenre = this@BackupAnime.genre,
             ogStatus = this@BackupAnime.status.toLong(),

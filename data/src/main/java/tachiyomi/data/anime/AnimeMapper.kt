@@ -262,6 +262,7 @@ fun Anime.toSAnime(): eu.kanade.tachiyomi.source.model.SAnime = eu.kanade.tachiy
     it.genre = genre?.joinToString(", ")
     it.status = status.toInt()
     it.thumbnail_url = thumbnailUrl
+    it.background_url = backgroundUrl
     it.initialized = initialized
 }
 

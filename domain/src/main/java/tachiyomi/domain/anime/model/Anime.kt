@@ -54,32 +54,48 @@ data class Anime(
 ) : Serializable {
 
     // SY -->
+    // ANZ -->
+    /**
+     * The user's edit overlay, resolved on demand when the caller did not supply one.
+     *
+     * Upstream attaches this inside the model (`if (favorite) getCustomMangaInfo.get(id)`), so every
+     * instance resolves its derived properties against the user's edits. AniZen turned it into an
+     * optional constructor parameter, which meant any [Anime] built from a repository row carried no
+     * overlay: `title` (and author/artist/thumbnail/description/genre/status) then silently fell
+     * back to the source's original values. That is what made the player header, the saved cover and
+     * similar surfaces ignore an edited title. Resolving on demand restores upstream behaviour while
+     * still letting an explicitly supplied overlay win.
+     */
+    private val resolvedCustomAnimeInfo: CustomAnimeInfo?
+        get() = customAnimeInfo ?: if (favorite) getCustomAnimeInfo.get(id) else null
+    // ANZ <--
+
     val title: String
-        get() = customAnimeInfo?.title ?: ogTitle
+        get() = resolvedCustomAnimeInfo?.title ?: ogTitle
 
     val author: String?
-        get() = customAnimeInfo?.author ?: ogAuthor
+        get() = resolvedCustomAnimeInfo?.author ?: ogAuthor
 
     val artist: String?
-        get() = customAnimeInfo?.artist ?: ogArtist
+        get() = resolvedCustomAnimeInfo?.artist ?: ogArtist
 
     val thumbnailUrl: String?
-        get() = customAnimeInfo?.thumbnailUrl ?: ogThumbnailUrl
+        get() = resolvedCustomAnimeInfo?.thumbnailUrl ?: ogThumbnailUrl
 
     val description: String?
-        get() = customAnimeInfo?.description ?: ogDescription
+        get() = resolvedCustomAnimeInfo?.description ?: ogDescription
 
     val genre: List<String>?
-        get() = customAnimeInfo?.genre ?: ogGenre
+        get() = resolvedCustomAnimeInfo?.genre ?: ogGenre
 
     val status: Long
-        get() = customAnimeInfo?.status ?: ogStatus
+        get() = resolvedCustomAnimeInfo?.status ?: ogStatus
 
     val score: Double?
-        get() = customAnimeInfo?.score
+        get() = resolvedCustomAnimeInfo?.score
 
     val note: String?
-        get() = customAnimeInfo?.note
+        get() = resolvedCustomAnimeInfo?.note
     // SY <--
 
     val expectedNextUpdate: Instant?

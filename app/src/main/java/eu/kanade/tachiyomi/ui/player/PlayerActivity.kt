@@ -94,6 +94,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.torrentServer.TorrentServerApi
 import eu.kanade.tachiyomi.torrentServer.TorrentServerUtils
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
+import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.controls.PlayerControls
 import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
@@ -170,6 +171,21 @@ class PlayerActivity : BaseActivity() {
     }
 
     private var pipReceiver: BroadcastReceiver? = null
+
+    // ANZ -->
+    /**
+     * True from the moment PiP is entered until the activity is resumed again.
+     *
+     * A dismissed PiP window and one expanded back to full screen both produce
+     * `onPictureInPictureModeChanged(false)`, and the ordering of that callback relative to
+     * `onStop()` is not guaranteed — on some devices `isInPictureInPictureMode` still reports
+     * `true` inside `onStop()`. The only reliable discriminator is *what happens next*: expanding
+     * resumes the activity, dismissing stops it. So this flag is cleared in `onResume()` and
+     * consulted in `onStop()`; a stop that still has it set left PiP without resuming, i.e. the
+     * user dismissed the window.
+     */
+    private var wasInPictureInPictureMode = false
+    // ANZ <--
 
     private val noisyReceiver = object : BroadcastReceiver() {
         var initialized = false
@@ -327,7 +343,9 @@ class PlayerActivity : BaseActivity() {
                         }
                     }
                     is PlayerViewModel.Event.ChangeVideoAspect -> {
-                        changeVideoAspect(event.aspect)
+                        // ANZ -->
+                        changeVideoAspect(event.aspect, event.showUpdate)
+                        // ANZ <--
                     }
                     PlayerViewModel.Event.CycleRotations -> {
                         cycleRotations()
@@ -381,15 +399,9 @@ class PlayerActivity : BaseActivity() {
                     PlayerControls(
                         viewModel = viewModel,
                         castManager = castManager, // Pass the castManager instance
-                        onBackPress = {
-                            if (isPipSupportedAndEnabled && viewModel.paused.value == false &&
-                                playerPreferences.pipOnExit().get()
-                            ) {
-                                enterPictureInPictureMode(createPipParams())
-                            } else {
-                                finish()
-                            }
-                        },
+                        // ANZ -->
+                        onBackPress = { backPressed() },
+                        // ANZ <--
                     )
                 }
             }
@@ -453,6 +465,14 @@ class PlayerActivity : BaseActivity() {
         updateDiscordRPC(exitingPlayer = true)
         // <-- AM (DISCORD)
 
+        // ANZ -->
+        pipReceiver?.let {
+            runCatching { unregisterReceiver(it) }
+            pipReceiver = null
+        }
+        runCatching { viewModel.pause() }
+        // ANZ <--
+
         super.onDestroy()
     }
 
@@ -482,12 +502,12 @@ class PlayerActivity : BaseActivity() {
             }
         }
         // ANZ <--
+        // ANZ -->
         if (isFinishing) {
             viewModel.deletePendingEpisodes()
-            mpv.command("stop")
-        } else {
-            viewModel.pause()
         }
+        viewModel.pause()
+        // ANZ <--
 
         super.onPause()
     }
@@ -499,9 +519,36 @@ class PlayerActivity : BaseActivity() {
             }
         }
 
-        if (isInPictureInPictureMode && powerManager.isInteractive) {
+        // ANZ -->
+        // Either signal means we are leaving a PiP window: the latched flag covers devices that
+        // report the exit callback before onStop(), and isInPictureInPictureMode covers devices
+        // that report it after (or auto-enter without latching). A screen-off stop is excluded by
+        // isInteractive so that locking the phone does not kill the player.
+        if ((wasInPictureInPictureMode || isInPictureInPictureMode) && powerManager.isInteractive) {
+            // Left PiP without resuming, so the user dismissed the window: stop playback and tear
+            // the player task down.
+            player.isExiting = true
+            viewModel.saveCurrentEpisodeWatchingProgress()
             viewModel.deletePendingEpisodes()
+            viewModel.pause()
+            finishAndRemoveTask()
+        } else if (isFinishing) {
+            player.isExiting = true
+            viewModel.saveCurrentEpisodeWatchingProgress()
+            viewModel.deletePendingEpisodes()
+            val serverToStop = httpServer
+            httpServer = null
+            if (serverToStop != null) {
+                lifecycleScope.launchIO {
+                    runCatching { serverToStop.stop() }
+                }
+            }
+            viewModel.pause()
+        } else if (!isInPictureInPictureMode || !powerManager.isInteractive) {
+            viewModel.saveCurrentEpisodeWatchingProgress()
+            viewModel.pause()
         }
+        // ANZ <--
 
         super.onStop()
     }
@@ -528,6 +575,17 @@ class PlayerActivity : BaseActivity() {
         }
 
         // Default behavior: finish the activity
+        // ANZ -->
+        if (isTaskRoot) {
+            finishAndRemoveTask()
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                },
+            )
+            return
+        }
+        // ANZ <--
         finish()
         // ANK <--
     }
@@ -670,6 +728,11 @@ class PlayerActivity : BaseActivity() {
     }
 
     override fun onResume() {
+        // ANZ -->
+        // Resuming means the PiP window was expanded back to full screen, not dismissed.
+        wasInPictureInPictureMode = false
+        // ANZ <--
+
         // Reconnect cast if it was active
         castManager.apply {
             reconnect()
@@ -697,7 +760,11 @@ class PlayerActivity : BaseActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         if (!isInPictureInPictureMode) {
-            viewModel.changeVideoAspect(playerPreferences.aspectState().get())
+            // ANZ -->
+            // Restoring instead of applying the stored VideoAspect keeps a custom aspect ratio
+            // alive across rotation; applying the preset cleared `video-aspect-override`.
+            viewModel.restoreAspectRatio()
+            // ANZ <--
         } else {
             viewModel.hideControls()
         }
@@ -752,7 +819,14 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Double) {
         if (player.isExiting) return
         when (property) {
-            "video-params/aspect" -> if (isPipSupportedAndEnabled) createPipParams()
+            "video-params/aspect" -> {
+                if (isPipSupportedAndEnabled) createPipParams()
+                // ANZ -->
+                // Video params are known at this point (fresh file, file switch or rotation),
+                // which is the reliable moment to re-apply a remembered custom aspect ratio.
+                viewModel.restoreAspectRatio()
+                // ANZ <--
+            }
         }
     }
 
@@ -767,7 +841,12 @@ class PlayerActivity : BaseActivity() {
             MPV.mpvEvent.MPV_EVENT_FILE_LOADED -> {
                 viewModel.viewModelScope.launchIO { fileLoaded() }
             }
-            MPV.mpvEvent.MPV_EVENT_PLAYBACK_RESTART -> player.isExiting = false
+            MPV.mpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
+                player.isExiting = false
+                // ANZ -->
+                viewModel.restoreAspectRatio()
+                // ANZ <--
+            }
             MPV.mpvEvent.MPV_EVENT_END_FILE -> {
                 val errorNode = node.asMap()?.get("file_error") ?: return
                 var errorMessage = errorNode.asString() ?: "Error: File ended"
@@ -794,7 +873,9 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    fun createPipParams(): PictureInPictureParams {
+    // ANZ -->
+    fun createPipParams(isPaused: Boolean? = null): PictureInPictureParams {
+    // ANZ <--
         val builder = PictureInPictureParams.Builder()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val anime = viewModel.currentAnime.value
@@ -804,31 +885,45 @@ class PlayerActivity : BaseActivity() {
                 builder.setTitle(anime.title).setSubtitle(episode.name)
             }
         }
+        // ANZ -->
+        val pausedState = isPaused ?: (viewModel.paused.value ?: true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val autoEnter = playerPreferences.pipOnExit().get()
-            builder.setAutoEnterEnabled(viewModel.paused.value == false && autoEnter)
-            builder.setSeamlessResizeEnabled(viewModel.paused.value == false && autoEnter)
+            builder.setAutoEnterEnabled(!pausedState && autoEnter)
+            builder.setSeamlessResizeEnabled(!pausedState && autoEnter)
         }
         builder.setActions(
             createPipActions(
                 context = this,
-                isPaused = viewModel.paused.value ?: true,
+                isPaused = pausedState,
                 replaceWithPrevious = playerPreferences.pipReplaceWithPrevious().get(),
                 playlistCount = viewModel.currentPlaylist.value.size,
                 playlistPosition = viewModel.getCurrentEpisodeIndex(),
             ),
         )
+        // ANZ <--
         builder.setSourceRectHint(pipRect)
-        mpv.getPropertyInt("video-params/h")?.let { height ->
-            val width = height * player.getVideoOutAspect()!!
-            val rational = Rational(height, width.toInt()).toFloat()
-            if (rational in 0.42..2.38) builder.setAspectRatio(Rational(width.toInt(), height))
+        // ANZ -->
+        if (mpv.isInitialized) {
+            mpv.getPropertyInt("video-params/h")?.let { height ->
+                player.getVideoOutAspect()?.let { aspect ->
+                    val width = height * aspect
+                    val rational = Rational(height, width.toInt()).toFloat()
+                    if (rational in 0.42..2.38) builder.setAspectRatio(Rational(width.toInt(), height))
+                }
+            }
         }
+        // ANZ <--
         return builder.build()
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        // ANZ -->
+        // Latch that we entered PiP. Whether leaving it was a dismissal or an expand is decided in
+        // onStop()/onResume(), because this callback's ordering against them is not guaranteed.
+        if (isInPictureInPictureMode) wasInPictureInPictureMode = true
+        // ANZ <--
         if (!isInPictureInPictureMode) {
             pipReceiver?.let {
                 unregisterReceiver(pipReceiver)
@@ -845,13 +940,27 @@ class PlayerActivity : BaseActivity() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     if (intent == null || intent.action != PIP_INTENTS_FILTER) return
                     when (intent.getIntExtra(PIP_INTENT_ACTION, 0)) {
-                        PIP_PAUSE -> viewModel.pause()
-                        PIP_PLAY -> viewModel.unpause()
+                        // ANZ -->
+                        PIP_PAUSE -> {
+                            viewModel.pause()
+                            setPictureInPictureParams(createPipParams(isPaused = true))
+                        }
+                        PIP_PLAY -> {
+                            viewModel.unpause()
+                            setPictureInPictureParams(createPipParams(isPaused = false))
+                        }
+                        // ANZ <--
                         PIP_NEXT -> viewModel.changeEpisode(false)
                         PIP_PREVIOUS -> viewModel.changeEpisode(true)
                         PIP_SKIP -> viewModel.seekBy(10)
                     }
-                    setPictureInPictureParams(createPipParams())
+                    // ANZ -->
+                    // Remote action update was already dispatched above for pause/play;
+                    // refresh once more for track changes or seek actions if needed.
+                    if (intent.getIntExtra(PIP_INTENT_ACTION, 0) !in listOf(PIP_PAUSE, PIP_PLAY)) {
+                        setPictureInPictureParams(createPipParams())
+                    }
+                    // ANZ <--
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -908,7 +1017,9 @@ class PlayerActivity : BaseActivity() {
 
             // other keys should be bound by the user in input.conf ig
             else -> {
-                event?.let { player.onKey(it) }
+                // ANZ -->
+                if (!isTextInputActive()) event?.let { player.onKey(it) }
+                // ANZ <--
                 super.onKeyDown(keyCode, event)
             }
         }
@@ -916,7 +1027,9 @@ class PlayerActivity : BaseActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (player.onKey(event!!)) return true
+        // ANZ -->
+        if (!isTextInputActive() && player.onKey(event!!)) return true
+        // ANZ <--
         return super.onKeyUp(keyCode, event)
     }
 
@@ -1365,7 +1478,9 @@ class PlayerActivity : BaseActivity() {
         )
     }
 
-    private fun changeVideoAspect(aspect: VideoAspect) {
+    // ANZ -->
+    private fun changeVideoAspect(aspect: VideoAspect, showUpdate: Boolean = true) {
+    // ANZ <--
         var ratio = -1.0
         val pan: Double
         when (aspect) {
@@ -1385,7 +1500,9 @@ class PlayerActivity : BaseActivity() {
                 pan = 0.0
             }
         }
-        viewModel.setAspect(aspect, pan, ratio)
+        // ANZ -->
+        viewModel.setAspect(aspect, pan, ratio, showUpdate)
+        // ANZ <--
     }
 
     private fun cycleRotations() {
@@ -1431,6 +1548,9 @@ class PlayerActivity : BaseActivity() {
         // ANZ <--
         setupChapters()
         viewModel.checkFileLoaded()
+        // ANZ -->
+        viewModel.restoreAspectRatio()
+        // ANZ <--
 
         // aniSkip stuff
         viewModel.viewModelScope.launchIO {
@@ -1583,8 +1703,18 @@ class PlayerActivity : BaseActivity() {
         viewModel.setCustomVideoAspect(ratio, label)
     }
 
+    /**
+     * True while a text field owns the input connection, such as the Width/Height inputs of the
+     * aspect ratio sheet.
+     *
+     * Key events must not reach mpv in that state. mpv's default bindings map the digits 1-0 to
+     * contrast, brightness, gamma, saturation and volume, and [AniyomiMPVView.onKey] consumes every
+     * key it maps, so a typed digit would both change a video setting and never reach the field.
+     */
+    private fun isTextInputActive(): Boolean = inputMethodManager.isActive
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (player.onKey(event)) return true
+        if (!isTextInputActive() && player.onKey(event)) return true
         return super.dispatchKeyEvent(event)
     }
     // ANZ <--

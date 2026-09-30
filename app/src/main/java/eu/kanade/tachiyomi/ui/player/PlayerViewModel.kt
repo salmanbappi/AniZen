@@ -132,6 +132,7 @@ import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.interactor.GetAnime
+import tachiyomi.domain.anime.interactor.GetCustomAnimeInfo
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.custombuttons.interactor.GetCustomButtons
@@ -173,6 +174,9 @@ class PlayerViewModel @JvmOverloads constructor(
     private val trackPreferences: TrackPreferences = Injekt.get(),
     private val trackEpisode: TrackEpisode = Injekt.get(),
     private val getAnime: GetAnime = Injekt.get(),
+    // ANZ -->
+    private val getCustomAnimeInfo: GetCustomAnimeInfo = Injekt.get(),
+    // ANZ <--
     private val getNextEpisodes: GetNextEpisodes = Injekt.get(),
     private val getEpisodesByAnimeId: GetEpisodesByAnimeId = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
@@ -205,6 +209,15 @@ class PlayerViewModel @JvmOverloads constructor(
         it.setOptionString("gpu-shader-cache-dir", cachePath)
         it.setOptionString("icc-cache-dir", cachePath)
         it.setOptionString("keep-open", "yes")
+        // ANZ -->
+        // Start the engine at the remembered speed. This must happen here, as a pre-init option,
+        // rather than as a property write after initialization: `playbackSpeed` snapshots the
+        // "speed" property once when the flow is created, and the library's backing SharedFlow has
+        // replay 0 with a lazily started upstream, so a speed applied after that snapshot is
+        // emitted to zero subscribers and silently dropped. The player would then run at the saved
+        // speed while the controls kept displaying the stale 1x default.
+        it.setOptionString("speed", playerPreferences.playerSpeed().get().toString())
+        // ANZ <--
     }
 
     private val _isStopped = MutableStateFlow(false)
@@ -993,9 +1006,17 @@ class PlayerViewModel @JvmOverloads constructor(
         // ANK <--
     }
 
-    fun pauseUnpause() = mpv.command("cycle", "pause")
-    fun pause() = mpv.setPropertyBoolean("pause", true)
-    fun unpause() = mpv.setPropertyBoolean("pause", false)
+    // ANZ -->
+    fun pauseUnpause() {
+        if (mpv.isInitialized) mpv.command("cycle", "pause")
+    }
+    fun pause() {
+        if (mpv.isInitialized) mpv.setPropertyBoolean("pause", true)
+    }
+    fun unpause() {
+        if (mpv.isInitialized) mpv.setPropertyBoolean("pause", false)
+    }
+    // ANZ <--
 
     private val showStatusBar = playerPreferences.showSystemStatusBar().get()
     fun showControls() {
@@ -1081,14 +1102,19 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    // ANZ -->
     fun seekBy(offset: Int, precise: Boolean = false) {
-        mpv.command("seek", offset.toString(), if (precise) "relative+exact" else "relative")
+        if (mpv.isInitialized) {
+            mpv.command("seek", offset.toString(), if (precise) "relative+exact" else "relative")
+        }
     }
 
     fun seekTo(position: Int, precise: Boolean = true) {
+        if (!mpv.isInitialized) return
         if (position !in 0..(mpv.getPropertyInt("duration") ?: 0)) return
         mpv.command("seek", position.toString(), if (precise) "absolute" else "absolute+keyframes")
     }
+    // ANZ <--
 
     fun changeBrightnessTo(
         brightness: Float,
@@ -1128,7 +1154,9 @@ class PlayerViewModel @JvmOverloads constructor(
 
     fun changeMPVVolumeTo(volume: Int) {
         currentMPVVolume.update { volume }
-        mpv.setPropertyInt("volume", volume)
+        // ANZ -->
+        if (mpv.isInitialized) mpv.setPropertyInt("volume", volume)
+        // ANZ <--
     }
 
     // ANZ -->
@@ -1166,18 +1194,34 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     @Suppress("DEPRECATION")
-    fun changeVideoAspect(aspect: VideoAspect) {
+    // ANZ -->
+    fun changeVideoAspect(aspect: VideoAspect, showUpdate: Boolean = true) {
         viewModelScope.launch {
-            eventChannel.send(Event.ChangeVideoAspect(aspect))
+            eventChannel.send(Event.ChangeVideoAspect(aspect, showUpdate))
         }
     }
+    // ANZ <--
 
-    fun setAspect(aspect: VideoAspect, pan: Double, ratio: Double) {
+    // ANZ -->
+    /**
+     * Applies an aspect ratio preset.
+     *
+     * @param showUpdate whether to announce the change with an on-screen label. Silent
+     *   re-application — rotation, file load, or a `video-params` change — must pass `false`.
+     *   Otherwise the label appears during ordinary playback: seeking re-triggers the
+     *   `video-params/aspect` observer on some devices, which put "Fit to screen" on screen on
+     *   every double-tap skip.
+     */
+    fun setAspect(aspect: VideoAspect, pan: Double, ratio: Double, showUpdate: Boolean = true) {
         mpv.setPropertyDouble("panscan", pan)
         mpv.setPropertyDouble("video-aspect-override", ratio)
         playerPreferences.aspectState().set(aspect)
-        playerUpdate.update { PlayerUpdates.AspectRatio }
+        // A preset aspect is in effect now, so the aspect sheet must stop showing a custom
+        // ratio as the selected one.
+        _videoAspectOverride.value = if (aspect == VideoAspect.Stretch) -1.0 else ratio
+        if (showUpdate) playerUpdate.update { PlayerUpdates.AspectRatio }
     }
+    // ANZ <--
 
     fun cycleScreenRotations() {
         viewModelScope.launch {
@@ -1649,6 +1693,20 @@ class PlayerViewModel @JvmOverloads constructor(
         val stringResource: StringResource,
     ) : Exception(message)
 
+    // ANZ -->
+    /**
+     * Loads an anime with the user's edit overlay attached.
+     *
+     * `Anime.title` (and author/artist/thumbnail/description/genre/status) is a derived property
+     * of the overlay: `customAnimeInfo?.title ?: ogTitle`. The repository row returned by
+     * [GetAnime.await] carries no overlay, so reading it directly silently falls back to the
+     * source's original title — which is why an anime renamed in the edit dialog still showed its
+     * original name in the player.
+     */
+    private suspend fun getAnimeWithEdits(animeId: Long): Anime? =
+        getAnime.await(animeId)?.copy(customAnimeInfo = getCustomAnimeInfo.get(animeId))
+    // ANZ <--
+
     suspend fun init(
         animeId: Long,
         initialEpisodeId: Long,
@@ -1657,10 +1715,26 @@ class PlayerViewModel @JvmOverloads constructor(
         vidIndex: Int,
     ): Pair<InitResult, Result<Boolean>> {
         val defaultResult = InitResult(currentHosterList, qualityIndex, null)
-        if (!needsInit(animeId, initialEpisodeId)) return Pair(defaultResult, Result.success(true))
+        if (!needsInit(animeId, initialEpisodeId)) {
+            // ANZ -->
+            // The activity is reused for the same episode (onNewIntent), so nothing is re-read.
+            // Refresh the overlay anyway, otherwise an edit made while the player was in the
+            // background/PiP never reaches the controls.
+            getAnimeWithEdits(animeId)?.let { refreshed ->
+                _currentAnime.update { _ -> refreshed }
+                animeTitle.update { _ -> refreshed.title }
+            }
+            // ANZ <--
+            return Pair(defaultResult, Result.success(true))
+        }
         return try {
-            val anime = getAnime.await(animeId)
+            // ANZ -->
+            val anime = getAnimeWithEdits(animeId)
+            // ANZ <--
             if (anime != null) {
+                // ANZ -->
+                val isDifferentAnime = this.anime?.id != animeId
+                // ANZ <--
                 sourceManager.isInitialized.first { it }
                 val source = sourceManager.getOrStub(anime.source)
                 _currentAnime.update { _ -> anime }
@@ -1679,8 +1753,17 @@ class PlayerViewModel @JvmOverloads constructor(
                 _hasPreviousEpisode.update { _ -> getCurrentEpisodeIndex() != 0 }
                 _hasNextEpisode.update { _ -> getCurrentEpisodeIndex() != currentPlaylist.value.size - 1 }
 
+                // ANZ -->
+                if (isDifferentAnime) {
+                    val defaultSpeed = playerPreferences.playerSpeed().get()
+                    mpv.setPropertyDouble("speed", defaultSpeed.toDouble())
+                }
+                // ANZ <--
+
                 // Write to mpv table
-                val parentTitle = anime.parentId?.let { getAnime.await(it)?.title } ?: ""
+                // ANZ -->
+                val parentTitle = anime.parentId?.let { getAnimeWithEdits(it)?.title } ?: ""
+                // ANZ <--
                 mpv.setPropertyString("user-data/current-anime/anime-title", anime.title)
                 mpv.setPropertyString("user-data/current-anime/parent-title", parentTitle)
                 mpv.setPropertyInt("user-data/current-anime/intro-length", getAnimeSkipIntroLength())
@@ -2581,7 +2664,10 @@ class PlayerViewModel @JvmOverloads constructor(
         if (skipIntroLength == getAnimeSkipIntroLength().toLong()) return
         viewModelScope.launchIO {
             setAnimeViewerFlags.awaitSetSkipIntroLength(anime.id, skipIntroLength)
-            _currentAnime.update { _ -> getAnime.await(anime.id) }
+            // ANZ -->
+            // Re-attach the edit overlay, otherwise this refresh reverts the title to the original.
+            _currentAnime.update { _ -> getAnimeWithEdits(anime.id) }
+            // ANZ <--
         }
     }
 
@@ -2718,7 +2804,9 @@ class PlayerViewModel @JvmOverloads constructor(
         data class SetVideo(val video: Video?) : Event()
         data class SetStatusBar(val show: Boolean) : Event()
         data class SetBrightness(val brightness: Float) : Event()
-        data class ChangeVideoAspect(val aspect: VideoAspect) : Event()
+        // ANZ -->
+        data class ChangeVideoAspect(val aspect: VideoAspect, val showUpdate: Boolean = true) : Event()
+        // ANZ <--
         data object CycleRotations : Event()
         data object ToggleKeyboard : Event()
         data class SetKeyboard(val show: Boolean) : Event()
@@ -2824,6 +2912,16 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    // ANZ -->
+    /**
+     * Re-applies the aspect ratio the user last chose for this session/anime.
+     *
+     * This is the single entry point for "make mpv match the stored aspect intent" and must be
+     * called whenever the video params become known, a file finishes loading, playback restarts,
+     * or the configuration changes. Rotation previously reset `video-aspect-override` by calling
+     * [changeVideoAspect] with the stored [VideoAspect], which wiped any custom ratio.
+     */
+    // ANZ <--
     fun restoreAspectRatio() {
         val aspect = playerPreferences.aspectState().get()
         val lastRatio = playerPreferences.lastAspectRatio().get().toDouble()
@@ -2832,18 +2930,27 @@ class PlayerViewModel @JvmOverloads constructor(
         val currentAnimeId = currentAnime.value?.id ?: -1L
 
         if (aspect == VideoAspect.Stretch) {
-            changeVideoAspect(VideoAspect.Stretch)
+            // ANZ -->
+            changeVideoAspect(VideoAspect.Stretch, showUpdate = false)
+            // ANZ <--
         } else if (lastRatio != -1.0 && (rememberAspectRatio || lastRatioAnimeId == currentAnimeId)) {
             _videoAspectOverride.value = lastRatio
             mpv.setPropertyDouble("panscan", 0.0)
             mpv.setPropertyDouble("video-aspect-override", lastRatio)
             playerPreferences.aspectState().set(VideoAspect.Fit)
         } else {
-            if (lastRatio != -1.0) {
+            // ANZ -->
+            // Only drop the stored ratio once the playing anime is known: clearing it while
+            // currentAnime is still unresolved would erase another anime's saved ratio.
+            if (lastRatio != -1.0 && currentAnimeId != -1L) {
                 playerPreferences.lastAspectRatio().set(-1f)
                 playerPreferences.lastAspectRatioAnimeId().set(-1L)
             }
-            changeVideoAspect(aspect)
+            _videoAspectOverride.value = -1.0
+            // ANZ <--
+            // ANZ -->
+            changeVideoAspect(aspect, showUpdate = false)
+            // ANZ <--
         }
     }
 

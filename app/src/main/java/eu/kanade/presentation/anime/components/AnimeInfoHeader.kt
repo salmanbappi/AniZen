@@ -112,6 +112,7 @@ import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.presentation.anime.components.RatioSwitchToPanorama
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.asAnimeBackground
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -167,9 +168,23 @@ fun AnimeInfoBox(
         val context = LocalContext.current
         val uiPreferences = remember { Injekt.get<eu.kanade.domain.ui.UiPreferences>() }
         val animatedTransitions by uiPreferences.animatedTransitions().collectAsState()
-        val backdropImageRequest = remember(anime.id, anime.thumbnailUrl, anime.coverLastModified, animatedTransitions) {
+        val backdropImageRequest = remember(
+            anime.id,
+            anime.thumbnailUrl,
+            anime.coverLastModified,
+            anime.backgroundUrl,
+            anime.backgroundLastModified,
+            animatedTransitions,
+        ) {
             ImageRequest.Builder(context)
-                .data(anime.asAnimeCover())
+                // Prefer the source-provided background image; fall back to the cover.
+                .data(
+                    if (!anime.backgroundUrl.isNullOrEmpty()) {
+                        anime.asAnimeBackground()
+                    } else {
+                        anime.asAnimeCover()
+                    },
+                )
                 .precision(coil3.size.Precision.INEXACT)
                 .crossfade(animatedTransitions)
                 .build()

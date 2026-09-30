@@ -65,6 +65,16 @@ class UpdateAnime(
 
         val thumbnailUrl = remoteAnime.thumbnail_url?.takeIf { it.isNotEmpty() }
 
+        val backgroundLastModified =
+            when {
+                // Never refresh backgrounds if the url is empty to avoid "losing" existing backgrounds
+                remoteAnime.background_url.isNullOrEmpty() -> null
+                !manualFetch && localAnime.backgroundUrl == remoteAnime.background_url -> null
+                else -> Instant.now().toEpochMilli()
+            }
+
+        val backgroundUrl = remoteAnime.background_url?.takeIf { it.isNotEmpty() }
+
         return animeRepository.update(
             AnimeUpdate(
                 id = localAnime.id,
@@ -75,6 +85,8 @@ class UpdateAnime(
                 description = remoteAnime.description,
                 genre = remoteAnime.getGenres(),
                 thumbnailUrl = thumbnailUrl,
+                backgroundUrl = backgroundUrl,
+                backgroundLastModified = backgroundLastModified,
                 status = remoteAnime.status.toLong(),
                 updateStrategy = remoteAnime.update_strategy,
                 fetchType = remoteAnime.fetch_type,

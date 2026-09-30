@@ -336,25 +336,29 @@ enum class AnimeCover(val ratio: Float) {
         fun getRatio(animeId: Long): Float {
             if (!CoverSettings.panoramaCover) return Book.ratio
 
-            return remember(animeId) {
-                CoverColorObserver.ratios.value[animeId] ?: Book.ratio
-            }
+            // ANZ -->
+            // Observed, not `remember(animeId)`-ed: the ratio is measured only once the cover
+            // has loaded, i.e. after the first composition here. Memoising the fallback made
+            // every caller keep the book aspect until its cell was recycled and composed again.
+            return CoverColorObserver.ratioState(animeId).value ?: Book.ratio
+            // ANZ <--
         }
 
         @Composable
         fun getEntry(animeId: Long, usePanoramaOverride: Boolean? = null): Pair<AnimeCover, Float> {
             val usePanorama = usePanoramaOverride ?: CoverSettings.panoramaCover
 
+            // Panorama off never measures, so it must not subscribe to a ratio either: this is
+            // the default configuration and every cover on screen reads it.
             if (!usePanorama) return Book to Book.ratio
 
-            val ratio = remember(animeId) {
-                CoverColorObserver.ratios.value[animeId] ?: Book.ratio
-            }
+            // ANZ -->
+            // See getRatio: the measured ratio has to be observed, not memoised, or a cell that
+            // composed before its cover loaded stays book-shaped until it is recycled.
+            val ratio = CoverColorObserver.ratioState(animeId).value ?: Book.ratio
 
-            return remember(ratio) {
-                val entry = if (ratio > RatioSwitchToPanorama) Panorama else Book
-                entry to ratio
-            }
+            return if (ratio > RatioSwitchToPanorama) Panorama to ratio else Book to ratio
+            // ANZ <--
         }
 
         /**

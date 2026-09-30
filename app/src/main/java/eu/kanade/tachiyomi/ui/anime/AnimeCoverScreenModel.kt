@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.data.saver.Location
 import eu.kanade.tachiyomi.util.editCover
 import eu.kanade.tachiyomi.util.system.getBitmapOrNull
 import eu.kanade.tachiyomi.util.system.toShareIntent
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
@@ -26,6 +27,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.interactor.GetAnime
+import tachiyomi.domain.anime.interactor.GetCustomAnimeInfo
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
@@ -34,6 +36,9 @@ import uy.kohesive.injekt.api.get
 class AnimeCoverScreenModel(
     private val animeId: Long,
     private val getAnime: GetAnime = Injekt.get(),
+    // ANZ -->
+    private val getCustomAnimeInfo: GetCustomAnimeInfo = Injekt.get(),
+    // ANZ <--
     private val imageSaver: ImageSaver = Injekt.get(),
     private val coverCache: CoverCache = Injekt.get(),
     private val updateAnime: UpdateAnime = Injekt.get(),
@@ -43,8 +48,17 @@ class AnimeCoverScreenModel(
 
     init {
         screenModelScope.launchIO {
+            // ANZ -->
+            // Attach the user's edit overlay. `Anime.title` is derived as
+            // `customAnimeInfo?.title ?: ogTitle`, and the repository flow carries no overlay, so
+            // without this the saved cover landed in a Pictures folder named after the source's
+            // original title instead of the title the user set.
             getAnime.subscribe(animeId)
+                .combine(getCustomAnimeInfo.subscribe(animeId)) { anime, customInfo ->
+                    anime.copy(customAnimeInfo = customInfo)
+                }
                 .collect { newAnime -> mutableState.update { newAnime } }
+            // ANZ <--
         }
     }
 
@@ -104,8 +118,13 @@ class AnimeCoverScreenModel(
             imageSaver.save(
                 Image.Cover(
                     bitmap = bitmap,
-                    name = "cover",
-                    location = if (temp) Location.Cache else Location.Pictures(anime.title),
+                    // ANZ -->
+                    // Match upstream Anikku: a flat "<title>-cover.jpg" in the pictures folder,
+                    // resolved through the edit overlay so the name uses the title the user set.
+                    // Previously this wrote "cover.jpg" into a per-anime subfolder.
+                    name = "${anime.title}-cover",
+                    location = if (temp) Location.Cache else Location.Pictures.create(),
+                    // ANZ <--
                 ),
             )
         }

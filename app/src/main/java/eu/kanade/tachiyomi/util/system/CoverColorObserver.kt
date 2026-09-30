@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.util.system
 
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +40,20 @@ object CoverColorObserver {
 
     private val _ratios = MutableStateFlow<Map<Long, Float>>(emptyMap())
     val ratios = _ratios.asStateFlow()
+
+    // ANZ -->
+    /**
+     * Compose mirror of `_ratios`: one snapshot state per anime id.
+     *
+     * `_ratios` is a StateFlow, and reading `.value` from a composable records nothing, so a
+     * grid cell that composed *before* its cover was measured never learned that the ratio
+     * had arrived: it kept the book aspect until the cell was recycled and composed again
+     * (scroll away, scroll back). One state per id — rather than a single snapshot map —
+     * keeps a measurement from invalidating every cover on screen: only the cell whose ratio
+     * changed recomposes.
+     */
+    private val ratioStates = ConcurrentHashMap<Long, MutableState<Float?>>()
+    // ANZ <--
 
     /** Version of the cover each cached color/ratio was extracted from. */
     private val lastModified = ConcurrentHashMap<Long, Long>()
@@ -94,6 +111,11 @@ object CoverColorObserver {
             val sameValue = previous != null && Math.abs(previous - ratio) < 0.01f
             if (!sameValue || previousVersion != coverLastModified) {
                 _ratios.update { it + (animeId to ratio) }
+                // ANZ -->
+                // Same lock as the store write, so a composition can never read the store and
+                // miss the mirror (or vice versa).
+                publishRatio(animeId, ratio)
+                // ANZ <--
                 lastModified[animeId] = coverLastModified
                 pendingRatios += encode(animeId, coverLastModified, ratio)
                 changed = true
@@ -131,6 +153,40 @@ object CoverColorObserver {
         }
         return _ratios.value[animeId]
     }
+
+    // ANZ -->
+    /**
+     * Ratio for [animeId] as composition-observable state, or null while it is unmeasured.
+     *
+     * Composables must read this instead of [ratios] so that a cover measured *after* it was
+     * composed — the image has to load first — updates the composable that asked for it.
+     *
+     * Deliberately lock-free: the writer's monitor is also held across a prefs flush, and the
+     * composition thread must never wait behind that.
+     */
+    fun ratioState(animeId: Long): State<Float?> {
+        ratioStates[animeId]?.let { return it }
+
+        val created = mutableStateOf(_ratios.value[animeId])
+        ratioStates.putIfAbsent(animeId, created)?.let { return it }
+
+        // A measurement can land between the read above and the put: its publish found no state
+        // to write, so pick the value up here. Re-reading after the state is visible closes that
+        // window.
+        _ratios.value[animeId]?.let { created.value = it }
+        return created
+    }
+
+    /** Hands a stored ratio to the state a composition may already be observing. */
+    private fun publishRatio(animeId: Long, ratio: Float) {
+        ratioStates[animeId]?.value = ratio
+    }
+
+    /** Hands every hydrated ratio to its state, if one was created before hydration finished. */
+    private fun publishRatios(ratios: Map<Long, Float>) {
+        ratios.forEach { (animeId, ratio) -> publishRatio(animeId, ratio) }
+    }
+    // ANZ <--
 
     // endregion
 
@@ -186,6 +242,11 @@ object CoverColorObserver {
             // (freshest) win over the prefs snapshot; prefs fill in ids not yet seen.
             if (colors.isNotEmpty()) _vibrantColors.value = colors + _vibrantColors.value
             if (ratios.isNotEmpty()) _ratios.value = ratios + _ratios.value
+            // ANZ -->
+            // Mirror what was just hydrated: a screen composed while this load was running holds
+            // states created from the pre-hydration store. States created later read [_ratios].
+            if (ratios.isNotEmpty()) publishRatios(ratios)
+            // ANZ <--
             // Same rule for versions: keep the in-memory (newer) version when present.
             versions.forEach { (id, v) -> lastModified.putIfAbsent(id, v) }
 

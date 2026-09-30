@@ -127,7 +127,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             mpv?.setOptionString(it.mpvProperty, value.toString())
         }
 
-        mpv?.setOptionString("speed", playerPreferences.playerSpeed().get().toString())
+        // ANZ -->
+        mpv?.setPropertyDouble("speed", playerPreferences.playerSpeed().get().toDouble())
+        // ANZ <--
         // workaround for <https://github.com/mpv-player/mpv/issues/14651>
         setSafeOptionString("vd-lavc-film-grain", "cpu")
 
