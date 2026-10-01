@@ -82,6 +82,10 @@ import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sqrt
 
+private const val MIN_SPEED = 0.5f
+private const val MAX_SPEED = 4.0f
+private const val SPEED_GESTURE_SENSITIVITY = 0.0035
+
 @Composable
 fun GestureHandler(
     viewModel: PlayerViewModel,
@@ -141,7 +145,7 @@ fun GestureHandler(
     var wasPaused by remember { mutableStateOf(false) }
     var isSpeedLongPress by remember { mutableStateOf(false) }
 
-    fun rampSpeed(targetSpeed: Float, onComplete: () -> Unit = {}) {
+    fun rampSpeed(targetSpeed: Float, updateUi: Boolean = true, onComplete: () -> Unit = {}) {
         speedRampJob?.cancel()
         speedRampJob = scope.launch {
             // ANZ -->
@@ -149,17 +153,18 @@ fun GestureHandler(
             val step = if (targetSpeed > currentSpeed) 0.1f else -0.1f
 
             while (if (step > 0) currentSpeed < targetSpeed else currentSpeed > targetSpeed) {
-                currentSpeed += step
-                if (step > 0 && currentSpeed > targetSpeed) currentSpeed = targetSpeed
-                if (step < 0 && currentSpeed < targetSpeed) currentSpeed = targetSpeed
+                if (abs(targetSpeed - currentSpeed) <= 0.1f) {
+                    currentSpeed = targetSpeed
+                } else {
+                    currentSpeed += step
+                }
 
                 viewModel.mpv.setPropertyDouble("speed", currentSpeed.toDouble())
-                viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(currentSpeed, false) }
+                if (updateUi) viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(currentSpeed, false) }
                 delay(16)
             }
-            viewModel.mpv.setPropertyDouble("speed", targetSpeed.toDouble())
             // ANZ <--
-            viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(targetSpeed, false) }
+            if (updateUi) viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(targetSpeed, false) }
             onComplete()
         }
     }
@@ -311,6 +316,7 @@ fun GestureHandler(
                         var lastX = down.position.x
                         var unsnappedCurrentSpeed = originalSpeed.toDouble()
                         var hasInitializedDragSpeed = false
+                        var currentSnappedSpeed = playerPreferences.playerSpeedLongPress().get()
                         
                         while (true) {
                             val event = awaitPointerEvent()
@@ -345,19 +351,23 @@ fun GestureHandler(
                                                 playerPreferences.playerSpeedLongPress().get(),
                                                 viewModel.mpv.getPropertyDouble("speed")?.toFloat() ?: 1f,
                                             ).toDouble()
+                                            currentSnappedSpeed = (Math.round(unsnappedCurrentSpeed * 2.0) / 2.0).toFloat().coerceIn(MIN_SPEED, MAX_SPEED)
                                             // ANZ <--
                                             hasInitializedDragSpeed = true
                                             lastX = pointer.position.x
                                         }
                                         val diffX = pointer.position.x - lastX
                                         if (abs(diffX) > 1f) {
-                                            unsnappedCurrentSpeed = (unsnappedCurrentSpeed + diffX * 0.0035).coerceIn(0.25, 4.0)
-                                            val snappedSpeed = (Math.round(unsnappedCurrentSpeed * 2.0) / 2.0).toFloat().coerceIn(0.5f, 4.0f)
-                                            speedRampJob?.cancel()
                                             // ANZ -->
-                                            viewModel.mpv.setPropertyDouble("speed", snappedSpeed.toDouble())
+                                            unsnappedCurrentSpeed = (unsnappedCurrentSpeed + diffX * SPEED_GESTURE_SENSITIVITY).coerceIn(MIN_SPEED.toDouble(), MAX_SPEED.toDouble())
+                                            val snappedSpeed = (Math.round(unsnappedCurrentSpeed * 2.0) / 2.0).toFloat().coerceIn(MIN_SPEED, MAX_SPEED)
+                                            if (snappedSpeed != currentSnappedSpeed) {
+                                                currentSnappedSpeed = snappedSpeed
+                                                rampSpeed(snappedSpeed, updateUi = false)
+
+                                                viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(snappedSpeed, isDragging = true) }
+                                            }
                                             // ANZ <--
-                                            viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed(snappedSpeed, isDragging = true) }
                                             lastX = pointer.position.x
                                         }
                                     } else {
