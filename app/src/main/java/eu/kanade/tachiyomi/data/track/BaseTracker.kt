@@ -16,6 +16,9 @@ abstract class BaseTracker(
     val trackPreferences: TrackPreferences by injectLazy()
     val networkService: NetworkHelper by injectLazy()
 
+    @Volatile
+    private var cachedIsLoggedIn: Boolean? = null
+
     override val client: OkHttpClient
         get() = networkService.client
 
@@ -24,12 +27,14 @@ abstract class BaseTracker(
 
     @CallSuper
     override fun logout() {
+        cachedIsLoggedIn = false
         trackPreferences.setCredentials(this, "", "")
     }
 
     override val isLoggedIn: Boolean
-        get() = getUsername().isNotEmpty() &&
-            getPassword().isNotEmpty()
+        get() = cachedIsLoggedIn ?: (getUsername().isNotEmpty() && getPassword().isNotEmpty()).also {
+            cachedIsLoggedIn = it
+        }
 
     override val isLoggedInFlow: Flow<Boolean> by lazy {
         combine(
@@ -45,6 +50,7 @@ abstract class BaseTracker(
     override fun getPassword() = trackPreferences.trackPassword(this).get()
 
     override fun saveCredentials(username: String, password: String) {
+        cachedIsLoggedIn = username.isNotEmpty() && password.isNotEmpty()
         trackPreferences.setCredentials(this, username, password)
     }
 }

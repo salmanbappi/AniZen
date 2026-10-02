@@ -214,7 +214,7 @@ private fun ColumnScope.FilterPage(
         }
         else -> {
             HeadingItem(MR.strings.action_filter_tracked)
-            trackers.map { service ->
+            trackers.fastForEach { service ->
                 val filterTracker by screenModel.libraryPreferences.filterTracking(service.id.toInt()).collectAsState()
                 TriStateItem(
                     label = service.name,
@@ -283,7 +283,7 @@ private fun ColumnScope.SortPage(
         )
     }
 
-    options.map { (titleRes, mode) ->
+    options.fastForEach { (titleRes, mode) ->
         if (mode == LibrarySort.Type.Random) {
             BaseSortItem(
                 label = stringResource(titleRes),
@@ -293,7 +293,7 @@ private fun ColumnScope.SortPage(
                     screenModel.setSort(category, mode, LibrarySort.Direction.Ascending)
                 },
             )
-            return@map
+            return@fastForEach
         }
         SortItem(
             label = stringResource(titleRes),
@@ -334,7 +334,7 @@ private fun ColumnScope.DisplayPage(
 ) {
     val displayMode by screenModel.libraryPreferences.displayMode().collectAsState()
     SettingsChipRow(MR.strings.action_display_mode) {
-        displayModes.map { (titleRes, mode) ->
+        displayModes.fastForEach { (titleRes, mode) ->
             FilterChip(
                 selected = displayMode == mode,
                 onClick = { screenModel.setDisplayMode(mode) },
@@ -351,7 +351,7 @@ private fun ColumnScope.DisplayPage(
     val panoramaMode by uiPreferences.libraryPanoramaMode().collectAsState()
 
     SettingsChipRow(KMR.strings.pref_panorama_cover) {
-        PanoramaMode.entries.map { mode ->
+        PanoramaMode.entries.fastForEach { mode ->
             FilterChip(
                 selected = panoramaMode == mode,
                 onClick = { uiPreferences.libraryPanoramaMode().set(mode) },
@@ -361,7 +361,7 @@ private fun ColumnScope.DisplayPage(
     }
 
     val configuration = LocalConfiguration.current
-    val columnPreference = remember {
+    val columnPreference = remember(configuration.orientation) {
         if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             screenModel.libraryPreferences.landscapeColumns()
         } else {

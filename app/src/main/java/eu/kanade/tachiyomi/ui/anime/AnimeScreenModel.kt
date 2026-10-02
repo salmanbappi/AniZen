@@ -12,25 +12,27 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import tachiyomi.domain.source.model.StubSource
 import eu.kanade.core.util.addOrRemove
-import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.anime.interactor.SetAnimeViewerFlags
+import eu.kanade.domain.anime.interactor.SyncSeasonsWithSource
 import eu.kanade.domain.anime.interactor.UpdateAnime
 import eu.kanade.domain.anime.model.downloadedFilter
 import eu.kanade.domain.anime.model.episodesFiltered
-import tachiyomi.domain.anime.model.toSAnime
-import tachiyomi.domain.anime.model.toDomainAnime
 import eu.kanade.domain.episode.interactor.SetSeenStatus
 import eu.kanade.domain.episode.interactor.SyncEpisodesWithSource
+import eu.kanade.domain.episode.model.applyFilters
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.TrackEpisode
 import eu.kanade.domain.track.model.AutoTrackState
-import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.presentation.anime.DownloadAction
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
 import eu.kanade.presentation.util.formattedMessage
+import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
+import eu.kanade.tachiyomi.animesource.model.AnimeFilter
+import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -44,32 +46,27 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.isSourceForTorrents
 import eu.kanade.tachiyomi.torrentServer.TorrentServerUtils
 import eu.kanade.tachiyomi.ui.anime.track.TrackItem
-import eu.kanade.tachiyomi.ui.player.loader.EpisodeLoader
-import eu.kanade.tachiyomi.ui.player.loader.HosterLoader
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.util.AniChartApi
 import eu.kanade.tachiyomi.util.episode.EpisodeSeasonUtils
 import eu.kanade.tachiyomi.util.episode.getNextUnseen
 import eu.kanade.tachiyomi.util.removeCovers
 import eu.kanade.tachiyomi.util.system.toast
-import exh.source.MERGED_SOURCE_ID
 import exh.util.nullIfEmpty
 import exh.util.trimOrNull
-import java.util.Collections
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -81,6 +78,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.float
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import logcat.LogPriority
 import mihon.domain.episode.interactor.FilterEpisodesForDownload
 import tachiyomi.core.common.i18n.stringResource
@@ -93,32 +94,30 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.source.NoResultsException
-import tachiyomi.domain.track.interactor.GetTracks
-import eu.kanade.domain.source.service.SourcePreferences
-import tachiyomi.domain.track.interactor.GetTracksPerAnime
-import tachiyomi.domain.track.interactor.InsertTrack
-import tachiyomi.domain.track.model.Track
-import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
-import tachiyomi.domain.anime.interactor.SetAnimeSeasonFlags
-import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
-import tachiyomi.domain.anime.interactor.SetCustomAnimeInfo
+import tachiyomi.domain.anime.interactor.CalculateUserAffinity
+import tachiyomi.domain.anime.interactor.FetchInterval
 import tachiyomi.domain.anime.interactor.GetAnime
+import tachiyomi.domain.anime.interactor.GetAnimeWithEpisodesAndSeasons
+import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
+import tachiyomi.domain.anime.interactor.GetLibraryAnime
 import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
+import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
+import tachiyomi.domain.anime.interactor.SetAnimeSeasonFlags
+import tachiyomi.domain.anime.interactor.SetCustomAnimeInfo
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.AnimeUpdate
-import tachiyomi.domain.anime.model.NoSeasonsException
-import eu.kanade.domain.anime.interactor.SyncSeasonsWithSource
-import tachiyomi.domain.anime.model.SeasonDisplayMode
 import tachiyomi.domain.anime.model.CustomAnimeInfo
 import tachiyomi.domain.anime.model.MergedAnimeReference
+import tachiyomi.domain.anime.model.NoSeasonsException
 import tachiyomi.domain.anime.model.Season
-import tachiyomi.domain.anime.model.applyFilter
+import tachiyomi.domain.anime.model.SeasonDisplayMode
 import tachiyomi.domain.anime.model.toAnimeUpdate
+import tachiyomi.domain.anime.model.toDomainAnime
+import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
-import tachiyomi.domain.anime.interactor.FetchInterval
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.episode.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.episode.interactor.UpdateEpisode
@@ -127,36 +126,21 @@ import tachiyomi.domain.episode.model.EpisodeUpdate
 import tachiyomi.domain.episode.service.calculateChapterGap
 import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.episode.service.missingEpisodesCount
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.float
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import tachiyomi.domain.anime.interactor.CalculateUserAffinity
-import tachiyomi.domain.anime.interactor.GetLibraryAnime
-import tachiyomi.domain.library.model.LibraryAnime
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.source.interactor.GetRelatedAnime
+import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
 import tachiyomi.domain.track.interactor.DeleteTrack
+import tachiyomi.domain.track.interactor.GetTracks
+import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
-import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.localanime.LocalAnimeSource
 import tachiyomi.source.localanime.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.io.Serializable
 import java.util.Calendar
 import kotlin.math.floor
-
-import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
-import eu.kanade.tachiyomi.animesource.model.AnimeFilter
-import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
-import eu.kanade.tachiyomi.animesource.model.SAnime
-import eu.kanade.domain.episode.model.applyFilters
-import tachiyomi.domain.anime.interactor.GetAnimeWithEpisodesAndSeasons
 
 class AnimeScreenModel(
     private val context: Context,
@@ -280,23 +264,23 @@ class AnimeScreenModel(
         excludedScanlators: ImmutableSet<String> = this.excludedScanlators,
         nextAiringEpisode: Pair<Int, Long> = this.nextAiringEpisode,
         selectedSeason: String? = this.selectedSeason,
-        episodeToSeason: Map<Long, String> = this.episodeToSeason,
-        fillerEpisodes: Set<Float> = this.fillerEpisodes,
+        episodeToSeason: ImmutableMap<Long, String> = this.episodeToSeason,
+        fillerEpisodes: ImmutableSet<Float> = this.fillerEpisodes,
         showEpisodeSummary: Boolean = anime.showSummaries(),
         showEpisodeThumbnail: Boolean = anime.showPreviews(),
         hideMissingEpisodes: Boolean = libraryPreferences.hideMissingEpisodes().get(),
     ): State.Success {
-        val episodesStatusHash = episodes.sumOf { 
-            it.episode.lastModifiedAt + 
-            (if (it.episode.seen) 1L else 0L) + 
-            (if (it.selected) 2L else 0L) + 
-            (it.downloadState.hashCode().toLong() * 10L) + 
-            (it.downloadProgress.toLong() * 100L)
+        val episodesStatusHash = episodes.sumOf {
+            it.episode.lastModifiedAt +
+                (if (it.episode.seen) 1L else 0L) +
+                (if (it.selected) 2L else 0L) +
+                (it.downloadState.hashCode().toLong() * 10L) +
+                (it.downloadProgress.toLong() * 100L)
         }
         val previousHash = (this as? State.Success)?.episodesStatusHash ?: 0L
-        val episodesChanged = episodes.size != this.episodes.size || 
-                             episodesStatusHash != previousHash ||
-                             episodes.firstOrNull()?.episode?.id != this.episodes.firstOrNull()?.episode?.id
+        val episodesChanged = episodes.size != this.episodes.size ||
+            episodesStatusHash != previousHash ||
+            episodes.firstOrNull()?.episode?.id != this.episodes.firstOrNull()?.episode?.id
 
         val processedEpisodes = if (anime === this.anime && !episodesChanged) {
             this.processedEpisodes
@@ -336,13 +320,13 @@ class AnimeScreenModel(
             val items = mutableListOf<EpisodeList>()
             val seasonsList = mutableListOf<String>()
             val mapping = mutableMapOf<Long, String>()
-            
+
             var groupingMode = anime.seasonGroupingMode
             // Handle Seasons
             if (groupingMode != LibraryPreferences.SeasonGrouping.Disabled) {
                 // Step 1: Detect if source provides episodes in descending order (newest first)
                 val sourceOrdered = processedEpisodes.sortedBy { it.episode.sourceOrder }
-                
+
                 // Detect if sourceOrder is likely descending (newest first)
                 val firstWithNumber = sourceOrdered.firstOrNull { it.episode.episodeNumber >= 0 }
                 val lastWithNumber = sourceOrdered.lastOrNull { it.episode.episodeNumber >= 0 }
@@ -351,20 +335,20 @@ class AnimeScreenModel(
                 } else {
                     false
                 }
-                
+
                 // Step 2: Process episodes in chronological sequence (oldest to newest) to find blocks
                 val chronological = if (isSourceDescending) sourceOrdered.reversed() else sourceOrdered
-                
+
                 data class EpisodeBlock(
-                    val episodes: MutableList<EpisodeList.Item> = mutableListOf()
+                    val episodes: MutableList<EpisodeList.Item> = mutableListOf(),
                 )
                 val blocks = mutableListOf<EpisodeBlock>()
                 var currentBlock = EpisodeBlock()
-                
+
                 for (index in chronological.indices) {
                     val item = chronological[index]
                     val prevItem = chronological.getOrNull(index - 1)
-                    
+
                     val currentIsSeasonZero = EpisodeSeasonUtils.isSeasonZero(item.episode)
                     val prevIsSeasonZero = prevItem?.let { EpisodeSeasonUtils.isSeasonZero(it.episode) }
 
@@ -405,7 +389,7 @@ class AnimeScreenModel(
                             if (name != "Season 0") explicitSeasonName = name
                         }
                     }
-                    
+
                     val seasonName = if (isSeasonZeroBlock) {
                         "Specials"
                     } else if (explicitSeasonName != null) {
@@ -413,7 +397,7 @@ class AnimeScreenModel(
                     } else {
                         "Extras"
                     }
-                    
+
                     if (!seasonsList.contains(seasonName)) {
                         seasonsList.add(seasonName)
                     }
@@ -426,7 +410,7 @@ class AnimeScreenModel(
                 var lastSeasonHeader: String? = null
                 for (i in 0..processedEpisodes.lastIndex) {
                     val item = processedEpisodes[i]
-                    
+
                     // 1. Season Header (Must be BEFORE the item)
                     val seasonName = mapping[item.episode.id]
                     if (seasonName != null && seasonName != lastSeasonHeader) {
@@ -489,7 +473,7 @@ class AnimeScreenModel(
                     }
                 }
             }
-            Triple(items.toImmutableList(), seasonsList.sortedWith(EpisodeSeasonUtils.SeasonComparator).toImmutableList(), mapping)
+            Triple(items.toImmutableList(), seasonsList.sortedWith(EpisodeSeasonUtils.SeasonComparator).toImmutableList(), mapping.toImmutableMap())
         }
 
         val groupingMode = anime.seasonGroupingMode
@@ -649,13 +633,13 @@ class AnimeScreenModel(
                 getExcludedScanlators.subscribe(animeId),
                 downloadCache.changes,
                 downloadManager.queueState,
-            ) { triple, availableScanlators, excludedScanlators, _, _ -> 
-                Triple(triple, availableScanlators, excludedScanlators) 
+            ) { triple, availableScanlators, excludedScanlators, _, _ ->
+                Triple(triple, availableScanlators, excludedScanlators)
             }
                 .onEach { (triple, availableScanlators, excludedScanlators) ->
                     val (anime, episodes, seasonAnimes) = triple
                     val hasHierarchicalSeasons = seasonAnimes.isNotEmpty() || anime.parentId != null
-                    
+
                     val correctedAnime = if (anime.parentId != null && anime.fetchType == FetchType.Seasons) {
                         val a = anime.copy(fetchType = FetchType.Episodes)
                         if (hasHierarchicalSeasons) {
@@ -732,7 +716,7 @@ class AnimeScreenModel(
                     }
                 }
                 .launchIn(screenModelScope)
-            
+
             observeDownloads()
             observeTrackers()
             observeMergedAnime()
@@ -851,7 +835,9 @@ class AnimeScreenModel(
                 val affinityMap = try {
                     val json = Json.parseToJsonElement(libraryPreferences.userAffinityMap().get()).jsonObject
                     json.mapValues { it.value.jsonPrimitive.float }
-                } catch (e: Exception) { emptyMap<String, Float>() }
+                } catch (e: Exception) {
+                    emptyMap<String, Float>()
+                }
 
                 // Only deduplicate against the current anime itself to keep density high as requested
                 val initialSections = SuggestionSection.Type.entries.map { type ->
@@ -864,7 +850,7 @@ class AnimeScreenModel(
                             else -> "Other"
                         },
                         items = persistentListOf(),
-                        type = type
+                        type = type,
                     )
                 }.toMutableList()
 
@@ -889,7 +875,13 @@ class AnimeScreenModel(
                                 eu.kanade.tachiyomi.util.lang.StringSimilarity.tokenSortRatio(candClean, eu.kanade.tachiyomi.util.lang.StringSimilarity.cleanTitle(lib.anime.title)) > 85
                             }
 
-                            val franchiseWeight = if (type == SuggestionSection.Type.Franchise) 3.0f else if (isFranchise) 0.4f else 1.0f
+                            val franchiseWeight = if (type == SuggestionSection.Type.Franchise) {
+                                3.0f
+                            } else if (isFranchise) {
+                                0.4f
+                            } else {
+                                1.0f
+                            }
                             val baseScore = 1.0f
 
                             candidate to ((baseScore + affinityScore) * (0.3f + titleSim.toFloat()) * franchiseWeight)
@@ -901,7 +893,7 @@ class AnimeScreenModel(
                 fun updateSection(type: SuggestionSection.Type, items: List<Anime>) {
                     val currentSuccess = successState ?: return
                     val rankedItems = rankAndSortItems(items, currentSuccess.anime, type).toImmutableList()
-                    
+
                     updateSuccessState { state ->
                         val index = initialSections.indexOfFirst { it.type == type }
                         if (index != -1) {
@@ -1201,12 +1193,14 @@ class AnimeScreenModel(
         screenModelScope.launch {
             val categories = getCategories()
             val selection = getAnimeCategoryIds(anime)
-            updateSuccessState { it.copySuccess(
-                dialog = Dialog.ChangeCategory(
-                    anime = anime,
-                    initialSelection = categories.mapAsCheckboxState { it.id in selection }.toImmutableList(),
-                ),
-            )}
+            updateSuccessState {
+                it.copySuccess(
+                    dialog = Dialog.ChangeCategory(
+                        anime = anime,
+                        initialSelection = categories.mapAsCheckboxState { it.id in selection }.toImmutableList(),
+                    ),
+                )
+            }
         }
     }
 
@@ -1247,7 +1241,7 @@ class AnimeScreenModel(
             try {
                 val fillerList = eu.kanade.tachiyomi.data.filler.AnimeFillerListFetcher().getFillerEpisodes(anime.title)
                 if (fillerList.isNotEmpty()) {
-                    updateSuccessState { it.copySuccess(fillerEpisodes = fillerList) }
+                    updateSuccessState { it.copySuccess(fillerEpisodes = fillerList.toImmutableSet()) }
                 }
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
@@ -1294,11 +1288,14 @@ class AnimeScreenModel(
             } else if (downloadedEpisodeDirs.isNotEmpty()) {
                 downloadProvider.getValidEpisodeDirNames(episode.name, episode.scanlator).any { it in downloadedEpisodeDirs } ||
                     (
-                        episode.isRecognizedNumber && downloadedEpisodeDirs.any { dirName ->
-                            parseEpisodeNumberFromDir(anime.ogTitle, dirName, episode.scanlator) == episode.episodeNumber
-                        }
+                        episode.isRecognizedNumber &&
+                            downloadedEpisodeDirs.any { dirName ->
+                                parseEpisodeNumberFromDir(anime.ogTitle, dirName, episode.scanlator) == episode.episodeNumber
+                            }
                         )
-            } else false
+            } else {
+                false
+            }
             val downloadState = when {
                 activeDownload != null -> activeDownload.status
                 downloaded -> Download.State.DOWNLOADED
@@ -1362,7 +1359,9 @@ class AnimeScreenModel(
                 if (manualFetch) downloadNewEpisodes(newEpisodes)
             }
         } catch (e: Throwable) {
-            val message = if (e is NoResultsException) context.stringResource(MR.strings.no_episodes_error) else {
+            val message = if (e is NoResultsException) {
+                context.stringResource(MR.strings.no_episodes_error)
+            } else {
                 logcat(LogPriority.ERROR, e)
                 with(context) { e.formattedMessage }
             }
@@ -1570,7 +1569,9 @@ class AnimeScreenModel(
         screenModelScope.launchNonCancellable {
             try {
                 successState?.let { state -> downloadManager.deleteEpisodes(episodes, state.anime, state.source, isManual = true) }
-            } catch (e: Throwable) { logcat(LogPriority.ERROR, e) }
+            } catch (e: Throwable) {
+                logcat(LogPriority.ERROR, e)
+            }
         }
     }
 
@@ -1846,13 +1847,13 @@ class AnimeScreenModel(
             val processedEpisodes = successState.processedEpisodes
             val selectedIndex = processedEpisodes.indexOfFirst { it.id == item.episode.id }
             if (selectedIndex < 0) return@updateSuccessState successState
-            
+
             val selectedItem = processedEpisodes[selectedIndex]
             if ((selectedItem.selected && selected) || (!selectedItem.selected && !selected)) return@updateSuccessState successState
-            
+
             val firstSelection = processedEpisodes.none { it.selected }
             selectedEpisodeIds.addOrRemove(item.id, selected)
-            
+
             if (selected && userSelected && fromLongPress) {
                 if (firstSelection) {
                     selectedPositions[0] = selectedIndex
@@ -1866,8 +1867,10 @@ class AnimeScreenModel(
                         val r = (selectedPositions[1] + 1)..<selectedIndex
                         selectedPositions[1] = selectedIndex
                         r
-                    } else IntRange.EMPTY
-                    
+                    } else {
+                        IntRange.EMPTY
+                    }
+
                     range.forEach {
                         val inbetweenItem = processedEpisodes[it]
                         if (!inbetweenItem.selected) {
@@ -1877,11 +1880,17 @@ class AnimeScreenModel(
                 }
             } else if (userSelected && !fromLongPress) {
                 if (!selected) {
-                    if (selectedIndex == selectedPositions[0]) selectedPositions[0] = processedEpisodes.indexOfFirst { it.id in selectedEpisodeIds }
-                    else if (selectedIndex == selectedPositions[1]) selectedPositions[1] = processedEpisodes.indexOfLast { it.id in selectedEpisodeIds }
+                    if (selectedIndex == selectedPositions[0]) {
+                        selectedPositions[0] = processedEpisodes.indexOfFirst { it.id in selectedEpisodeIds }
+                    } else if (selectedIndex == selectedPositions[1]) {
+                        selectedPositions[1] = processedEpisodes.indexOfLast { it.id in selectedEpisodeIds }
+                    }
                 } else {
-                    if (selectedIndex < selectedPositions[0]) selectedPositions[0] = selectedIndex
-                    else if (selectedIndex > selectedPositions[1]) selectedPositions[1] = selectedIndex
+                    if (selectedIndex < selectedPositions[0]) {
+                        selectedPositions[0] = selectedIndex
+                    } else if (selectedIndex > selectedPositions[1]) {
+                        selectedPositions[1] = selectedIndex
+                    }
                 }
             }
 
@@ -1932,10 +1941,10 @@ class AnimeScreenModel(
         screenModelScope.launchIO {
             combine(getTracks.subscribe(anime.id).catch { logcat(LogPriority.ERROR, it) }, trackerManager.loggedInTrackersFlow()) { animeTracks, loggedInTrackers ->
                 loggedInTrackers.map { service -> TrackItem(animeTracks.find { it.trackerId == service.id }, service) }
-            }.distinctUntilChanged().collectLatest { trackItems -> 
+            }.distinctUntilChanged().collectLatest { trackItems ->
                 updateSuccessState { it.copySuccess(trackItems = trackItems) }
-                updateAiringTime(anime, trackItems, manualFetch = false) 
-                
+                updateAiringTime(anime, trackItems, manualFetch = false)
+
                 val anilistTrackItem = trackItems.find { it.tracker is eu.kanade.tachiyomi.data.track.anilist.Anilist && it.track != null }
                 if (anilistTrackItem != null) {
                     val tracker = anilistTrackItem.tracker as eu.kanade.tachiyomi.data.track.anilist.Anilist
@@ -2032,7 +2041,7 @@ class AnimeScreenModel(
     fun showTrackDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.TrackSheet) }
     fun showCoverDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.FullCover) }
     fun showEditAnimeInfoDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.EditAnimeInfo(it.anime)) }
-    
+
     fun toggleExcludedScanlator(scanlator: String) {
         val state = successState ?: return
         val currentExcluded = state.excludedScanlators.toMutableSet()
@@ -2164,6 +2173,7 @@ class AnimeScreenModel(
 
     sealed interface State {
         @Immutable data object Loading : State
+
         @Immutable data class Success(
             val anime: Anime,
             val source: Source,
@@ -2192,8 +2202,8 @@ class AnimeScreenModel(
             val selectedSeason: String? = null,
             val discoveryExpanded: Boolean = false,
             val mergedSources: ImmutableList<Source> = persistentListOf(),
-            val episodeToSeason: Map<Long, String> = emptyMap(),
-            val fillerEpisodes: Set<Float> = emptySet(),
+            val episodeToSeason: ImmutableMap<Long, String> = persistentMapOf(),
+            val fillerEpisodes: ImmutableSet<Float> = persistentSetOf(),
             val showEpisodeSummary: Boolean = true,
             val showEpisodeThumbnail: Boolean = true,
             val hideMissingEpisodes: Boolean = false,
@@ -2224,25 +2234,25 @@ class AnimeScreenModel(
                     val processedEpisodes = episodes.applyFilters(anime, skipDupeEpisodes).toImmutableList()
                     val hasUnseenEpisodes = processedEpisodes.any { !it.episode.seen }
                     val isWatching = processedEpisodes.any { it.episode.seen }
-                    val episodesStatusHash = episodes.sumOf { 
-                        it.episode.lastModifiedAt + 
-                        (if (it.episode.seen) 1L else 0L) + 
-                        (if (it.selected) 2L else 0L) + 
-                        (it.downloadState.hashCode().toLong() * 10L) + 
-                        (it.downloadProgress.toLong() * 100L)
+                    val episodesStatusHash = episodes.sumOf {
+                        it.episode.lastModifiedAt +
+                            (if (it.episode.seen) 1L else 0L) +
+                            (if (it.selected) 2L else 0L) +
+                            (it.downloadState.hashCode().toLong() * 10L) +
+                            (it.downloadProgress.toLong() * 100L)
                     }
                     val missingEpisodeCount = if (hideMissingEpisodes) 0 else processedEpisodes.map { it.episode.episodeNumber }.missingEpisodesCount()
-                    
+
                     val episodeListItems = mutableListOf<EpisodeList>()
                     val availableSeasonsList = mutableListOf<String>()
                     val episodeToSeason = mutableMapOf<Long, String>()
-                    
+
                     var groupingMode = anime.seasonGroupingMode
                     // Handle Seasons
                     if (groupingMode != LibraryPreferences.SeasonGrouping.Disabled) {
                         // Step 1: Detect if source provides episodes in descending order (newest first)
                         val sourceOrdered = processedEpisodes.sortedBy { it.episode.sourceOrder }
-                        
+
                         // Detect if sourceOrder is likely descending (newest first)
                         val firstWithNumber = sourceOrdered.firstOrNull { it.episode.episodeNumber >= 0 }
                         val lastWithNumber = sourceOrdered.lastOrNull { it.episode.episodeNumber >= 0 }
@@ -2251,16 +2261,16 @@ class AnimeScreenModel(
                         } else {
                             false
                         }
-                        
+
                         // Step 2: Process episodes in chronological sequence (oldest to newest) to find blocks
                         val chronological = if (isSourceDescending) sourceOrdered.reversed() else sourceOrdered
-                        
+
                         data class EpisodeBlock(
-                            val episodes: MutableList<EpisodeList.Item> = mutableListOf()
+                            val episodes: MutableList<EpisodeList.Item> = mutableListOf(),
                         )
                         val blocks = mutableListOf<EpisodeBlock>()
                         var currentBlock = EpisodeBlock()
-                        
+
                         for (index in chronological.indices) {
                             val item = chronological[index]
                             val prevItem = chronological.getOrNull(index - 1)
@@ -2326,7 +2336,7 @@ class AnimeScreenModel(
                         var lastSeasonHeader: String? = null
                         for (i in 0..processedEpisodes.lastIndex) {
                             val item = processedEpisodes[i]
-                            
+
                             // 1. Season Header (Must be BEFORE the item)
                             val seasonName = episodeToSeason[item.episode.id]
                             if (seasonName != null && seasonName != lastSeasonHeader) {
@@ -2418,7 +2428,7 @@ class AnimeScreenModel(
                         dialog = dialog,
                         availableSeasons = sortedSeasons.toImmutableList(),
                         selectedSeason = finalSelectedSeason,
-                        episodeToSeason = episodeToSeason,
+                        episodeToSeason = episodeToSeason.toImmutableMap(),
                         showEpisodeSummary = anime.showSummaries(),
                         showEpisodeThumbnail = anime.showPreviews(),
                         // AY -->

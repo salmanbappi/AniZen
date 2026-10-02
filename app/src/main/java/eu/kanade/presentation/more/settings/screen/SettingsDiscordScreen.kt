@@ -251,7 +251,7 @@ object SettingsDiscordScreen : SearchableSettings {
                 message = stringResource(R.string.pref_discord_incognito_categories_details),
                 items = allAnimeCategories,
                 initialChecked = includedAnime.mapNotNull { id -> allAnimeCategories.find { it.id.toString() == id } },
-                initialInversed = includedAnime.mapNotNull { allAnimeCategories.find { false } },
+                initialInversed = emptyList(),
                 itemLabel = { it.visualName },
                 onDismissRequest = { showAnimeDialog = false },
                 onValueChanged = { newIncluded, _ ->
