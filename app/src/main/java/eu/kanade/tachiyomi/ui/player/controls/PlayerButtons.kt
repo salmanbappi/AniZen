@@ -200,7 +200,7 @@ fun RenderPlayerButton(
                 exit = fadeOut(),
             ) {
                 CurrentChapter(
-                    chapter = currentChapter!!,
+                    chapter = currentChapter ?: return@AnimatedVisibility,
                     onClick = { viewModel.showSheet(Sheets.Chapters) },
                 )
             }
