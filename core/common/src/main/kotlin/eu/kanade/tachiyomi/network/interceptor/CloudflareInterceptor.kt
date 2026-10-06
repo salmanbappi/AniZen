@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.util.system.isOutdated
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -150,9 +151,8 @@ class CloudflareInterceptor(
                 )
                 layout(0, 0, 1080, 1920)
 
-                // Render invisible but active
-                alpha = 0.01f
-                setBackgroundColor(0)
+                // Render visible to pass Cloudflare Turnstile anti-clickjacking opacity checks
+                alpha = 1.0f
 
                 requestFocus()
                 onResume()
@@ -165,7 +165,7 @@ class CloudflareInterceptor(
                 object {
                     @android.webkit.JavascriptInterface
                     fun interactiveBegin() {
-                        latch.countDown()
+                        challengeFound = true
                     }
                 },
                 "anizen",
@@ -253,11 +253,15 @@ class CloudflareInterceptor(
                     // Dispatch native touch events through Android pipeline to bypass Turnstile
                     CoroutineScope(Dispatchers.Default).launch {
                         if (CloudflareSolver.solve(view)) {
-                            if (isCloudFlareBypassed()) {
-                                cloudflareBypassed = true
-                                NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
-                                NetworkHelper.rememberSolveUa(origRequestUrl.toHttpUrl().host, cleanUserAgent)
-                                latch.countDown()
+                            for (i in 0 until 10) {
+                                if (isCloudFlareBypassed()) {
+                                    cloudflareBypassed = true
+                                    NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
+                                    NetworkHelper.rememberSolveUa(origRequestUrl.toHttpUrl().host, cleanUserAgent)
+                                    latch.countDown()
+                                    return@launch
+                                }
+                                delay(500)
                             }
                         }
                     }
@@ -332,7 +336,7 @@ class CloudflareInterceptor(
                         if (state == "\"ok\"") {
                             val current = cookieManager.get(origRequestUrl.toHttpUrl())
                                 .firstOrNull { it.name == "cf_clearance" }
-                            if (current != null) {
+                            if (current != null && current != oldCookie) {
                                 cloudflareBypassed = true
                                 // ANZ -->
                                 NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
