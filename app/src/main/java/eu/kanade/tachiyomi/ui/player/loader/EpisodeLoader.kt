@@ -75,28 +75,30 @@ class EpisodeLoader {
                 episode.scanlator,
                 anime.title,
                 anime.source,
-                skipCache = true,
+                skipCache = false,
                 episodeNumber = episode.episodeNumber,
             )
         }
 
+        private val HAS_HOSTERS_CACHE = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
+        private val HOSTER_METHOD_NAMES = setOf("getHosterList", "hosterListRequest", "hosterListParse")
+
         private fun checkHasHosters(source: AnimeHttpSource): Boolean {
-            var current: Class<in AnimeHttpSource> = source.javaClass
-            while (true) {
-                if (current == ParsedAnimeHttpSource::class.java ||
-                    current == AnimeHttpSource::class.java ||
-                    current == AnimeSource::class.java
-                ) {
-                    return false
-                }
-                if (current.declaredMethods.any {
-                        it.name in
-                            listOf("getHosterList", "hosterListRequest", "hosterListParse")
+            return HAS_HOSTERS_CACHE.getOrPut(source.javaClass) {
+                var current: Class<in AnimeHttpSource> = source.javaClass
+                while (true) {
+                    if (current == ParsedAnimeHttpSource::class.java ||
+                        current == AnimeHttpSource::class.java ||
+                        current == AnimeSource::class.java
+                    ) {
+                        return@getOrPut false
                     }
-                ) {
-                    return true
+                    if (current.declaredMethods.any { it.name in HOSTER_METHOD_NAMES }) {
+                        return@getOrPut true
+                    }
+                    current = current.superclass ?: return@getOrPut false
                 }
-                current = current.superclass ?: return false
+                false
             }
         }
 

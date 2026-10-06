@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.extension.api.ExtensionApi
 import eu.kanade.tachiyomi.extension.api.ExtensionUpdateNotifier
 import eu.kanade.tachiyomi.extension.model.Extension
@@ -13,7 +12,6 @@ import eu.kanade.tachiyomi.extension.model.LoadResult
 import eu.kanade.tachiyomi.extension.util.ExtensionInstallReceiver
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
-import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -25,10 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -80,9 +76,11 @@ class ExtensionManager(
         extensionRepoRepository.subscribeAll(),
     ) { installedMap, repos ->
         installedMap.values.map { extension ->
+            val extHash = extension.signatureHash
+            val extPadded = extHash.padStart(64, '0')
             val matchingRepo = repos.find {
-                it.signingKeyFingerprint.equals(extension.signatureHash, ignoreCase = true) ||
-                it.signingKeyFingerprint.padStart(64, '0').equals(extension.signatureHash.padStart(64, '0'), ignoreCase = true)
+                it.signingKeyFingerprint.equals(extHash, ignoreCase = true) ||
+                    it.signingKeyFingerprint.padStart(64, '0').equals(extPadded, ignoreCase = true)
             }
             val author = matchingRepo?.author
                 ?: matchingRepo?.let { repo ->
@@ -239,12 +237,12 @@ class ExtensionManager(
                 changed = true
             } else if (availableExt != null) {
                 val hasUpdate = extension.updateExists(availableExt)
-                
+
                 val newExt = extension.copy(
                     hasUpdate = hasUpdate,
                     repoUrl = availableExt.repoUrl,
                 )
-                
+
                 if (newExt != extension) {
                     installedExtensionsMap[pkgName] = newExt
                     changed = true
@@ -259,7 +257,7 @@ class ExtensionManager(
 
     /**
      * Returns a flow of the installation process for the given anime extension.
-         It will complete
+     It will complete
      * once the anime extension is installed or throws an error. The process will be canceled if
      * unsubscribed before its completion.
      *
