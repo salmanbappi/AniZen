@@ -28,8 +28,12 @@ object CloudflareSolver { // ANZ
     private const val POST_CLICK_DELAY = 2000L
     private const val VERIFY_CHECK_DELAY = 1500L
     private const val MAX_VERIFY_CHECKS = 20
+    private val isSolving = java.util.concurrent.atomic.AtomicBoolean(false)
 
     suspend fun solve(webView: WebView): Boolean {
+        if (!isSolving.compareAndSet(false, true)) {
+            return false
+        }
         return try {
             val hasChallenge = detectChallenge(webView)
             if (!hasChallenge) {
@@ -89,6 +93,8 @@ object CloudflareSolver { // ANZ
             false
         } catch (_: Exception) {
             false
+        } finally {
+            isSolving.set(false)
         }
     }
 
