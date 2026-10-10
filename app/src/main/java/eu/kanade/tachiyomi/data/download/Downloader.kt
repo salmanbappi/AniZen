@@ -1391,16 +1391,16 @@ class Downloader(
 
         val headers = video.headers ?: download.source.headers
         // ANZ -->
-        val headerOptions = if (headers.size == 0) "" else headers.joinToString("", "-headers '", "'") {
+        val headerString = if (headers.size == 0) "" else headers.joinToString("") {
             "${it.first}: ${it.second}\r\n"
         }
-        // ANZ <--
 
-        val ffmpegOptions = getFFmpegOptions(video, headerOptions, ffmpegFilename)
+        val ffmpegOptions = getFFmpegOptions(video, headerString, ffmpegFilename)
 
         // Initial UI State
         download.status = Download.State.DOWNLOADING
-        download.activeThreads = 0
+        download.activeThreads = 1 + video.audioTracks.size
+        // ANZ <--
         notifier.onProgressChange(download)
         store.update(download)
 
@@ -1454,6 +1454,9 @@ class Downloader(
                         }
                         continuation.resume(finalFile)
                     } else {
+                        // ANZ -->
+                        tmpFile.delete()
+                        // ANZ <--
                         if (it.returnCode.isValueCancel) {
                             continuation.cancel()
                         } else {
@@ -1466,38 +1469,102 @@ class Downloader(
             )
             continuation.invokeOnCancellation {
                 session.cancel()
+                // ANZ -->
+                tmpFile.delete()
+                // ANZ <--
             }
         }
     }
 
-    private fun getFFmpegOptions(video: Video, headerOptions: String, ffmpegFilename: String): Array<String> {
-        fun formatInputs(tracks: List<Track>) = tracks.joinToString(" ", postfix = " ") {
-            buildList {
-                // ANZ -->
-                if (it.url.startsWith("http") && headerOptions.isNotBlank()) add(headerOptions)
-                // ANZ <--
-                add("-i")
-                add("\"${it.url}\"")
-            }.joinToString(" ")
+    // ANZ -->
+    private fun getFFmpegOptions(video: Video, headerString: String, ffmpegFilename: String): Array<String> { // ANZ
+        fun MutableList<String>.addNetworkOptions() {
+            if (headerString.isNotBlank()) {
+                add("-headers")
+                add(headerString)
+            }
+            add("-reconnect")
+            add("1")
+            add("-reconnect_streamed")
+            add("1")
+            add("-reconnect_on_network_error")
+            add("1")
+            add("-reconnect_on_http_error")
+            add("5xx")
+            add("-reconnect_delay_max")
+            add("5")
+            add("-rw_timeout")
+            add("15000000")
+            add("-multiple_requests")
+            add("1")
+            add("-tcp_nodelay")
+            add("1")
+            add("-recv_buffer_size")
+            add("1048576")
         }
 
-        val audioInputs = formatInputs(video.audioTracks)
-        val audioMaps = video.audioTracks.indices.joinToString(" ") { "-map ${it + 1}:a" }
-        val audioMetadata = video.audioTracks.mapIndexed { i, t -> "-metadata:s:a:$i \"title=${t.lang}\"" }.joinToString(" ")
+        return buildList {
+            add("-y")
 
-        val command = listOf(
-            // ANZ -->
-            if (video.videoUrl.startsWith("http") && headerOptions.isNotBlank()) headerOptions else "",
-            // ANZ <--
-            "-i \"${video.videoUrl}\"", audioInputs,
-            "-map 0:v", audioMaps, "-map 0:a?",
-            "-f matroska -c:a copy -c:v copy",
-            audioMetadata,
-            "\"$ffmpegFilename\" -y"
-        ).filter { it.isNotBlank() }.joinToString(" ")
+            // Primary video input
+            if (video.videoUrl.startsWith("http", ignoreCase = true)) {
+                addNetworkOptions()
+            }
+            add("-thread_queue_size")
+            add("1024")
+            add("-i")
+            add(video.videoUrl)
 
-        return FFmpegKitConfig.parseArguments(command)
+            // Audio track inputs
+            video.audioTracks.forEach { track ->
+                if (track.url.startsWith("http", ignoreCase = true)) {
+                    addNetworkOptions()
+                }
+                add("-thread_queue_size")
+                add("1024")
+                add("-i")
+                add(track.url)
+            }
+
+            // Stream mapping
+            add("-map")
+            add("0:v")
+            video.audioTracks.indices.forEach { index ->
+                add("-map")
+                add("${index + 1}:a")
+            }
+            add("-map")
+            add("0:a?")
+
+            // Output codecs and container options
+            add("-f")
+            add("matroska")
+            add("-c:v")
+            add("copy")
+            add("-c:a")
+            add("copy")
+            add("-reserve_index_space")
+            add("100k")
+            add("-max_interleave_delta")
+            add("0")
+            add("-cluster_size_limit")
+            add("2097152")
+            add("-threads")
+            add("4")
+
+            // Track metadata
+            video.audioTracks.forEachIndexed { i, t ->
+                if (t.lang.isNotBlank()) {
+                    add("-metadata:s:a:$i")
+                    add("title=${t.lang}")
+                }
+            }
+
+            // Destination file
+            add(ffmpegFilename)
+        }.toTypedArray()
     }
+    // ANZ <--
 
     private suspend fun nativeDashMuxDownload(download: Download, sandboxDir: java.io.File, filename: String): java.io.File = ffmpegDownload(download, sandboxDir, filename)
     private suspend fun torrentDownload(download: Download, sandboxDir: File, filename: String, destDir: UniFile? = null): UniFile {

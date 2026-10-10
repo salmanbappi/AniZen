@@ -125,7 +125,9 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             }
             
             // Line 3: Connection Intelligence
-            append("Threads: ").append(if (isDash) 1 else download.activeThreads).append(" Active")
+            // ANZ -->
+            append("Threads: ").append(download.activeThreads.coerceAtLeast(1)).append(" Active")
+            // ANZ <--
             if (download.totalSegments > 0) {
                 append(" • ").append(if (isHls) "Segments: " else "Parts: ")
                 append(download.downloadedSegments).append("/").append(download.totalSegments)
