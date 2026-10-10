@@ -1169,15 +1169,7 @@ class Downloader(
 
                                 val now = System.currentTimeMillis()
                                 if (now - lastUpdate > 1000 || currentCount == segments.size) {
-                                    // ANZ -->
-                                    val currentBytes = downloadedBytes.sum()
-                                    val estimatedTotal = if (currentCount > 0 && segments.isNotEmpty()) {
-                                        (currentBytes.toDouble() / currentCount * segments.size).toLong()
-                                    } else {
-                                        -1L
-                                    }
-                                    download.update(currentBytes, estimatedTotal, false)
-                                    // ANZ <--
+                                    download.update(downloadedBytes.sum(), -1L, false)
                                     store.update(download)
                                     notifier.onProgressChange(download)
                                     lastUpdate = now
@@ -1429,55 +1421,6 @@ class Downloader(
         val uniFile = UniFile.fromFile(tmpFile) ?: throw IOException("Failed to create temporary file for FFmpeg")
         val ffmpegFilename = uniFile.toFFmpegString(context)
 
-        // ANZ -->
-        // Probe total stream size upfront across video and audio tracks to enable size and progress display
-        if (download.totalSize <= 0) { // ANZ
-            val client = networkHelper.downloadClient
-            val headers = getHeaders(video)
-            fun probeStreamSize(url: String): Long {
-                if (!url.startsWith("http", ignoreCase = true)) return -1L
-                var size = -1L
-                try {
-                    client.newCall(Request.Builder().url(url).headers(headers).head().build()).execute().use { res ->
-                        if (res.isSuccessful) {
-                            size = res.header("Content-Length")?.toLongOrNull() ?: -1L
-                        }
-                    }
-                } catch (e: Exception) {
-                    logcat(LogPriority.DEBUG) { "DASH HEAD failed for $url: ${e.message}" }
-                }
-                if (size <= 0) {
-                    try {
-                        client.newCall(Request.Builder().url(url).headers(headers).header("Range", "bytes=0-0").build()).execute().use { res ->
-                            val contentRange = res.header("Content-Range")
-                            size = if (contentRange != null) {
-                                contentRange.substringAfterLast("/").toLongOrNull() ?: -1L
-                            } else {
-                                res.header("Content-Length")?.toLongOrNull() ?: -1L
-                            }
-                        }
-                    } catch (e: Exception) {
-                        logcat(LogPriority.DEBUG) { "DASH Range GET failed for $url: ${e.message}" }
-                    }
-                }
-                return size
-            }
-
-            val vSize = probeStreamSize(video.videoUrl)
-            // Video size must be at least 5MB to be considered a valid full stream, not a manifest
-            if (vSize > 5 * 1024 * 1024L) {
-                var sumSize = vSize
-                video.audioTracks.forEach { track ->
-                    val aSize = probeStreamSize(track.url)
-                    if (aSize > 0) sumSize += aSize
-                }
-                download.totalSize = sumSize
-            } else {
-                download.totalSize = -1L
-            }
-        }
-        // ANZ <--
-
         // PRE-FLIGHT: DASH/FFmpeg muxing requires space for [Raw Audio + Raw Video + Muxed Output]
         // We check for ~1.5x the total size as a safety margin for the muxing operation
         if (download.totalSize > 0) {
@@ -1515,35 +1458,14 @@ class Downloader(
                 download.totalDuration = download.episode.totalSeconds
             }
 
-            // Invariant: If s.size exceeds totalSize, totalSize was an underestimate/invalid. Reset it.
-            if (download.totalSize in 1..s.size) {
-                download.totalSize = -1L
-            }
-
-            // Estimation: If we have duration and outTime/bitrate, estimate final size
-            if (download.totalSize <= 0) {
-                if (download.totalDuration > 0 && outTime > 5 && s.size > 0) {
-                    download.totalSize = (s.size.toDouble() / outTime * download.totalDuration).toLong()
-                } else if (s.bitrate > 0) {
-                    val duration = if (download.totalDuration > 0) download.totalDuration else 1440L // 24 min standard episode
-                    download.totalSize = (duration * s.bitrate / 8).toLong()
-                }
-            }
-
-            // Sync with Normal design: report current bytes read
-            download.update(s.size, download.totalSize, false)
+            // Sync with Normal design: report current bytes read directly without guessing
+            download.update(s.size, -1L, false)
             
             if (download.totalDuration > 0 && outTime > 0) {
                 val timeProgress = (100 * outTime / download.totalDuration).toInt().coerceIn(0, 100)
                 if (download.progress <= 0 || timeProgress > download.progress) {
                     download.progress = timeProgress
                 }
-            }
-
-            // Update thread bars for GranularProgressView so all active threads animate
-            val currentP = (download.progress / 100f).coerceIn(0f, 1f)
-            for (i in 0 until download.activeThreads) {
-                download.partProgress[i] = currentP
             }
             // ANZ <--
             

@@ -49,8 +49,9 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             binding.downloadProgress.max = 1
             binding.downloadProgressText.text = ""
             // ANZ -->
-            binding.granularProgress.visibility = View.VISIBLE // ANZ
-            binding.granularProgress.bind(download)
+            val isDash = download.engineType?.contains("DASH") == true // ANZ
+            binding.granularProgress.visibility = if (isDash) View.GONE else View.VISIBLE
+            if (!isDash) binding.granularProgress.bind(download)
             // ANZ <--
         } else {
             binding.downloadProgress.max = 100
@@ -67,8 +68,9 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             binding.downloadProgress.max = 100
         }
         // ANZ -->
-        binding.granularProgress.visibility = View.VISIBLE
-        binding.granularProgress.bind(download)
+        val isDash = download.engineType?.contains("DASH") == true
+        binding.granularProgress.visibility = if (isDash) View.GONE else View.VISIBLE
+        if (!isDash) binding.granularProgress.bind(download)
         
         if (download.progress <= 0) {
             binding.downloadProgress.isIndeterminate = true
