@@ -1433,30 +1433,51 @@ class Downloader(
             "${it.first}: ${it.second}\r\n"
         }
 
+        if (download.totalDuration <= 0L) { // ANZ
+            if (download.episode.totalSeconds > 0) {
+                download.totalDuration = download.episode.totalSeconds
+            } else if (video.timestamps.isNotEmpty()) {
+                val maxTimestamp = video.timestamps.maxOfOrNull { it.end }?.toLong() ?: 0L
+                if (maxTimestamp > 0) {
+                    download.totalDuration = maxTimestamp
+                }
+            } else if (video.videoUrl.contains(".mpd")) {
+                download.totalDuration = extractMpdDuration(video.videoUrl, headers)
+            }
+        }
+
         val ffmpegOptions = getFFmpegOptions(video, headerString, ffmpegFilename)
 
         // Initial UI State
         download.status = Download.State.DOWNLOADING
-        download.activeThreads = 0
+        download.activeThreads = 1
+        download.partProgress[0] = (download.progress / 100f).coerceIn(0f, 1f)
         // ANZ <--
         notifier.onProgressChange(download)
         store.update(download)
 
+        // ANZ -->
+        val logBuffer = StringBuilder()
         val logCallback = LogCallback { log ->
-            // ANZ -->
-            if (download.totalDuration <= 0L && log.message.contains("Duration:")) { // ANZ
-                val match = Regex("""Duration:\s*(\d+):(\d+):(\d+\.?\d*)""").find(log.message)
-                if (match != null) {
-                    val (h, m, s) = match.destructured
-                    val totalSec = h.toLong() * 3600 + m.toLong() * 60 + s.toDouble().toLong()
-                    if (totalSec > 0) {
-                        download.totalDuration = totalSec
+            val msg = log.message ?: ""
+            if (download.totalDuration <= 0L) {
+                synchronized(logBuffer) {
+                    logBuffer.append(msg)
+                    if (logBuffer.length > 2000) {
+                        logBuffer.delete(0, 1000)
+                    }
+                    val match = Regex("""Duration:\s*(\d+):(\d+):(\d+\.?\d*)""").find(logBuffer.toString())
+                    if (match != null) {
+                        val (h, m, s) = match.destructured
+                        val totalSec = h.toLong() * 3600 + m.toLong() * 60 + s.toDouble().toLong()
+                        if (totalSec > 0) {
+                            download.totalDuration = totalSec
+                        }
                     }
                 }
             }
-            // ANZ <--
             if (log.level <= Level.AV_LOG_WARNING) {
-                logcat(LogPriority.ERROR) { "FFmpeg: ${log.message}" }
+                logcat(LogPriority.ERROR) { "FFmpeg: $msg" }
             }
         }
 
@@ -1465,20 +1486,33 @@ class Downloader(
             val now = System.currentTimeMillis()
             val outTime = (s.time / 1000.0).toLong()
             
-            // ANZ -->
-            if (download.totalDuration <= 0 && download.episode.totalSeconds > 0) {
-                download.totalDuration = download.episode.totalSeconds
+            if (download.totalDuration <= 0L) {
+                if (download.episode.totalSeconds > 0) {
+                    download.totalDuration = download.episode.totalSeconds
+                } else {
+                    download.totalDuration = 1440L // Standard anime ~24 min fallback
+                }
             }
 
-            // Sync with Normal design: report current bytes read directly without guessing
-            download.update(s.size, -1L, false)
+            // Estimate total size using duration and ffmpeg's actual processing bitrate
+            if (download.totalDuration > 0 && s.bitrate > 0) {
+                val estimatedBytes = (download.totalDuration * (s.bitrate * 1000.0) / 8.0).toLong()
+                if (estimatedBytes > s.size) {
+                    download.totalSize = estimatedBytes
+                }
+            }
+
+            download.update(s.size, download.totalSize, false)
             
             if (download.totalDuration > 0 && outTime > 0) {
-                val timeProgress = (100 * outTime / download.totalDuration).toInt().coerceIn(0, 100)
-                if (timeProgress > 0) {
+                val timeProgress = (100 * outTime / download.totalDuration).toInt().coerceIn(0, 99)
+                if (timeProgress > download.progress) {
                     download.progress = timeProgress
                 }
             }
+
+            download.activeThreads = 1
+            download.partProgress[0] = (download.progress / 100f).coerceIn(0f, 1f)
             // ANZ <--
             
             if (now - lastUpdate > 500L) {
@@ -1493,6 +1527,10 @@ class Downloader(
                 ffmpegOptions,
                 {
                     if (it.returnCode.isValueSuccess) {
+                        // ANZ -->
+                        download.progress = 100
+                        download.partProgress[0] = 1f
+                        // ANZ <--
                         val finalFile = java.io.File(sandboxDir, "$filename.mkv")
                         // INSTANT: renameTo works because both are in sandboxDir
                         if (!tmpFile.renameTo(finalFile)) {
@@ -1611,6 +1649,27 @@ class Downloader(
             // Destination file
             add(ffmpegFilename)
         }.toTypedArray()
+    }
+
+    private fun extractMpdDuration(url: String, headers: okhttp3.Headers?): Long {
+        return try {
+            val req = Request.Builder().url(url).apply {
+                if (headers != null) headers(headers)
+            }.build()
+            val body = networkHelper.client.newCall(req).execute().use { it.body?.string() } ?: return 0L
+            val match = Regex("""mediaPresentationDuration="PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?""").find(body)
+            if (match != null) {
+                val (h, m, s) = match.destructured
+                val hours = h.toLongOrNull() ?: 0L
+                val mins = m.toLongOrNull() ?: 0L
+                val secs = s.toDoubleOrNull()?.toLong() ?: 0L
+                hours * 3600 + mins * 60 + secs
+            } else {
+                0L
+            }
+        } catch (_: Exception) {
+            0L
+        }
     }
     // ANZ <--
 
