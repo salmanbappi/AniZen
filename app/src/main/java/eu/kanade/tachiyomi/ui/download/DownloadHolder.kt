@@ -48,11 +48,8 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             binding.downloadProgress.progress = 0
             binding.downloadProgress.max = 1
             binding.downloadProgressText.text = ""
-            // ANZ -->
-            val isDash = download.engineType?.contains("DASH") == true // ANZ
-            binding.granularProgress.visibility = if (isDash) View.GONE else View.VISIBLE
-            if (!isDash) binding.granularProgress.bind(download)
-            // ANZ <--
+            binding.granularProgress.visibility = View.VISIBLE
+            binding.granularProgress.bind(download)
         } else {
             binding.downloadProgress.max = 100
             notifyProgress()
@@ -67,18 +64,15 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         if (binding.downloadProgress.max == 1) {
             binding.downloadProgress.max = 100
         }
-        // ANZ -->
-        val isDash = download.engineType?.contains("DASH") == true
-        binding.granularProgress.visibility = if (isDash) View.GONE else View.VISIBLE
-        if (!isDash) binding.granularProgress.bind(download)
+        binding.granularProgress.visibility = View.VISIBLE
+        binding.granularProgress.bind(download)
         
-        if (download.progress <= 0) {
+        if (download.progress == 0) {
             binding.downloadProgress.isIndeterminate = true
         } else {
             binding.downloadProgress.isIndeterminate = false
             binding.downloadProgress.setProgressCompat(download.progress, true)
         }
-        // ANZ <--
     }
 
     /**
@@ -120,7 +114,7 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
                     // Line 1: Progress & Size
                     // ANZ -->
                     if (sizeInfo.isNotEmpty()) {
-                        append(sizeInfo)
+                        append(sizeInfo) // ANZ
                         if (download.progress > 0) {
                             append(" (").append(download.progress).append("%)")
                         }
@@ -145,9 +139,7 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             }
             
             // Line 3: Connection Intelligence
-            // ANZ -->
-            append("Threads: ").append(download.activeThreads.coerceAtLeast(1)).append(" Active")
-            // ANZ <--
+            append("Threads: ").append(if (isDash) 1 else download.activeThreads).append(" Active")
             if (download.totalSegments > 0) {
                 append(" • ").append(if (isHls) "Segments: " else "Parts: ")
                 append(download.downloadedSegments).append("/").append(download.totalSegments)

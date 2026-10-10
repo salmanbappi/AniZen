@@ -1437,7 +1437,7 @@ class Downloader(
 
         // Initial UI State
         download.status = Download.State.DOWNLOADING
-        download.activeThreads = 1 + video.audioTracks.size
+        download.activeThreads = 0
         // ANZ <--
         notifier.onProgressChange(download)
         store.update(download)
