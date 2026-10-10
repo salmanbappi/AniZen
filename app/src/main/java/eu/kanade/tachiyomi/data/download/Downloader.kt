@@ -1090,7 +1090,9 @@ class Downloader(
 
         val downloadedCount = java.util.concurrent.atomic.LongAdder()
         val downloadedBytes = java.util.concurrent.atomic.LongAdder()
-        val segmentQueue = segments.mapIndexed { index, url -> index to url }.toMutableList()
+        // ANZ -->
+        val segmentIndex = java.util.concurrent.atomic.AtomicInteger(0) // ANZ: lock-free O(1) segment dispatch
+        // ANZ <--
         var lastUpdate = System.currentTimeMillis()
         
         val host = Uri.parse(video.videoUrl).host ?: ""
@@ -1100,33 +1102,47 @@ class Downloader(
         coroutineScope {
             repeat(threadCount) {
                 launch {
+                    // ANZ -->
+                    // Reuse Cipher instance per worker thread to avoid 1500x Cipher.getInstance reflection
+                    val workerCipher = if (secretKey != null) javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding") else null
+                    // ANZ <--
                     while (isActive) {
                         if (download.status == Download.State.PAUSED) break
-                        val seg = synchronized(segmentQueue) { if (segmentQueue.isNotEmpty()) segmentQueue.removeAt(0) else null } ?: break
-                        val segmentFile = File(sandboxDir, "seg_${seg.first}.part")
+                        // ANZ -->
+                        val segIdx = segmentIndex.getAndIncrement()
+                        if (segIdx >= segments.size) break
+                        val segUrl = segments[segIdx]
+                        val segmentFile = File(sandboxDir, "seg_$segIdx.part")
+                        // ANZ <--
 
                         if (segmentFile.exists() && segmentFile.length() > 0) {
                             downloadedCount.increment()
                             downloadedBytes.add(segmentFile.length())
-                            download.segmentProgress[seg.first] = true
+                            // ANZ -->
+                            download.segmentProgress[segIdx] = true
+                            // ANZ <--
                             continue
                         }
 
                         retry(times = 5) {
-                            client.newCall(Request.Builder().url(seg.second).headers(headers).build()).execute().use { res ->
+                            // ANZ -->
+                            client.newCall(Request.Builder().url(segUrl).headers(headers).build()).execute().use { res ->
+                                if (res.code == 429) {
+                                    kotlinx.coroutines.delay(500L)
+                                }
                                 if (!res.isSuccessful) throw IOException("Segment failed: ${res.code}")
                                 var data = res.body?.bytes() ?: throw IOException("Empty segment")
 
                                 coroutineContext.ensureActive()
 
-                                // THREAD-SAFE AES DECRYPTION WITH CORRECT SEQUENCE IV
-                                if (secretKey != null) {
-                                    val seqNum = mediaSequence + seg.first
+                                // THREAD-SAFE AES DECRYPTION WITH REUSED WORKER CIPHER
+                                workerCipher?.let { cipher ->
+                                    val seqNum = mediaSequence + segIdx
                                     val ivBytes = java.nio.ByteBuffer.allocate(16).putLong(8, seqNum.toLong()).array()
-                                    val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
                                     cipher.init(javax.crypto.Cipher.DECRYPT_MODE, secretKey, javax.crypto.spec.IvParameterSpec(ivBytes))
                                     data = cipher.doFinal(data)
                                 }
+                                // ANZ <--
 
                                 java.io.FileOutputStream(segmentFile).use { it.write(data) }
                                 downloadedCount.increment()
@@ -1136,7 +1152,9 @@ class Downloader(
                                 download.downloadedSegments = currentCount
 
                                 // NEW: Mark this exact segment as complete for the UI's secondary progress bar
-                                download.segmentProgress[seg.first] = true
+                                // ANZ -->
+                                download.segmentProgress[segIdx] = true
+                                // ANZ <--
 
                                 val now = System.currentTimeMillis()
                                 if (now - lastUpdate > 1000 || currentCount == segments.size) {
@@ -1315,6 +1333,9 @@ class Downloader(
         val totalMergeSize = if (totalSizeOverride > 0) totalSizeOverride else partFiles.sumOf { it.length() }
         var mergedBytes = 0L
         var lastUpdate = System.currentTimeMillis()
+        // ANZ -->
+        var fallbackBuffer: java.nio.ByteBuffer? = null
+        // ANZ <--
 
         partFiles.forEach { partFile ->
             if (partFile.exists()) {
@@ -1334,7 +1355,10 @@ class Downloader(
                             val transferred = inChannel.transferTo(position, toTransfer, outChannel)
                             if (transferred <= 0) {
                                 // Fallback: Manual Buffered Copy
-                                val buffer = java.nio.ByteBuffer.allocateDirect(1024 * 1024)
+                                // ANZ -->
+                                val buffer = fallbackBuffer ?: java.nio.ByteBuffer.allocateDirect(1024 * 1024).also { fallbackBuffer = it }
+                                buffer.clear()
+                                // ANZ <--
                                 inChannel.position(position)
                                 while (inChannel.read(buffer) > 0) {
                                     buffer.flip()
@@ -1348,7 +1372,10 @@ class Downloader(
                             mergedBytes += transferred
                         } catch (e: Exception) {
                             // Fallback on any Channel exception (e.g. UnsupportedOperation)
-                            val buffer = java.nio.ByteBuffer.allocateDirect(1024 * 1024)
+                            // ANZ -->
+                            val buffer = fallbackBuffer ?: java.nio.ByteBuffer.allocateDirect(1024 * 1024).also { fallbackBuffer = it }
+                            buffer.clear()
+                            // ANZ <--
                             inChannel.position(position)
                             while (inChannel.read(buffer) > 0) {
                                 buffer.flip()
