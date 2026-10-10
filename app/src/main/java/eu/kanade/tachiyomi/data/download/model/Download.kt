@@ -85,11 +85,14 @@ data class Download(
         }
         totalBytesAccumulator.set(bytesRead)
         
-        val newProgress = when {
-            totalSize > 0 -> (100 * bytesRead / totalSize).toInt()
-            totalSegments > 0 -> (100 * downloadedSegments / totalSegments).toInt()
-            else -> -1
+        // ANZ -->
+        val newProgress = when { // ANZ
+            totalSize > 0 -> (100 * bytesRead / totalSize).toInt().coerceIn(0, 100)
+            totalSegments > 0 -> (100 * downloadedSegments / totalSegments).toInt().coerceIn(0, 100)
+            progress > 0 -> progress
+            else -> 0
         }
+        // ANZ <--
         
         calculateSpeed(bytesRead)
 

@@ -1410,6 +1410,53 @@ class Downloader(
         val uniFile = UniFile.fromFile(tmpFile) ?: throw IOException("Failed to create temporary file for FFmpeg")
         val ffmpegFilename = uniFile.toFFmpegString(context)
 
+        // ANZ -->
+        // Probe total stream size upfront across video and audio tracks to enable size and progress display
+        if (download.totalSize <= 0) { // ANZ
+            val client = networkHelper.downloadClient
+            val headers = getHeaders(video)
+            fun probeStreamSize(url: String): Long {
+                if (!url.startsWith("http", ignoreCase = true)) return -1L
+                var size = -1L
+                try {
+                    client.newCall(Request.Builder().url(url).headers(headers).head().build()).execute().use { res ->
+                        if (res.isSuccessful) {
+                            size = res.header("Content-Length")?.toLongOrNull() ?: -1L
+                        }
+                    }
+                } catch (e: Exception) {
+                    logcat(LogPriority.DEBUG) { "DASH HEAD failed for $url: ${e.message}" }
+                }
+                if (size <= 0) {
+                    try {
+                        client.newCall(Request.Builder().url(url).headers(headers).header("Range", "bytes=0-0").build()).execute().use { res ->
+                            val contentRange = res.header("Content-Range")
+                            size = if (contentRange != null) {
+                                contentRange.substringAfterLast("/").toLongOrNull() ?: -1L
+                            } else {
+                                res.header("Content-Length")?.toLongOrNull() ?: -1L
+                            }
+                        }
+                    } catch (e: Exception) {
+                        logcat(LogPriority.DEBUG) { "DASH Range GET failed for $url: ${e.message}" }
+                    }
+                }
+                return size
+            }
+
+            var sumSize = 0L
+            val vSize = probeStreamSize(video.videoUrl)
+            if (vSize > 0) sumSize += vSize
+            video.audioTracks.forEach { track ->
+                val aSize = probeStreamSize(track.url)
+                if (aSize > 0) sumSize += aSize
+            }
+            if (sumSize > 0) {
+                download.totalSize = sumSize
+            }
+        }
+        // ANZ <--
+
         // PRE-FLIGHT: DASH/FFmpeg muxing requires space for [Raw Audio + Raw Video + Muxed Output]
         // We check for ~1.5x the total size as a safety margin for the muxing operation
         if (download.totalSize > 0) {
