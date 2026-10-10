@@ -145,18 +145,23 @@ data class Download(
 
             // Update Downloaded Size String
             downloadedSize = formatSize(bytesRead)
-            if (totalSize > 0) {
+            // ANZ -->
+            // Only display total size when totalSize is strictly greater than bytesRead
+            if (totalSize > bytesRead) { // ANZ
                 downloadedSize += " / " + formatSize(totalSize)
             }
+            // ANZ <--
 
             // Calculate ETA
-            if (totalSize > 0 && smoothSpeed > 0) {
+            // ANZ -->
+            if (totalSize > bytesRead && smoothSpeed > 0) {
                 val remainingBytes = totalSize - bytesRead
-                val remainingSeconds = (remainingBytes / smoothSpeed).toLong()
+                val remainingSeconds = (remainingBytes / smoothSpeed).toLong().coerceAtLeast(0L)
                 eta = formatRemainingTime(remainingSeconds)
             } else {
                 eta = ""
             }
+            // ANZ <--
 
             lastUpdateTime = now
             lastBytesRead.set(bytesRead)

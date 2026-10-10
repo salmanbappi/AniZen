@@ -171,19 +171,30 @@ class Downloader(
         downloaderJob = scope.launch {
             // Dynamic Queue Processing
             while (isRunning) {
-                val maxConcurrency = preferences.concurrentDownloads().get().coerceAtLeast(1)
+                // ANZ -->
+                val maxConcurrencyPerSource = preferences.concurrentDownloads().get().coerceAtLeast(1) // ANZ
+                val maxGlobalConcurrency = (maxConcurrencyPerSource * 4).coerceIn(4, 16)
                 
                 // Clean up completed jobs
                 activeDownloads.entries.removeIf { !it.value.isActive }
 
-                if (activeDownloads.size >= maxConcurrency) {
+                if (activeDownloads.size >= maxGlobalConcurrency) {
                     delay(500)
                     continue
                 }
 
-                val download = queueState.value.firstOrNull { 
-                    it.status == Download.State.QUEUE && !activeDownloads.containsKey(it.episode.id)
-                } 
+                // Per-Source Concurrency: Different extensions download concurrently without waiting for each other
+                val download = queueState.value.firstOrNull { candidate ->
+                    if (candidate.status != Download.State.QUEUE || activeDownloads.containsKey(candidate.episode.id)) {
+                        false
+                    } else {
+                        val activeForSource = queueState.value.count {
+                            activeDownloads.containsKey(it.episode.id) && it.source.id == candidate.source.id
+                        }
+                        activeForSource < maxConcurrencyPerSource
+                    }
+                }
+                // ANZ <-- 
                 
                 if (download == null) {
                     if (activeDownloads.isEmpty()) break
@@ -1158,7 +1169,15 @@ class Downloader(
 
                                 val now = System.currentTimeMillis()
                                 if (now - lastUpdate > 1000 || currentCount == segments.size) {
-                                    download.update(downloadedBytes.sum(), -1, false)
+                                    // ANZ -->
+                                    val currentBytes = downloadedBytes.sum()
+                                    val estimatedTotal = if (currentCount > 0 && segments.isNotEmpty()) {
+                                        (currentBytes.toDouble() / currentCount * segments.size).toLong()
+                                    } else {
+                                        -1L
+                                    }
+                                    download.update(currentBytes, estimatedTotal, false)
+                                    // ANZ <--
                                     store.update(download)
                                     notifier.onProgressChange(download)
                                     lastUpdate = now
@@ -1444,15 +1463,17 @@ class Downloader(
                 return size
             }
 
-            var sumSize = 0L
             val vSize = probeStreamSize(video.videoUrl)
-            if (vSize > 0) sumSize += vSize
-            video.audioTracks.forEach { track ->
-                val aSize = probeStreamSize(track.url)
-                if (aSize > 0) sumSize += aSize
-            }
-            if (sumSize > 0) {
+            // Video size must be at least 5MB to be considered a valid full stream, not a manifest
+            if (vSize > 5 * 1024 * 1024L) {
+                var sumSize = vSize
+                video.audioTracks.forEach { track ->
+                    val aSize = probeStreamSize(track.url)
+                    if (aSize > 0) sumSize += aSize
+                }
                 download.totalSize = sumSize
+            } else {
+                download.totalSize = -1L
             }
         }
         // ANZ <--
@@ -1493,19 +1514,38 @@ class Downloader(
             if (download.totalDuration <= 0 && download.episode.totalSeconds > 0) {
                 download.totalDuration = download.episode.totalSeconds
             }
-            // ANZ <--
 
-            // Estimation: If we have duration and bitrate, estimate final size
-            if (download.totalSize <= 0 && download.totalDuration > 0 && s.bitrate > 0) {
-                download.totalSize = (download.totalDuration * s.bitrate / 8).toLong()
+            // Invariant: If s.size exceeds totalSize, totalSize was an underestimate/invalid. Reset it.
+            if (download.totalSize in 1..s.size) {
+                download.totalSize = -1L
+            }
+
+            // Estimation: If we have duration and outTime/bitrate, estimate final size
+            if (download.totalSize <= 0) {
+                if (download.totalDuration > 0 && outTime > 5 && s.size > 0) {
+                    download.totalSize = (s.size.toDouble() / outTime * download.totalDuration).toLong()
+                } else if (s.bitrate > 0) {
+                    val duration = if (download.totalDuration > 0) download.totalDuration else 1440L // 24 min standard episode
+                    download.totalSize = (duration * s.bitrate / 8).toLong()
+                }
             }
 
             // Sync with Normal design: report current bytes read
             download.update(s.size, download.totalSize, false)
             
-            if (download.totalDuration > 0) {
-                download.progress = (100 * outTime / download.totalDuration).toInt().coerceIn(0, 100)
+            if (download.totalDuration > 0 && outTime > 0) {
+                val timeProgress = (100 * outTime / download.totalDuration).toInt().coerceIn(0, 100)
+                if (download.progress <= 0 || timeProgress > download.progress) {
+                    download.progress = timeProgress
+                }
             }
+
+            // Update thread bars for GranularProgressView so all active threads animate
+            val currentP = (download.progress / 100f).coerceIn(0f, 1f)
+            for (i in 0 until download.activeThreads) {
+                download.partProgress[i] = currentP
+            }
+            // ANZ <--
             
             if (now - lastUpdate > 500L) {
                 lastUpdate = now
