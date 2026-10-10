@@ -1446,12 +1446,12 @@ class Downloader(
             }
         }
 
-        val ffmpegOptions = getFFmpegOptions(video, headerString, ffmpegFilename)
+        val dashThreads = getThreadCount().coerceIn(3, 16)
+        val ffmpegOptions = getFFmpegOptions(video, headerString, ffmpegFilename, dashThreads)
 
         // Initial UI State
         download.status = Download.State.DOWNLOADING
-        download.activeThreads = 1
-        download.partProgress[0] = (download.progress / 100f).coerceIn(0f, 1f)
+        download.activeThreads = dashThreads
         // ANZ <--
         notifier.onProgressChange(download)
         store.update(download)
@@ -1510,9 +1510,6 @@ class Downloader(
                     download.progress = timeProgress
                 }
             }
-
-            download.activeThreads = 1
-            download.partProgress[0] = (download.progress / 100f).coerceIn(0f, 1f)
             // ANZ <--
             
             if (now - lastUpdate > 500L) {
@@ -1529,7 +1526,6 @@ class Downloader(
                     if (it.returnCode.isValueSuccess) {
                         // ANZ -->
                         download.progress = 100
-                        download.partProgress[0] = 1f
                         // ANZ <--
                         val finalFile = java.io.File(sandboxDir, "$filename.mkv")
                         // INSTANT: renameTo works because both are in sandboxDir
@@ -1563,7 +1559,12 @@ class Downloader(
     }
 
     // ANZ -->
-    private fun getFFmpegOptions(video: Video, headerString: String, ffmpegFilename: String): Array<String> { // ANZ
+    private fun getFFmpegOptions(
+        video: Video,
+        headerString: String,
+        ffmpegFilename: String,
+        threadCount: Int = 4,
+    ): Array<String> { // ANZ
         fun MutableList<String>.addNetworkOptions() {
             if (headerString.isNotBlank()) {
                 add("-headers")
@@ -1597,7 +1598,7 @@ class Downloader(
                 addNetworkOptions()
             }
             add("-thread_queue_size")
-            add("1024")
+            add("4096")
             add("-i")
             add(video.videoUrl)
 
@@ -1607,7 +1608,7 @@ class Downloader(
                     addNetworkOptions()
                 }
                 add("-thread_queue_size")
-                add("1024")
+                add("4096")
                 add("-i")
                 add(track.url)
             }
@@ -1636,7 +1637,9 @@ class Downloader(
             add("-cluster_size_limit")
             add("2097152")
             add("-threads")
-            add("4")
+            add(threadCount.toString())
+            add("-filter_threads")
+            add(threadCount.toString())
 
             // Track metadata
             video.audioTracks.forEachIndexed { i, t ->

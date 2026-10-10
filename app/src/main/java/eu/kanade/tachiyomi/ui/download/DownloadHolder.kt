@@ -48,8 +48,9 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             binding.downloadProgress.progress = 0
             binding.downloadProgress.max = 1
             binding.downloadProgressText.text = ""
-            binding.granularProgress.visibility = View.VISIBLE
-            binding.granularProgress.bind(download)
+            // ANZ -->
+            binding.granularProgress.visibility = View.GONE
+            // ANZ <--
         } else {
             binding.downloadProgress.max = 100
             notifyProgress()
@@ -64,8 +65,17 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         if (binding.downloadProgress.max == 1) {
             binding.downloadProgress.max = 100
         }
-        binding.granularProgress.visibility = View.VISIBLE
-        binding.granularProgress.bind(download)
+        // ANZ -->
+        val isDash = download.engineType?.contains("DASH") == true // ANZ
+        val showGranular = !isDash && (
+            (download.engineType == "HLS" && download.totalSegments > 1) ||
+            (download.activeThreads > 1)
+        )
+        binding.granularProgress.visibility = if (showGranular) View.VISIBLE else View.GONE
+        if (showGranular) {
+            binding.granularProgress.bind(download)
+        }
+        // ANZ <--
         
         if (download.progress == 0) {
             binding.downloadProgress.isIndeterminate = true
@@ -139,7 +149,9 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
             }
             
             // Line 3: Connection Intelligence
-            append("Threads: ").append(if (isDash) 1 else download.activeThreads).append(" Active")
+            // ANZ -->
+            append("Threads: ").append(download.activeThreads.coerceAtLeast(1)).append(" Active")
+            // ANZ <--
             if (download.totalSegments > 0) {
                 append(" • ").append(if (isHls) "Segments: " else "Parts: ")
                 append(download.downloadedSegments).append("/").append(download.totalSegments)
