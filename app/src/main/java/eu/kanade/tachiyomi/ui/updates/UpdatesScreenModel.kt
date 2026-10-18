@@ -286,10 +286,11 @@ class UpdatesScreenModel(
      */
     fun bookmarkUpdates(updates: List<UpdatesItem>, bookmark: Boolean) {
         screenModelScope.launchIO {
+            // ANZ -->
             updates
-                .filterNot { it.update.bookmark == bookmark }
                 .map { EpisodeUpdate(id = it.update.episodeId, bookmark = bookmark) }
                 .let { updateEpisode.awaitAll(it) }
+            // ANZ <--
         }
         toggleAllSelection(false)
     }

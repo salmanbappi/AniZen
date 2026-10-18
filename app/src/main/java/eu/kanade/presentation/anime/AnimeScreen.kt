@@ -1405,10 +1405,11 @@ private fun EpisodeItemWrapper(
                     item.fileSize = fileSizeAsync
                 }
             }
-            val onLongClickMemo = remember(item.id, item.selected, onEpisodeSelected) {
+            // ANZ -->
+            val onLongClickMemo = remember(item, onEpisodeSelected) {
                 { onEpisodeSelected(item, !item.selected, true, true) }
             }
-            val onClickMemo = remember(item.id, item.selected, isAnyEpisodeSelected, onEpisodeClicked, onEpisodeSelected) {
+            val onClickMemo = remember(item, isAnyEpisodeSelected, onEpisodeClicked, onEpisodeSelected) {
                 {
                     onEpisodeItemClick(
                         episodeItem = item,
@@ -1418,14 +1419,15 @@ private fun EpisodeItemWrapper(
                     )
                 }
             }
-            val onDownloadClickMemo = remember(item.id, onDownloadEpisode) {
+            val onDownloadClickMemo = remember(item, onDownloadEpisode) {
                 if (onDownloadEpisode != null) {
                     { action: EpisodeDownloadAction -> onDownloadEpisode(listOf(item), action) }
                 } else null
             }
-            val onEpisodeSwipeMemo = remember(item.id, onEpisodeSwipe) {
+            val onEpisodeSwipeMemo = remember(item, onEpisodeSwipe) {
                 { action: LibraryPreferences.EpisodeSwipeAction -> onEpisodeSwipe(item, action) }
             }
+            // ANZ <--
 
             AnimeEpisodeListItem(
                 title = if (anime.displayMode == Anime.EPISODE_DISPLAY_NUMBER) {

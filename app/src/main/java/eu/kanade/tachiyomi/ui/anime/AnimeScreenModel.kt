@@ -286,13 +286,17 @@ class AnimeScreenModel(
         showEpisodeThumbnail: Boolean = anime.showPreviews(),
         hideMissingEpisodes: Boolean = libraryPreferences.hideMissingEpisodes().get(),
     ): State.Success {
-        val episodesStatusHash = episodes.sumOf { 
-            it.episode.lastModifiedAt + 
-            (if (it.episode.seen) 1L else 0L) + 
-            (if (it.selected) 2L else 0L) + 
-            (it.downloadState.hashCode().toLong() * 10L) + 
+        // ANZ -->
+        val episodesStatusHash = episodes.sumOf {
+            it.episode.lastModifiedAt +
+            (if (it.episode.seen) 1L else 0L) +
+            (if (it.episode.bookmark) 4L else 0L) +
+            (if (it.episode.fillermark) 8L else 0L) +
+            (if (it.selected) 2L else 0L) +
+            (it.downloadState.hashCode().toLong() * 10L) +
             (it.downloadProgress.toLong() * 100L)
         }
+        // ANZ <--
         val previousHash = (this as? State.Success)?.episodesStatusHash ?: 0L
         val episodesChanged = episodes.size != this.episodes.size || 
                              episodesStatusHash != previousHash ||
@@ -1377,21 +1381,24 @@ class AnimeScreenModel(
     }
 
     private fun executeEpisodeSwipeAction(episodeItem: EpisodeList.Item, swipeAction: LibraryPreferences.EpisodeSwipeAction) {
-        val episode = episodeItem.episode
+        // ANZ -->
+        val currentItem = successState?.episodes?.find { it.id == episodeItem.id } ?: episodeItem
+        val episode = currentItem.episode
         when (swipeAction) {
             LibraryPreferences.EpisodeSwipeAction.ToggleSeen -> markEpisodesSeen(listOf(episode), !episode.seen)
             LibraryPreferences.EpisodeSwipeAction.ToggleBookmark -> bookmarkEpisodes(listOf(episode), !episode.bookmark)
             LibraryPreferences.EpisodeSwipeAction.ToggleFillermark -> fillermarkEpisodes(listOf(episode), !episode.fillermark)
             LibraryPreferences.EpisodeSwipeAction.Download -> {
-                val downloadAction: EpisodeDownloadAction = when (episodeItem.downloadState) {
+                val downloadAction: EpisodeDownloadAction = when (currentItem.downloadState) {
                     Download.State.ERROR, Download.State.NOT_DOWNLOADED, Download.State.PAUSED -> EpisodeDownloadAction.START_NOW
                     Download.State.QUEUE, Download.State.DOWNLOADING, Download.State.MERGING, Download.State.DECRYPTING, Download.State.FINALIZING -> EpisodeDownloadAction.CANCEL
                     Download.State.DOWNLOADED -> EpisodeDownloadAction.DELETE
                 }
-                runEpisodeDownloadActions(items = listOf(episodeItem), action = downloadAction)
+                runEpisodeDownloadActions(items = listOf(currentItem), action = downloadAction)
             }
             LibraryPreferences.EpisodeSwipeAction.Disabled -> throw IllegalStateException()
         }
+        // ANZ <--
     }
 
     suspend fun getNextUnseenEpisode(season: tachiyomi.domain.anime.model.SeasonAnime): Episode? {
@@ -1554,14 +1561,18 @@ class AnimeScreenModel(
 
     fun bookmarkEpisodes(episodes: List<Episode>, bookmarked: Boolean) {
         screenModelScope.launchIO {
-            episodes.filterNot { it.bookmark == bookmarked }.map { EpisodeUpdate(id = it.id, bookmark = bookmarked) }.let { updateEpisode.awaitAll(it) }
+            // ANZ -->
+            episodes.map { EpisodeUpdate(id = it.id, bookmark = bookmarked) }.let { updateEpisode.awaitAll(it) }
+            // ANZ <--
         }
         toggleAllSelection(false)
     }
 
     fun fillermarkEpisodes(episodes: List<Episode>, fillermarked: Boolean) {
         screenModelScope.launchIO {
-            episodes.filterNot { it.fillermark == fillermarked }.map { EpisodeUpdate(id = it.id, fillermark = fillermarked) }.let { updateEpisode.awaitAll(it) }
+            // ANZ -->
+            episodes.map { EpisodeUpdate(id = it.id, fillermark = fillermarked) }.let { updateEpisode.awaitAll(it) }
+            // ANZ <--
         }
         toggleAllSelection(false)
     }
@@ -2224,13 +2235,17 @@ class AnimeScreenModel(
                     val processedEpisodes = episodes.applyFilters(anime, skipDupeEpisodes).toImmutableList()
                     val hasUnseenEpisodes = processedEpisodes.any { !it.episode.seen }
                     val isWatching = processedEpisodes.any { it.episode.seen }
-                    val episodesStatusHash = episodes.sumOf { 
-                        it.episode.lastModifiedAt + 
-                        (if (it.episode.seen) 1L else 0L) + 
-                        (if (it.selected) 2L else 0L) + 
-                        (it.downloadState.hashCode().toLong() * 10L) + 
+                    // ANZ -->
+                    val episodesStatusHash = episodes.sumOf {
+                        it.episode.lastModifiedAt +
+                        (if (it.episode.seen) 1L else 0L) +
+                        (if (it.episode.bookmark) 4L else 0L) +
+                        (if (it.episode.fillermark) 8L else 0L) +
+                        (if (it.selected) 2L else 0L) +
+                        (it.downloadState.hashCode().toLong() * 10L) +
                         (it.downloadProgress.toLong() * 100L)
                     }
+                    // ANZ <--
                     val missingEpisodeCount = if (hideMissingEpisodes) 0 else processedEpisodes.map { it.episode.episodeNumber }.missingEpisodesCount()
                     
                     val episodeListItems = mutableListOf<EpisodeList>()
