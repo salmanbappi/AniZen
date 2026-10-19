@@ -495,7 +495,7 @@ class Downloader(
             // Multi-track streams (separate video and audio tracks) must use DASH/FFmpeg muxing
             video.audioTracks.isNotEmpty() -> "DASH"
             // ANZ <--
-            video.videoUrl.contains(".m3u8", ignoreCase = true) ||
+            video.videoUrl.contains("m3u8", ignoreCase = true) ||
             // Hanime's signed HLS endpoint is extensionless: /hls/{id}/{token}
             video.videoUrl.contains("/hls/", ignoreCase = true) ||
             video.videoUrl.contains("/oppai/") ||
@@ -1053,7 +1053,7 @@ class Downloader(
             if (!playlistRes.isSuccessful) throw IOException("Failed to fetch playlist: ${playlistRes.code}")
             lines = playlistRes.body?.string()?.lines() ?: emptyList()
             if (lines.none { it.trimStart().startsWith("#EXTM3U") }) {
-                throw IOException("Hanime returned an invalid HLS playlist")
+                throw IOException("Invalid HLS playlist")
             }
 
             val isMaster = lines.any { it.startsWith("#EXT-X-STREAM-INF") }

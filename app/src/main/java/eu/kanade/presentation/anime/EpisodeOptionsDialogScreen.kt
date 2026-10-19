@@ -1039,7 +1039,7 @@ private fun sendEpisodesToCast(
             addImage(WebImage(Uri.parse(image)))
         }
         val castContentType = when {
-            videoUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
+            videoUrl.contains("m3u8", ignoreCase = true) || videoUrl.contains("/hls/", ignoreCase = true) -> "application/x-mpegURL"
             videoUrl.contains(".mpd", ignoreCase = true) -> "application/dash+xml"
             videoUrl.contains(".mkv", ignoreCase = true) -> "video/x-matroska"
             else -> "video/mp4"

@@ -368,10 +368,12 @@ class ExternalIntents {
      * @param uri the path data of the video.
      */
     private fun getMime(uri: Uri): String {
-        return when (uri.path?.substringAfterLast(".")) {
-            "mp4" -> "video/mp4"
-            "mkv" -> "video/x-matroska"
-            "m3u8" -> "application/x-mpegURL"
+        val uriString = uri.toString()
+        val path = uri.path.orEmpty()
+        return when {
+            path.endsWith(".mp4", ignoreCase = true) -> "video/mp4"
+            path.endsWith(".mkv", ignoreCase = true) -> "video/x-matroska"
+            uriString.contains("m3u8", ignoreCase = true) || uriString.contains("/hls/", ignoreCase = true) -> "application/x-mpegURL"
             else -> "video/*"
         }
     }
