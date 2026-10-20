@@ -94,6 +94,8 @@ import eu.kanade.presentation.anime.components.AnimeEpisodeListItem
 import eu.kanade.presentation.anime.components.AnimeInfoBox
 import eu.kanade.presentation.anime.components.AnimeSeasonListItem
 import eu.kanade.presentation.anime.components.AnimeToolbar
+import eu.kanade.presentation.anime.components.rememberToolbarSlide
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
 import eu.kanade.presentation.anime.components.EpisodeHeader
 import eu.kanade.presentation.anime.components.CreditDetailsDialog
@@ -408,6 +410,9 @@ private fun AnimeScreenSmallImpl(
 ) {
     val navigator = LocalNavigator.currentOrThrow
     val episodeListState = rememberLazyListState()
+    // ANZ --> the transparent toolbar follows the scroll (hides going down, returns going up)
+    val barSlide = rememberToolbarSlide(episodeListState)
+    // ANZ <--
     val episodes = state.processedEpisodes
     val listItem = remember(state.episodeListItems, state.selectedSeason, state.anime.seasonGroupingMode, state.availableSeasons) {
         if (state.anime.seasonGroupingMode != LibraryPreferences.SeasonGrouping.Tabs || state.selectedSeason == null || state.availableSeasons.size <= 1) {
@@ -496,11 +501,14 @@ private fun AnimeScreenSmallImpl(
                 contentWindowInsets = scaffoldInsets,
                 floatingActionButtonPosition = FabPosition.Center,
                 floatingActionButton = {
+                    // ANZ --> the header already has a big play button; the FAB takes over once it scrolls away
+                    val isHeaderPassed by remember { derivedStateOf { episodeListState.firstVisibleItemIndex >= 2 } }
                     AnimatedVisibility(
-                        visible = isFABVisible,
+                        visible = isFABVisible && isHeaderPassed,
                         enter = fadeIn(),
                         exit = fadeOut(),
                     ) {
+                        // ANZ <--
                         DraggableAnimeFAB(
                             isWatching = state.isWatching,
                             onContinueWatching = { onContinueWatching(null) },
@@ -528,6 +536,7 @@ private fun AnimeScreenSmallImpl(
                     AnimeToolbar(
                         title = state.anime.title,
                         titleAlphaProvider = { animatedTitleAlphaState.value },
+                        slide = barSlide,
                         backgroundAlphaProvider = { animatedBgAlphaState.value },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
@@ -589,12 +598,16 @@ private fun AnimeScreenSmallImpl(
                             endContentPadding = contentPadding.calculateEndPadding(layoutDirection),
                         ) {
                             LazyColumn(
-                                modifier = Modifier.fillMaxHeight(),
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .nestedScroll(barSlide.connection),
                                 state = episodeListState,
                                 contentPadding = PaddingValues(
                                     start = contentPadding.calculateStartPadding(layoutDirection),
                                     end = contentPadding.calculateEndPadding(layoutDirection),
-                                    bottom = contentPadding.calculateBottomPadding(),
+                                    // ANZ --> leave room so the floating button never covers the last rows
+                                    bottom = contentPadding.calculateBottomPadding() + if (isFABVisible) 88.dp else 0.dp,
+                                    // ANZ <--
                                 ),
                             ) {
                                 // item[0]: info-box only — drives isFirstItemVisible for the
@@ -635,6 +648,7 @@ private fun AnimeScreenSmallImpl(
                                         onContinueWatching = { onContinueWatching(null) },
                                         isWatching = isWatching,
                                         mainTrackItem = remember(state.trackItems) { state.trackItems.firstOrNull() },
+                                        showContinueButton = isFABVisible,
                                     )
                                 }
 

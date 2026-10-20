@@ -19,6 +19,7 @@ package eu.kanade.tachiyomi.ui.player.controls.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +28,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeMute
@@ -47,13 +50,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import tachiyomi.presentation.core.components.material.padding
 import java.text.NumberFormat
 import kotlin.math.roundToInt
+
+// ANZ -->
+// Soft "liquid glass" accents: cool sky blue for volume, warm amber for brightness.
+private val VolumeTop = Color(0xFF8BE9FD)
+private val VolumeBottom = Color(0xFF3B9DF5)
+private val BrightnessTop = Color(0xFFFFE29A)
+private val BrightnessBottom = Color(0xFFFFA64D)
+// ANZ <--
 
 private fun percentage(value: Float, range: ClosedFloatingPointRange<Float>): Float {
     return ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
@@ -70,12 +84,16 @@ fun VerticalSlider(
     modifier: Modifier = Modifier,
     overflowValue: Float? = null,
     overflowRange: ClosedFloatingPointRange<Float>? = null,
+    accentTop: Color = BrightnessTop,
+    accentBottom: Color = BrightnessBottom,
 ) {
     require(range.contains(value)) { "Value must be within the provided range" }
     VerticalSliderInternal(
         percentage = percentage(value, range),
         overflowPercentage = overflowValue?.let { ov -> overflowRange?.let { or -> percentage(ov, or) } },
         modifier = modifier,
+        accentTop = accentTop,
+        accentBottom = accentBottom,
     )
 }
 
@@ -86,31 +104,55 @@ fun VerticalSlider(
     modifier: Modifier = Modifier,
     overflowValue: Int? = null,
     overflowRange: ClosedRange<Int>? = null,
+    accentTop: Color = VolumeTop,
+    accentBottom: Color = VolumeBottom,
 ) {
     require(range.contains(value)) { "Value must be within the provided range" }
     VerticalSliderInternal(
         percentage = percentage(value, range),
         overflowPercentage = overflowValue?.let { ov -> overflowRange?.let { or -> percentage(ov, or) } },
         modifier = modifier,
+        accentTop = accentTop,
+        accentBottom = accentBottom,
     )
 }
 
+// ANZ -->
+/**
+ * A glass tube with coloured "liquid" inside: translucent capsule with a light edge, an inset
+ * rounded fill with a soft vertical colour gradient, a bright meniscus line on top of the liquid
+ * and a small specular highlight on the glass.
+ */
 @Composable
 private fun VerticalSliderInternal(
     percentage: Float,
     modifier: Modifier = Modifier,
     overflowPercentage: Float? = null,
+    accentTop: Color,
+    accentBottom: Color,
 ) {
     Box(
-        modifier = modifier.height(120.dp).aspectRatio(0.45f),
+        modifier = modifier.height(136.dp).aspectRatio(0.5f),
         contentAlignment = Alignment.BottomCenter,
     ) {
         Box(
-            modifier = modifier
-                .fillMaxWidth(fraction = 0.5f)
+            modifier = Modifier
+                .fillMaxWidth(fraction = 0.62f)
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.background),
+                .clip(CircleShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.20f), Color.White.copy(alpha = 0.07f)),
+                    ),
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.08f)),
+                    ),
+                    shape = CircleShape,
+                )
+                .padding(3.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
             val targetHeight by animateFloatAsState(percentage, label = "vsliderheight")
@@ -118,8 +160,20 @@ private fun VerticalSliderInternal(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(targetHeight)
-                    .background(MaterialTheme.colorScheme.tertiary),
-            )
+                    .clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(accentTop, accentBottom))),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                // meniscus: a bright line on the surface of the liquid
+                Box(
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .fillMaxWidth(fraction = 0.5f)
+                        .height(3.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.6f)),
+                )
+            }
             if (overflowPercentage != null) {
                 val overflowHeight by animateFloatAsState(
                     targetValue = overflowPercentage,
@@ -129,12 +183,63 @@ private fun VerticalSliderInternal(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(overflowHeight)
-                        .background(MaterialTheme.colorScheme.errorContainer),
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFFFF8A80).copy(alpha = 0.9f), Color(0xFFE5484D).copy(alpha = 0.9f)),
+                            ),
+                        ),
                 )
             }
+            // specular highlight on the glass
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 3.dp, top = 12.dp)
+                    .width(3.dp)
+                    .height(30.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.30f)),
+            )
         }
     }
 }
+
+/** Percentage / level text above the slider, tinted with the slider accent. */
+@Composable
+private fun LevelLabel(text: String, color: Color) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.Bold,
+            fontFeatureSettings = "tnum",
+            shadow = Shadow(Color.Black.copy(alpha = 0.6f), blurRadius = 6f),
+        ),
+        color = color,
+        textAlign = TextAlign.Center,
+    )
+}
+
+/** Round tinted badge with the icon under the slider: coloured glass instead of a bare white icon. */
+@Composable
+private fun LevelBadge(icon: ImageVector, tint: Color) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(tint.copy(alpha = 0.16f))
+            .border(1.dp, tint.copy(alpha = 0.45f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(19.dp),
+        )
+    }
+}
+// ANZ <--
 
 @Composable
 fun BrightnessSlider(
@@ -146,29 +251,29 @@ fun BrightnessSlider(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
     ) {
-        Text(
-            text = (brightness * 100).toInt().toString(),
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-        )
+        // ANZ -->
+        LevelLabel(text = (brightness * 100).toInt().toString(), color = BrightnessTop)
         VerticalSlider(
             value = brightness.coerceIn(0f, 1f),
             range = positiveRange,
             overflowRange = negativeRange,
             overflowValue = (-brightness).coerceIn(0f..0.75f),
+            accentTop = BrightnessTop,
+            accentBottom = BrightnessBottom,
         )
-        Icon(
-            imageVector = when (percentage(brightness, positiveRange)) {
+        LevelBadge(
+            icon = when (percentage(brightness, positiveRange)) {
                 in -1f..0f -> Icons.Default.ModeNight
                 in 0f..0.3f -> Icons.Default.BrightnessLow
                 in 0.3f..0.6f -> Icons.Default.BrightnessMedium
                 in 0.6f..1f -> Icons.Default.BrightnessHigh
                 else -> Icons.Default.BrightnessMedium
             },
-            contentDescription = null,
+            tint = BrightnessTop,
         )
+        // ANZ <--
     }
 }
 
@@ -185,7 +290,7 @@ fun VolumeSlider(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
     ) {
         val boostVolume = mpvVolume - 100
         val (deviceVolumeString, boostVolumeString) = getVolumeSliderText(
@@ -194,17 +299,16 @@ fun VolumeSlider(
             percentage,
             displayAsPercentage,
         )
-        Text(
-            text = deviceVolumeString,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-        )
+        // ANZ -->
+        LevelLabel(text = deviceVolumeString, color = VolumeTop)
         Box {
             VerticalSlider(
                 value = if (displayAsPercentage) percentage else volume,
                 range = if (displayAsPercentage) 0..100 else range,
                 overflowValue = boostVolume,
                 overflowRange = boostRange,
+                accentTop = VolumeTop,
+                accentBottom = VolumeBottom,
             )
 
             Text(
@@ -221,16 +325,17 @@ fun VolumeSlider(
                     .padding(horizontal = 4.dp, vertical = 4.dp),
             )
         }
-        Icon(
-            imageVector = when (percentage) {
+        LevelBadge(
+            icon = when (percentage) {
                 0 -> Icons.AutoMirrored.Default.VolumeOff
                 in 0..30 -> Icons.AutoMirrored.Default.VolumeMute
                 in 30..60 -> Icons.AutoMirrored.Default.VolumeDown
                 in 60..100 -> Icons.AutoMirrored.Default.VolumeUp
                 else -> Icons.AutoMirrored.Default.VolumeOff
             },
-            contentDescription = null,
+            tint = VolumeTop,
         )
+        // ANZ <--
     }
 }
 

@@ -17,6 +17,7 @@
 
 package eu.kanade.tachiyomi.ui.player.controls.components.sheets
 
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -158,7 +159,9 @@ fun TrackSheetTitle(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
+            // ANZ -->
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            // ANZ <--
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,

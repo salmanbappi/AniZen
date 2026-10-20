@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.ui.library
 
+import tachiyomi.presentation.core.util.plus
+import eu.kanade.tachiyomi.ui.home.LocalHomeBarInset
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
@@ -266,7 +269,10 @@ data object LibraryTab : Tab {
                     )
                 },
                 snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-            ) { contentPadding ->
+            ) { scaffoldPadding ->
+                // ANZ --> the page runs under the floating bottom bar: its height is added as bottom space
+                val contentPadding = scaffoldPadding + PaddingValues(bottom = LocalHomeBarInset.current)
+                // ANZ <--
                 when {
                     state.isLoading -> LoadingScreen(Modifier.padding(contentPadding))
                     state.searchQuery.isNullOrEmpty() && !state.hasActiveFilters && state.isLibraryEmpty -> {

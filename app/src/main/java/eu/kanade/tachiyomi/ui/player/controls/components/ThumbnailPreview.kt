@@ -8,15 +8,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -24,12 +28,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -41,6 +48,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.vivvvek.seeker.Segment
+import `is`.xyz.mpv.Utils
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -70,13 +78,16 @@ fun ThumbnailPreview(
             }
         }
 
-    // Reactively compute the seeking chapter only when it changes, without recomposing
+    // Reactively compute the seeking chapter / time only when they change, without recomposing
     // the entire ThumbnailPreview on every position tick.
     val seekingChapter by remember(chapters) {
-        androidx.compose.runtime.derivedStateOf { 
-            chapters.lastOrNull { it.start <= positionSProvider() } 
+        derivedStateOf {
+            chapters.lastOrNull { it.start <= positionSProvider() }
         }
     }
+    // ANZ -->
+    val seekTime by remember { derivedStateOf { Utils.prettyTime(positionSProvider().toInt()) } }
+    // ANZ <--
 
     val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
     val startInset = safeDrawingPadding.calculateStartPadding(layoutDirection)
@@ -91,14 +102,19 @@ fun ThumbnailPreview(
         if (image != null) {
             BoxWithConstraints {
                 val screenWidth = maxWidth
-                val timerWidth = 96.dp // Width + padding.extraSmall
-                
+                // ANZ --> timer slot + the gap between the timer and the seekbar
+                val timerWidth = videoTimerWidth + 4.dp
+                // ANZ <--
+
                 // Subtract insets from seekbarWidth to precisely align the preview card
                 val seekbarWidth = screenWidth - startInset - endInset - timerWidth - timerWidth
+                // ANZ --> the thumb travels between thumbRadius and (width - thumbRadius)
+                val trackWidth = seekbarWidth - seekerThumbRadius * 2
+                // ANZ <--
 
                 Card(
                     modifier = Modifier
-                        .offset { 
+                        .offset {
                             val positionS = positionSProvider()
                             val progress = if (durationS > 0L) {
                                 (positionS.toFloat() / durationS.toFloat()).coerceIn(0f, 1f)
@@ -107,9 +123,9 @@ fun ThumbnailPreview(
                             }
 
                             val targetX = if (layoutDirection == LayoutDirection.Ltr) {
-                                startInset + timerWidth + (seekbarWidth * progress)
+                                startInset + timerWidth + seekerThumbRadius + (trackWidth * progress)
                             } else {
-                                (screenWidth - startInset - timerWidth) - (seekbarWidth * progress)
+                                (screenWidth - startInset - timerWidth) - seekerThumbRadius - (trackWidth * progress)
                             }
 
                             val minX = startInset + 8.dp
@@ -120,12 +136,15 @@ fun ThumbnailPreview(
                                 targetX + previewWidth / 2 > screenWidth - endInset - 8.dp -> maxX
                                 else -> targetX - previewWidth / 2
                             }
-                            androidx.compose.ui.unit.IntOffset(constrainedX.roundToPx(), 0)
+                            IntOffset(constrainedX.roundToPx(), 0)
                         }
                         .size(previewWidth, previewHeight),
                     colors = CardDefaults.cardColors(containerColor = Color.Black),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    // ANZ --> rounder card with a fine light border
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+                    // ANZ <--
+                    elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         Image(
@@ -135,36 +154,57 @@ fun ThumbnailPreview(
                             contentScale = ContentScale.Crop,
                         )
 
-                        AnimatedContent<Segment?>(
-                            targetState = seekingChapter,
-                            transitionSpec = {
-                                fadeIn(animationSpec = tween(200)) togetherWith
-                                    fadeOut(animationSpec = tween(200)) using
-                                    SizeTransform(clip = false)
-                            },
-                            contentAlignment = Alignment.CenterStart,
-                            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
-                            label = "ChapterNameAnimation",
-                        ) { chapterName ->
-                            if (chapterName?.name?.isEmpty() == false) {
-                                Box(
-                                    modifier = Modifier.background(
-                                        color = Color.Black.copy(alpha = 0.6f),
-                                        shape = RoundedCornerShape(6.dp),
-                                    )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                ) {
+                        // ANZ --> soft fade + big time (and chapter name) at the bottom
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(72.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        0f to Color.Transparent,
+                                        1f to Color.Black.copy(alpha = 0.82f),
+                                    ),
+                                ),
+                        )
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            AnimatedContent<Segment?>(
+                                targetState = seekingChapter,
+                                transitionSpec = {
+                                    fadeIn(animationSpec = tween(200)) togetherWith
+                                        fadeOut(animationSpec = tween(200)) using
+                                        SizeTransform(clip = false)
+                                },
+                                contentAlignment = Alignment.Center,
+                                label = "ChapterNameAnimation",
+                            ) { chapterName ->
+                                if (chapterName?.name?.isEmpty() == false) {
                                     Text(
                                         text = chapterName.name,
-                                        color = Color.White,
+                                        color = Color.White.copy(alpha = 0.85f),
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.Medium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }
+                            Text(
+                                text = seekTime,
+                                color = Color.White,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = "tnum",
+                                ),
+                            )
                         }
+                        // ANZ <--
                     }
                 }
             }

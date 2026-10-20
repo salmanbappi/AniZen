@@ -21,7 +21,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +54,43 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.theme.active
+
+// ANZ -->
+/**
+ * Lets the transparent toolbar follow the page: it slides away when the list scrolls down and comes
+ * straight back when it scrolls up. It only listens to the scroll, it never consumes it.
+ */
+@Stable
+class ToolbarSlide {
+    /** Toolbar height in px, reported by the toolbar itself. */
+    var height by mutableFloatStateOf(0f)
+
+    /** 0 = fully shown, -height = fully hidden. */
+    var offset by mutableFloatStateOf(0f)
+
+    val connection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            offset = (offset + available.y).coerceIn(-height, 0f)
+            return Offset.Zero
+        }
+    }
+
+    fun show() {
+        offset = 0f
+    }
+}
+
+/** Remembers a [ToolbarSlide] and shows the bar again whenever the list is back at the very top. */
+@Composable
+fun rememberToolbarSlide(listState: LazyListState): ToolbarSlide {
+    val slide = androidx.compose.runtime.remember { ToolbarSlide() }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+            .collect { atTop -> if (atTop) slide.show() }
+    }
+    return slide
+}
+// ANZ <--
 
 @Composable
 fun AnimeToolbar(
@@ -74,6 +121,9 @@ fun AnimeToolbar(
     onInvertSelection: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundAlphaProvider: () -> Float = titleAlphaProvider,
+    // ANZ -->
+    slide: ToolbarSlide? = null,
+    // ANZ <--
 ) {
     val statusBarPadding = WindowInsets.systemBars.only(WindowInsetsSides.Top).asPaddingValues()
     val topPadding = statusBarPadding.calculateTopPadding()
@@ -82,20 +132,44 @@ fun AnimeToolbar(
         stableTopPadding = topPadding
     }
 
-    // Capture the surface color during composition; alpha is applied during draw only.
-    val bgColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+    // ANZ -->
+    // No solid bar any more: the page colour only fades in softly behind the icons once content is
+    // sliding under them (alpha is read in the draw phase, so nothing recomposes per frame). While
+    // episodes are selected the bar is solid again so the counter and the actions read clearly.
+    val isActionMode = actionModeCounter > 0
+    val fadeColor = MaterialTheme.colorScheme.background
+    val solidColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
     Column(
         modifier = modifier
+            .onSizeChanged { slide?.height = it.height.toFloat() }
+            .graphicsLayer {
+                if (slide != null && !isActionMode) {
+                    val offset = slide.offset.coerceIn(-slide.height, 0f)
+                    translationY = offset
+                    alpha = if (slide.height > 0f) (1f + offset / slide.height).coerceIn(0f, 1f) else 1f
+                }
+            }
             .drawBehind {
-                // drawBehind reads backgroundAlphaProvider() in the draw phase — not
-                // composition — so the Column is NOT recomposed on every animation frame
-                // of the transparent-to-solid toolbar transition. Only the background
-                // fades; toolbar icons and content remain fully visible at all times.
-                drawRect(color = bgColor.copy(alpha = backgroundAlphaProvider()))
+                if (isActionMode) {
+                    drawRect(color = solidColor)
+                } else {
+                    val strength = backgroundAlphaProvider().coerceIn(0f, 1f) * 0.9f
+                    if (strength > 0.01f) {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    fadeColor.copy(alpha = strength),
+                                    fadeColor.copy(alpha = strength * 0.6f),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        )
+                    }
+                }
             }
             .padding(top = stableTopPadding),
     ) {
-        val isActionMode = actionModeCounter > 0
+    // ANZ <--
         TopAppBar(
             title = {
                 Text(
@@ -139,7 +213,9 @@ fun AnimeToolbar(
                         )
                     }
 
-                    val filterTint = if (hasFilters) MaterialTheme.colorScheme.active else LocalContentColor.current
+                    // ANZ --> theme color instead of the yellow "active" tint
+                    val filterTint = if (hasFilters) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                    // ANZ <--
                     AppBarActions(
                         actions = persistentListOf<AppBar.AppBarAction>().builder()
                             .apply {

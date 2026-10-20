@@ -1,0 +1,55 @@
+name: Compilar APK
+
+# Compila un APK instalable en tu propio fork, sin necesitar los secretos del autor original.
+# Se ejecuta a mano: pestaña Actions > "Compilar APK" > Run workflow.
+# La llave de firma es siempre la misma, así cada versión nueva se instala encima de la anterior
+# sin borrar tu biblioteca.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar APK (arm64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Preparar Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Preparar la llave de firma (fija)
+        run: |
+          rm -f app/anizen.jks
+          echo "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" | base64 -d > app/anizen.jks
+
+      - name: Compilar el APK
+        run: ./gradlew assemblePreview -Pinclude-telemetry=false -Penable-updater=false -PabiList=arm64-v8a --no-daemon
+        env:
+          SIGNING_STORE_PASSWORD: anizen123
+          SIGNING_KEY_ALIAS: meikan
+          SIGNING_KEY_PASSWORD: anizen123
+
+      - name: Subir el APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AniZen-APK
+          path: app/build/outputs/apk/preview/*.apk
+          retention-days: 14

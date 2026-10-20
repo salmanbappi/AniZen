@@ -17,6 +17,8 @@
 
 package eu.kanade.tachiyomi.ui.player.controls.components
 
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -47,9 +49,12 @@ fun PlayerUpdate(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.Black.copy(0.4f))
-            .padding(vertical = MaterialTheme.padding.small, horizontal = MaterialTheme.padding.medium)
+            // ANZ --> pill with a fine border
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black.copy(0.5f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+            // ANZ <--
+            .padding(vertical = MaterialTheme.padding.small, horizontal = MaterialTheme.padding.large)
             .animateContentSize(),
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -61,7 +66,7 @@ fun TextPlayerUpdate(
     modifier: Modifier = Modifier,
 ) {
     PlayerUpdate(modifier) {
-        Text(text)
+        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
     }
 }
 

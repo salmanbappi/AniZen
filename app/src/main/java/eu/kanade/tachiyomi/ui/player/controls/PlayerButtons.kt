@@ -98,37 +98,22 @@ fun RenderPlayerButton(
         PlayerButton.VideoTitle -> {
             val animeTitle by viewModel.animeTitle.collectAsState()
             val mediaTitle by viewModel.mediaTitle.collectAsState()
-            Column(
-                verticalArrangement = Arrangement.spacedBy(-MaterialTheme.padding.extraSmall),
-                modifier = Modifier
-                    .clickable(onClick = { viewModel.showEpisodeListDialog() }),
-            ) {
-                Text(
-                    animeTitle,
-                    fontSize = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    mediaTitle,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color.White.copy(alpha = 0.5f),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontStyle = FontStyle.Italic,
-                )
-            }
+            // ANZ -->
+            val currentEpisode by viewModel.currentEpisode.collectAsState()
+            PlayerTitle(
+                animeTitle = animeTitle,
+                mediaTitle = mediaTitle,
+                episodeNumber = currentEpisode?.episode_number?.toFloat(),
+                onClick = { viewModel.showEpisodeListDialog() },
+            )
+            // ANZ <--
         }
         PlayerButton.AutoPlay -> {
             AutoPlaySwitch(
                 isChecked = autoPlayEnabled,
                 onToggleAutoPlay = { viewModel.setAutoPlay(it) },
                 modifier = Modifier
-                    .padding(vertical = MaterialTheme.padding.medium, horizontal = MaterialTheme.padding.mediumSmall)
-                    .size(width = 48.dp, height = 24.dp),
+                    .padding(vertical = MaterialTheme.padding.medium, horizontal = MaterialTheme.padding.mediumSmall),
             )
         }
         PlayerButton.Cast -> {

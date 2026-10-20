@@ -1,5 +1,15 @@
 package eu.kanade.presentation.anime.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +17,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -14,12 +25,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.material.icons.outlined.Delete
@@ -27,6 +40,7 @@ import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FileDownloadOff
 import androidx.compose.material.icons.outlined.RemoveDone
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -190,6 +204,23 @@ fun AnimeEpisodeListItem(
     }
 }
 
+// ANZ -->
+/*
+ * Ultra-minimal "streaming" row: clean rounded thumbnail on the left, big typographic episode
+ * title on the right. No play badge, no date, no seen check. Seen episodes simply fade, the one
+ * in progress gets an accent ring + its progress text, and every row has a soft entrance and a
+ * springy press effect (row squeezes, thumbnail zooms).
+ */
+private const val SeenAlpha = 0.5f
+private val ThumbShape = RoundedCornerShape(16.dp)
+private val EpisodeTitleRegex = Regex("""^\s*(\p{L}[\p{L}\s.]*?)\s*(\d+(?:[.,]\d+)?)\s*$""")
+
+/** "Episodio 12" -> ("Episodio", "12"); anything that does not fit that shape -> null. */
+private fun splitEpisodeTitle(title: String): Pair<String, String>? {
+    val match = EpisodeTitleRegex.find(title) ?: return null
+    return match.groupValues[1].trim() to match.groupValues[2]
+}
+
 @Composable
 private fun EpisodeItemRow(
     title: String,
@@ -213,153 +244,79 @@ private fun EpisodeItemRow(
     fileSize: Long?,
     modifier: Modifier = Modifier,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+        label = "episodePress",
+    )
+    val zoom by animateFloatAsState(
+        targetValue = if (pressed) 1.08f else 1f,
+        animationSpec = tween(durationMillis = 220),
+        label = "episodeZoom",
+    )
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        appear.animateTo(1f, tween(durationMillis = 280, easing = FastOutSlowInEasing))
+    }
+
+    val parts = remember(title) { splitEpisodeTitle(title) }
+    val inProgress = !seen && watchProgress != null
+    val isFiller = fillermark || isAutoFiller
+
     Row(
         modifier = modifier
+            .graphicsLayer {
+                alpha = appear.value
+                translationY = (1f - appear.value) * 14.dp.toPx()
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .tvListItemFocusHighlight()
             .selectedBackground(selected)
             .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            .padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.Top,
+            .padding(start = 16.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (previewUrl.isNullOrBlank() && summary.isNullOrBlank()) {
-            SimpleEpisodeListItemImpl(
-                title = title,
-                date = date,
-                watchProgress = watchProgress,
-                fillermark = fillermark,
-                isAutoFiller = isAutoFiller,
-                scanlator = scanlator,
+        if (!previewUrl.isNullOrBlank()) {
+            EpisodeThumbnail(
+                previewUrl = previewUrl,
                 seen = seen,
-                bookmark = bookmark,
-                downloadIndicatorEnabled = downloadIndicatorEnabled,
-                downloadStateProvider = downloadStateProvider,
-                downloadProgressProvider = downloadProgressProvider,
-                onDownloadClick = onDownloadClick,
-                fileSize = fileSize,
+                inProgress = inProgress,
+                zoom = { zoom },
             )
-            return@Row
+        } else {
+            EpisodePlaceholder(number = parts?.second, seen = seen, inProgress = inProgress)
         }
 
-        Column {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                EpisodeThumbnail(previewUrl = previewUrl)
-
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        val titleLines = if (previewUrl == null) 1 else 2
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 14.sp),
-                            modifier = Modifier.weight(1f),
-                            maxLines = titleLines,
-                            minLines = titleLines,
-                            overflow = TextOverflow.Ellipsis,
-                            color = LocalContentColor.current.copy(alpha = if (seen) DISABLED_ALPHA else 1f),
-                        )
-
-                        if (previewUrl == null) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                BookmarkDownloadIcons(
-                                    bookmark = bookmark,
-                                    downloadIndicatorEnabled = downloadIndicatorEnabled,
-                                    downloadStateProvider = downloadStateProvider,
-                                    downloadProgressProvider = downloadProgressProvider,
-                                    onDownloadClick = onDownloadClick,
-                                    fileSize = fileSize,
-                                )
-                            }
-                        }
-                    }
-
-                    EpisodeSummary(
-                        seen = seen,
-                        isAnyEpisodeSelected = isAnyEpisodeSelected,
-                        summary = summary,
-                    )
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                EpisodeInformation(
-                    seen = seen,
-                    date = date,
-                    watchProgress = watchProgress,
-                    fillermark = fillermark,
-                    isAutoFiller = isAutoFiller,
-                    scanlator = scanlator,
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp, end = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            EpisodeTitle(title = title, parts = parts, seen = seen, inProgress = inProgress)
+            if (inProgress) {
+                Text(
+                    text = watchProgress.orEmpty(),
+                    modifier = Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-
-                if (previewUrl != null) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        BookmarkDownloadIcons(
-                            bookmark = bookmark,
-                            downloadIndicatorEnabled = downloadIndicatorEnabled,
-                            downloadStateProvider = downloadStateProvider,
-                            downloadProgressProvider = downloadProgressProvider,
-                            onDownloadClick = onDownloadClick,
-                            fileSize = fileSize,
-                        )
-                    }
-                }
+            }
+            if (isFiller) {
+                FillerTag(modifier = Modifier.padding(top = 4.dp))
             }
         }
-    }
-}
 
-@Composable
-private fun RowScope.SimpleEpisodeListItemImpl(
-    title: String,
-    date: String?,
-    watchProgress: String?,
-    fillermark: Boolean,
-    isAutoFiller: Boolean,
-    scanlator: String?,
-    seen: Boolean,
-    bookmark: Boolean,
-    downloadIndicatorEnabled: Boolean,
-    downloadStateProvider: () -> Download.State,
-    downloadProgressProvider: () -> Int,
-    onDownloadClick: ((EpisodeDownloadAction) -> Unit)?,
-    fileSize: Long?,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(if (fillermark) 0.dp else 6.dp),
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = LocalContentColor.current.copy(alpha = if (seen) DISABLED_ALPHA else 1f),
-        )
-
-        EpisodeInformation(
-            seen = seen,
-            date = date,
-            watchProgress = watchProgress,
-            fillermark = fillermark,
-            isAutoFiller = isAutoFiller,
-            scanlator = scanlator,
-        )
-    }
-
-    Column(horizontalAlignment = Alignment.End) {
         BookmarkDownloadIcons(
             bookmark = bookmark,
             downloadIndicatorEnabled = downloadIndicatorEnabled,
@@ -372,128 +329,132 @@ private fun RowScope.SimpleEpisodeListItemImpl(
 }
 
 @Composable
+private fun thumbnailWidth() = (LocalConfiguration.current.screenWidthDp * 0.36f).coerceIn(120f, 176f).dp
+
+/** Clean 16:9 thumbnail: no overlays, just a hairline glass edge (accent ring while in progress). */
+@Composable
 private fun EpisodeThumbnail(
-    previewUrl: String?,
+    previewUrl: String,
+    seen: Boolean,
+    inProgress: Boolean,
+    zoom: () -> Float,
 ) {
-    val targetWidth = ((LocalConfiguration.current.screenWidthDp * 0.4f).coerceAtMost(250f))
-    if (!previewUrl.isNullOrBlank()) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .width(thumbnailWidth())
+            .clip(ThumbShape)
+            .border(
+                width = if (inProgress) 2.dp else 1.dp,
+                color = if (inProgress) colors.primary else Color.White.copy(alpha = 0.10f),
+                shape = ThumbShape,
+            ),
+    ) {
         AnimeCover.Square(
             data = previewUrl,
             modifier = Modifier
-                .width(targetWidth.dp)
-                .padding(end = 8.dp),
+                .fillMaxWidth()
+                .graphicsLayer {
+                    val z = zoom()
+                    scaleX = z
+                    scaleY = z
+                    alpha = if (seen) SeenAlpha else 1f
+                },
             ratio = 16f / 9f,
-            shape = MaterialTheme.shapes.small,
+            shape = ThumbShape,
         )
     }
 }
 
+/** Same footprint as a thumbnail, for episodes without a preview image. */
 @Composable
-private fun EpisodeSummary(
-    seen: Boolean,
-    isAnyEpisodeSelected: Boolean,
-    summary: String?,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    if (!summary.isNullOrBlank()) {
-        Text(
-            text = summary,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
-            fontWeight = FontWeight.Normal,
-            fontSize = 10.sp,
-            lineHeight = 11.sp,
-            overflow = TextOverflow.Ellipsis,
-            color = LocalContentColor.current.copy(
-                alpha = if (seen) DISABLED_ALPHA else SECONDARY_ALPHA,
-            ),
-            modifier = Modifier
-                .padding(bottom = 4.dp, start = 4.dp, end = 4.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    enabled = !isAnyEpisodeSelected,
-                    onClick = { expanded = !expanded },
+private fun EpisodePlaceholder(number: String?, seen: Boolean, inProgress: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .width(thumbnailWidth())
+            .aspectRatio(16f / 9f)
+            .clip(ThumbShape)
+            .background(
+                Brush.linearGradient(
+                    listOf(colors.primary.copy(alpha = 0.34f), colors.secondary.copy(alpha = 0.12f)),
                 ),
+            )
+            .border(
+                width = if (inProgress) 2.dp else 1.dp,
+                color = if (inProgress) colors.primary else Color.White.copy(alpha = 0.10f),
+                shape = ThumbShape,
+            )
+            .alpha(if (seen) SeenAlpha else 1f),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = number ?: "•",
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
+            color = colors.onSurface.copy(alpha = 0.8f),
+            maxLines = 1,
+        )
+    }
+}
+
+/** Small caps label + big numeral ("EPISODIO" / "12"); falls back to the plain title. */
+@Composable
+private fun EpisodeTitle(
+    title: String,
+    parts: Pair<String, String>?,
+    seen: Boolean,
+    inProgress: Boolean,
+) {
+    val base = LocalContentColor.current
+    val fade = if (seen) SeenAlpha else 1f
+    if (parts != null) {
+        Text(
+            text = parts.first.uppercase(),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.8.sp,
+            ),
+            color = base.copy(alpha = 0.6f * fade),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = parts.second,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.5).sp,
+            ),
+            color = if (inProgress) MaterialTheme.colorScheme.primary else base.copy(alpha = fade),
+            maxLines = 1,
+        )
+    } else {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = base.copy(alpha = fade),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @Composable
-private fun EpisodeInformation(
-    seen: Boolean,
-    date: String?,
-    watchProgress: String?,
-    fillermark: Boolean,
-    isAutoFiller: Boolean,
-    scanlator: String?,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val subtitleStyle = MaterialTheme.typography.bodySmall
-            .merge(color = LocalContentColor.current.copy(alpha = if (seen) DISABLED_ALPHA else SECONDARY_ALPHA))
-        
-        if (!seen) {
-            Icon(
-                imageVector = Icons.Filled.Circle,
-                contentDescription = stringResource(MR.strings.unseen),
-                modifier = Modifier
-                    .height(8.dp)
-                    .padding(end = 4.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-        if (fillermark) {
-            Icon(
-                imageVector = ImageVector.vectorResource(id = R.drawable.ic_fillermark_24dp),
-                contentDescription = stringResource(AMR.strings.action_filter_fillermarked),
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.tertiary,
-            )
-            Spacer(modifier = Modifier.width(2.dp))
-        }
-        if (date != null) {
-            if (isAutoFiller) {
-                Text(
-                    text = "f ",
-                    color = MaterialTheme.colorScheme.tertiary,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                    ),
-                )
-            }
-            Text(
-                text = date,
-                style = subtitleStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (watchProgress != null || scanlator != null) {
-                Text(text = " • ", style = subtitleStyle)
-            }
-        }
-        if (watchProgress != null) {
-            Text(
-                text = watchProgress,
-                style = subtitleStyle.copy(color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA)),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (scanlator != null) {
-                Text(text = " • ", style = subtitleStyle)
-            }
-        }
-        if (scanlator != null) {
-            Text(
-                text = scanlator,
-                style = subtitleStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
-    }
+private fun FillerTag(modifier: Modifier = Modifier) {
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    Text(
+        text = "RELLENO",
+        modifier = modifier
+            .background(tertiary.copy(alpha = 0.16f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp,
+        ),
+        color = tertiary,
+        maxLines = 1,
+    )
 }
+// ANZ <--
 
 @Composable
 private fun BookmarkDownloadIcons(
@@ -585,35 +546,41 @@ fun NextEpisodeAiringListItem(
     date: String,
     modifier: Modifier = Modifier,
 ) {
+    // ANZ -->
     Row(
-        modifier = modifier.padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Icon(
+            imageVector = Icons.Outlined.Schedule,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.alpha(SECONDARY_ALPHA),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(modifier = Modifier.alpha(SECONDARY_ALPHA)) {
-                ProvideTextStyle(
-                    value = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                ) {
-                    Text(
-                        text = date,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = date,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
+    // ANZ <--
 }
 
 private fun swipeAction(

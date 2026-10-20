@@ -17,6 +17,11 @@
 
 package eu.kanade.presentation.player.components
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -174,19 +179,33 @@ fun PlayerSheet(
                     WindowInsets.systemBars
                         .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                 ),
-            shape = MaterialTheme.shapes.extraLarge.copy(bottomEnd = ZeroCornerSize, bottomStart = ZeroCornerSize),
+            // ANZ -->
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            // ANZ <--
             tonalElevation = tonalElevation,
             content = {
                 BackHandler(
                     enabled = anchoredDraggableState.targetValue == 0,
                     onBack = internalOnDismissRequest,
                 )
-                content()
+                // ANZ --> drag handle on top of every sheet
+                Column {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 10.dp, bottom = 4.dp)
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)),
+                    )
+                    content()
+                }
+                // ANZ <--
             },
         )
 
         LaunchedEffect(Unit) {
-            backgroundAlpha = 0.5f
+            backgroundAlpha = 0.6f
         }
 
         LaunchedEffect(anchoredDraggableState) {

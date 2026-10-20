@@ -68,19 +68,32 @@ fun LibraryContent(
     val containerStyles by uiPreferences.containerStyles().collectAsState()
     val useContainer = remember(containerStyles) { ContainerStyle.LIBRARY in containerStyles }
 
+    // ANZ -->
+    val pagerState = rememberPagerState(
+        initialPage = remember(categories) { currentPage().coerceAtMost(categories.lastIndex.coerceAtLeast(0)) },
+    ) { categories.size }
+
+    // The new home layout is edge to edge: it does not use the rounded container.
+    val currentDisplayMode by getDisplayMode(pagerState.currentPage)
+    val useHome = shouldUseLibraryHome(searchQuery, currentDisplayMode)
+    val tabsShown = showPageTabs && categories.isNotEmpty() &&
+        (categories.size > 1 || !categories.first().isSystemCategory)
+    // With the new home the toolbar is transparent and the page starts at the very top of the screen,
+    // running under it. The home adds the toolbar height itself as an inset of its first row.
+    val toolbarInset = contentPadding.calculateTopPadding()
+    val edgeToEdge = useHome && !tabsShown
+    val topInset = if (edgeToEdge) toolbarInset else 0.dp
+    // ANZ <--
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(
-                top = contentPadding.calculateTopPadding(),
+                top = if (edgeToEdge) 0.dp else toolbarInset,
                 start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
                 end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
             ),
     ) {
-        val pagerState = rememberPagerState(
-            initialPage = remember(categories) { currentPage().coerceAtMost(categories.lastIndex.coerceAtLeast(0)) },
-        ) { categories.size }
-
         val scope = rememberCoroutineScope()
         var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
 
@@ -121,12 +134,16 @@ fun LibraryContent(
                 }
             },
             enabled = notSelectionMode,
+            indicatorPadding = PaddingValues(top = topInset),
         ) {
             val pagerContent = @Composable {
                 LibraryPager(
                     state = pagerState,
                     categories = categories,
-                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                    contentPadding = PaddingValues(
+                        top = topInset,
+                        bottom = contentPadding.calculateBottomPadding(),
+                    ),
                     hasActiveFilters = hasActiveFilters,
                     selectedAnime = selection,
                     searchQuery = searchQuery,
@@ -142,7 +159,7 @@ fun LibraryContent(
                 )
             }
 
-            if (useContainer) {
+            if (useContainer && !useHome) {
                 Surface(
                     modifier = Modifier
                         .fillMaxSize()

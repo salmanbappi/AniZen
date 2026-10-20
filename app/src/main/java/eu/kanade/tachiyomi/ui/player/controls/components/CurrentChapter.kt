@@ -17,6 +17,7 @@
 
 package eu.kanade.tachiyomi.ui.player.controls.components
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
@@ -57,8 +58,10 @@ fun CurrentChapter(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(25))
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.6F))
+            // ANZ --> same translucent pill as the other controls
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.13f))
+            // ANZ <--
             .clickable(onClick = onClick)
             .padding(horizontal = MaterialTheme.padding.mediumSmall, vertical = MaterialTheme.padding.small),
     ) {
@@ -87,7 +90,7 @@ fun CurrentChapter(
                     modifier = Modifier
                         .padding(end = MaterialTheme.padding.extraSmall)
                         .size(16.dp),
-                    tint = MaterialTheme.colorScheme.onBackground,
+                    tint = Color.White.copy(alpha = 0.85f),
                 )
                 Text(
                     text = Utils.prettyTime(currentChapter.start.toInt()),
@@ -95,7 +98,7 @@ fun CurrentChapter(
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
-                    color = MaterialTheme.colorScheme.tertiary,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 currentChapter.name.let {
                     Text(
@@ -103,7 +106,7 @@ fun CurrentChapter(
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White.copy(alpha = 0.55f),
                         overflow = TextOverflow.Clip,
                     )
                     Text(
@@ -113,7 +116,7 @@ fun CurrentChapter(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = Color.White.copy(alpha = 0.92f),
                     )
                 }
             }

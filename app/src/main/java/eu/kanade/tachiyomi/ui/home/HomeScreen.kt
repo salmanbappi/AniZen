@@ -1,5 +1,30 @@
 package eu.kanade.tachiyomi.ui.home
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.font.FontWeight
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -188,7 +213,9 @@ object HomeScreen : Screen() {
             CompositionLocalProvider(LocalNavigator provides navigator) {
                 Scaffold(
                     modifier = Modifier.nestedScroll(nestedScrollConnection),
-                    hazeEnabled = hazeEnabled,
+                    // ANZ --> the blur frosted the whole bottom slot as one grey rectangle: off here
+                    hazeEnabled = false,
+                    // ANZ <--
                     startBar = {
                         if (isTabletUi()) {
                             NavigationRail(
@@ -213,23 +240,36 @@ object HomeScreen : Screen() {
                                 enter = slideInVertically { it } + expandVertically(),
                                 exit = slideOutVertically { it } + shrinkVertically(),
                             ) {
-                                NavigationBar(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                ) {
+                                // ANZ -->
+                                FloatingNavBar {
                                     for (navItem in visibleNavItems) {
                                         key(navItem.id) {
                                             HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
                                         }
                                     }
                                 }
+                                // ANZ <--
                             }
                         }
                     },
                     contentWindowInsets = WindowInsets(0),
                 ) { contentPadding ->
+                    // ANZ -->
+                    // The library runs under the floating bar down to the very bottom edge (so there is no
+                    // block behind the dock or the system buttons) and adds the bar height as its own bottom
+                    // space; the other tabs keep the classic bottom padding.
+                    val layoutDirection = LocalLayoutDirection.current
+                    val barHeight = contentPadding.calculateBottomPadding()
+                    // ANZ <--
                     Box(
                         modifier = Modifier
-                            .padding(contentPadding)
+                            // ANZ -->
+                            .padding(
+                                start = contentPadding.calculateStartPadding(layoutDirection),
+                                top = contentPadding.calculateTopPadding(),
+                                end = contentPadding.calculateEndPadding(layoutDirection),
+                            )
+                            // ANZ <--
                             .consumeWindowInsets(contentPadding)
                             .fillMaxSize(),
                     ) {
@@ -248,7 +288,38 @@ object HomeScreen : Screen() {
                         ) {
                             key(it.key) {
                                 tabNavigator.saveableState(key = "tab-${it.key}", it) {
-                                    it.Content()
+                                    // ANZ -->
+                                    val underBar = it is LibraryTab
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(bottom = if (underBar) 0.dp else barHeight),
+                                    ) {
+                                        CompositionLocalProvider(
+                                            LocalHomeBarInset provides (if (underBar) barHeight else 0.dp),
+                                        ) {
+                                            it.Content()
+                                        }
+                                        if (underBar) {
+                                            // Soft fade of the page colour behind the icons and the system buttons:
+                                            // no box, no blur, it just melts into the background.
+                                            val fadeColor = MaterialTheme.colorScheme.background
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomCenter)
+                                                    .fillMaxWidth()
+                                                    .height(barHeight + 44.dp)
+                                                    .background(
+                                                        Brush.verticalGradient(
+                                                            0f to Color.Transparent,
+                                                            0.5f to fadeColor.copy(alpha = 0.72f),
+                                                            1f to fadeColor.copy(alpha = 0.96f),
+                                                        ),
+                                                    ),
+                                            )
+                                        }
+                                    }
+                                    // ANZ <--
                                 }
                             }
                         }
@@ -258,6 +329,7 @@ object HomeScreen : Screen() {
                             Surface(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
+                                    .padding(bottom = barHeight)
                                     .padding(16.dp)
                                     .fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium,
@@ -404,27 +476,27 @@ object HomeScreen : Screen() {
             } else null
         }
 
+        // ANZ -->
         with(rowScope) {
-            NavigationBarItem(
-                selected = selected,
+            FloatingNavItem(
+                isSelected = selected,
+                title = title,
+                showLabel = navLabelVisibility != NavLabelVisibility.NEVER,
                 onClick = onClick,
-                modifier = if (
-                    behavior.onLongClick != NavAction.Default ||
-                    behavior.onDoubleTap != NavAction.Default
-                ) {
-                    Modifier.combinedClickable(
-                        onLongClick = onLongClick,
-                        onDoubleClick = onDoubleClick,
-                        onClick = onClick,
+                onLongClick = if (behavior.onLongClick != NavAction.Default) onLongClick else null,
+                onDoubleClick = if (behavior.onDoubleTap != NavAction.Default) onDoubleClick else null,
+                icon = {
+                    NavigationIconItem(
+                        navItem,
+                        adaptiveDecision,
+                        updatesCount,
+                        extensionUpdatesCount,
+                        selectedTint = MaterialTheme.colorScheme.primary,
                     )
-                } else {
-                    Modifier
                 },
-                icon = { NavigationIconItem(navItem, adaptiveDecision, updatesCount, extensionUpdatesCount) },
-                label = label,
-                alwaysShowLabel = navLabelVisibility == NavLabelVisibility.ALWAYS,
             )
         }
+        // ANZ <--
     }
 
     @Composable
@@ -530,6 +602,7 @@ object HomeScreen : Screen() {
         adaptiveDecision: AdaptiveDecision?,
         updatesCount: Int,
         extensionUpdatesCount: Int,
+        selectedTint: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     ) {
         val tab = navItem.tab
         val tabNavigator = LocalTabNavigator.current
@@ -608,13 +681,13 @@ object HomeScreen : Screen() {
                 Icon(
                     imageVector = navItem.iconVector!!,
                     contentDescription = stringResource(navItem.titleRes),
-                    tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else LocalContentColor.current,
+                    tint = if (selected) selectedTint else LocalContentColor.current,
                 )
             } else {
                 Icon(
                     painter = iconPainter!!,
                     contentDescription = stringResource(navItem.titleRes),
-                    tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else LocalContentColor.current,
+                    tint = if (selected) selectedTint else LocalContentColor.current,
                 )
             }
         }
@@ -642,3 +715,108 @@ object HomeScreen : Screen() {
         data class More(val toDownloads: Boolean) : HomeTab
     }
 }
+
+// ANZ -->
+/** Height of the floating bottom bar for the tabs that run underneath it (the library); 0 for the rest. */
+val LocalHomeBarInset = compositionLocalOf { 0.dp }
+// ANZ <--
+
+// ANZ -->
+/*
+ * Floating bottom bar with no container at all: every tab is just an icon floating over the page, and
+ * only the selected one gets a soft tinted pill that also shows its label.
+ */
+@Composable
+private fun FloatingNavBar(content: @Composable RowScope.() -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(NavigationBarDefaults.windowInsets)
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CompositionLocalProvider(LocalContentColor provides colors.onSurfaceVariant) {
+            Row(
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth()
+                    .selectableGroup(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowScope.FloatingNavItem(
+    isSelected: Boolean,
+    title: String,
+    showLabel: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    onDoubleClick: (() -> Unit)?,
+    icon: @Composable () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val press by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+        label = "navPress",
+    )
+    val grow by animateFloatAsState(
+        targetValue = if (isSelected && showLabel) 2.3f else 1f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f),
+        label = "navGrow",
+    )
+    val pill by animateColorAsState(
+        targetValue = colors.primary.copy(alpha = if (isSelected) 0.18f else 0f),
+        label = "navPill",
+    )
+
+    Row(
+        modifier = Modifier
+            .weight(grow.coerceAtLeast(0.1f))
+            .height(48.dp)
+            .graphicsLayer {
+                scaleX = press
+                scaleY = press
+            }
+            .clip(CircleShape)
+            .background(pill)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onDoubleClick = onDoubleClick,
+            )
+            .semantics {
+                role = Role.Tab
+                selected = isSelected
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        icon()
+        AnimatedVisibility(
+            visible = isSelected && showLabel,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally(),
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.padding(start = 8.dp, end = 4.dp),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+// ANZ <--
