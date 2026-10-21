@@ -21,6 +21,7 @@ import android.app.Activity
 import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
+import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import eu.kanade.tachiyomi.util.system.setTargetRefreshRate
 import `is`.xyz.mpv.MPV

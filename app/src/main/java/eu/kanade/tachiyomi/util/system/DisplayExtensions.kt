@@ -87,12 +87,6 @@ fun Context.isNavigationBarNeedsScrim(): Boolean {
  * Ensures 90Hz / 120Hz / 144Hz displays run at peak fluidity immediately
  * upon launching the app, preventing the initial 60Hz scroll lag.
  */
-tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is android.content.ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
 fun Activity.enableHighRefreshRate() {
     try {
         val window = window ?: return
