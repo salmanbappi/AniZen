@@ -113,7 +113,6 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setSafeOptionString("dither", if (isHighQuality) "fruit" else "no")
 
         // ANZ -->
-        val isSmoothMotion = decoderPreferences.smoothMotion().get()
         if (isSmoothMotion) {
             val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
