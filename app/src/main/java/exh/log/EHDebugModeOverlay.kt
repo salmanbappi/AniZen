@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import eu.kanade.tachiyomi.ui.player.PlayerStats
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
+import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import `is`.xyz.mpv.MPV
 import kotlinx.coroutines.delay
@@ -34,7 +35,7 @@ import java.util.Locale
 @Composable
 fun InterpolationStatsOverlay() {
     // ANZ -->
-    val activity = LocalContext.current as? PlayerActivity
+    val activity = LocalContext.current.findActivity() as? PlayerActivity
     val mpv = activity?.viewModel?.mpv
     val context = LocalContext.current
     LaunchedEffect(Unit) {
@@ -159,8 +160,26 @@ fun InterpolationStatsOverlay() {
         
         StatLine("Source Rate", "${format.format(finalSourceFps)} fps", baseStyle)
         // ANZ -->
-        StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 58) Color.Green else Color.Unspecified))
-        StatLine("Refresh Rate", "${format.format(displayFps)} Hz", baseStyle)
+        val fpsLimitInt = Injekt.get<DecoderPreferences>().interpolationFPSLimit().get()
+        val isInterpolatingActive = isWorking
+        val targetLabel = when {
+            !isInterpolatingActive -> "Off"
+            fpsLimitInt == 0 -> "Auto"
+            else -> "$fpsLimitInt fps"
+        }
+        val effectiveDisplayFps = when {
+            !isInterpolatingActive -> finalActualFps
+            fpsLimitInt > 0 -> fpsLimitInt.toDouble()
+            else -> if (finalActualFps > 0.0) finalActualFps else displayFps
+        }
+        val effectiveRefreshRate = when {
+            !isInterpolatingActive -> displayFps
+            fpsLimitInt > 0 -> fpsLimitInt.toDouble()
+            else -> displayFps
+        }
+        StatLine("Target FPS", targetLabel, baseStyle)
+        StatLine("Actual Display", "${format.format(effectiveDisplayFps)} fps", baseStyle.copy(color = if (effectiveDisplayFps >= 29) Color.Green else Color.Unspecified))
+        StatLine("Refresh Rate", "${format.format(effectiveRefreshRate)} Hz", baseStyle)
         // ANZ <--
         
         Spacer(Modifier.height(8.dp))

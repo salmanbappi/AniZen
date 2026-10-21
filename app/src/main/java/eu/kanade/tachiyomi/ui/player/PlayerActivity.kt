@@ -596,9 +596,6 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        // ANZ -->
-        enableHighRefreshRate()
-        // ANZ <--
         setPictureInPictureParams(createPipParams())
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -776,9 +773,6 @@ class PlayerActivity : BaseActivity() {
             viewModel.hideControls()
         }
         super.onConfigurationChanged(newConfig)
-        // ANZ -->
-        enableHighRefreshRate()
-        // ANZ <--
     }
 
     fun showToast(message: String) {

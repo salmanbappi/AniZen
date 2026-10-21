@@ -150,20 +150,9 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
 fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
     val enabled = prefs.smoothMotion().get()
     val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
-    val activity = context?.findActivity() as? PlayerActivity
     if (enabled) {
         val fpsLimit = prefs.interpolationFPSLimit().get()
         val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
-        val targetFpsFloat = targetFps.toFloat()
-
-        activity?.window?.let { window ->
-            val params = window.attributes
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                params.preferredRefreshRate = targetFpsFloat
-                window.attributes = params
-            }
-        }
-        activity?.player?.applySurfaceFrameRate(targetFpsFloat)
 
         mpv?.setPropertyString("video-sync", "display-resample")
         mpv?.setPropertyString("interpolation", "yes")
@@ -173,20 +162,13 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         mpv?.setPropertyDouble("override-display-fps", targetFps)
         mpv?.setPropertyString("display-fps", targetFps.toString())
         mpv?.setPropertyString("override-display-fps", targetFps.toString())
+        mpv?.setOptionString("display-fps", targetFps.toString())
+        mpv?.setOptionString("override-display-fps", targetFps.toString())
         mpv?.command("set", "display-fps", targetFps.toString())
         mpv?.command("set", "override-display-fps", targetFps.toString())
         mpv?.setPropertyString("gpu-dumb-mode", "no")
         PlayerStats.displayFps.value = targetFps
     } else {
-        activity?.window?.let { window ->
-            val params = window.attributes
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                params.preferredRefreshRate = 0f
-                window.attributes = params
-            }
-        }
-        activity?.player?.applySurfaceFrameRate(0f)
-
         mpv?.setPropertyString("video-sync", "audio")
         mpv?.setPropertyString("interpolation", "no")
         mpv?.setPropertyString("gpu-dumb-mode", "auto")
