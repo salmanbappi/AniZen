@@ -116,14 +116,18 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         if (isSmoothMotion) {
             val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit >= 120) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val syncMode = if (fpsLimit > 0) "display-desync" else "display-resample"
 
-            mpv?.setOptionString("video-sync", "display-resample")
+            mpv?.setOptionString("video-sync", syncMode)
+            mpv?.setOptionString("video-sync-max-audio-change", "0")
+            mpv?.setOptionString("video-sync-max-video-change", "100")
             mpv?.setOptionString("interpolation", "yes")
             mpv?.setOptionString("correct-pts", "yes")
             mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
             mpv?.setOptionString("display-fps", targetFps.toString())
             mpv?.setOptionString("override-display-fps", targetFps.toString())
+            mpv?.setOptionString("display-fps-override", targetFps.toString())
             mpv?.setOptionString("gpu-dumb-mode", "no")
         } else {
             mpv?.setOptionString("video-sync", "audio")
@@ -199,7 +203,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         if (decoderPreferences.smoothMotion().get()) {
             val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit >= 120) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
             mpv?.setPropertyDouble("display-fps", targetFps)
             mpv?.setPropertyDouble("override-display-fps", targetFps)
