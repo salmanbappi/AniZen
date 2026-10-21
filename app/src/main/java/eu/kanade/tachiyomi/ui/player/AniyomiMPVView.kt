@@ -116,7 +116,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         if (isSmoothMotion) {
             val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val targetFps = if (fpsLimit >= 120) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
             mpv?.setOptionString("video-sync", "display-resample")
             mpv?.setOptionString("interpolation", "yes")
@@ -124,8 +124,6 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
             mpv?.setOptionString("display-fps", targetFps.toString())
             mpv?.setOptionString("override-display-fps", targetFps.toString())
-            mpv?.setOptionString("display-fps-override", targetFps.toString())
-            mpv?.setOptionString("video-sync-max-video-change", "100")
             mpv?.setOptionString("gpu-dumb-mode", "no")
         } else {
             mpv?.setOptionString("video-sync", "audio")
@@ -134,8 +132,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         }
         // ANZ <--
 
-        if (decoderPreferences.useYUV420P().get()) {
-            mpv?.setOptionString("vf", "format=yuv420p")
+        val vfChain = buildVFChain(decoderPreferences)
+        if (vfChain.isNotEmpty()) {
+            mpv?.setOptionString("vf", vfChain)
         }
         mpv?.setOptionString("msg-level", "all=" + if (networkPreferences.verboseLogging().get()) "v" else "warn")
 
@@ -200,7 +199,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         if (decoderPreferences.smoothMotion().get()) {
             val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val targetFps = if (fpsLimit >= 120) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
             mpv?.setPropertyDouble("display-fps", targetFps)
             mpv?.setPropertyDouble("override-display-fps", targetFps)

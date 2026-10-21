@@ -61,13 +61,15 @@ fun applyDebandSetting(mpv: MPV?, setting: DebandSettings, value: Int) {
 // ANZ <--
 
 fun buildVFChain(decoderPreferences: DecoderPreferences): String {
-    val useYuv420p = decoderPreferences.useYUV420P().get()
-
-    return if (useYuv420p) {
-        "format=yuv420p"
-    } else {
-        ""
+    val filters = mutableListOf<String>()
+    if (decoderPreferences.useYUV420P().get()) {
+        filters.add("format=yuv420p")
     }
+    val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+    if (decoderPreferences.smoothMotion().get() && fpsLimit == 30) {
+        filters.add("fps=30")
+    }
+    return filters.joinToString(",")
 }
 
 // ANZ -->
@@ -150,37 +152,73 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
 fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
     val enabled = prefs.smoothMotion().get()
     val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
+    val activity = context?.findActivity() as? PlayerActivity
     if (enabled) {
         val fpsLimit = prefs.interpolationFPSLimit().get()
-        val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
         if (prefs.tryHWDecoding().get()) {
             mpv?.setPropertyString("hwdec", "mediacodec-copy")
+        }
+
+        // If user explicitly picked 120 or 144, request high refresh rate mode on the window
+        if (fpsLimit >= 120) {
+            activity?.window?.let { window ->
+                val params = window.attributes
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    params.preferredRefreshRate = fpsLimit.toFloat()
+                    window.attributes = params
+                }
+            }
+        } else {
+            // Respect user's system refresh rate
+            activity?.window?.let { window ->
+                val params = window.attributes
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    params.preferredRefreshRate = 0f
+                    window.attributes = params
+                }
+            }
+        }
+
+        val activeRefreshRate = if (fpsLimit >= 120) {
+            fpsLimit.toDouble()
+        } else {
+            detectedRefreshRate.toDouble()
+        }
+
+        // Apply 30fps filter if target is 30, otherwise clear it
+        if (fpsLimit == 30) {
+            mpv?.command("vf", "set", "@interp_fps:fps=30")
+        } else {
+            mpv?.command("vf", "remove", "@interp_fps")
         }
 
         mpv?.setPropertyString("video-sync", "display-resample")
         mpv?.setPropertyString("interpolation", "yes")
         mpv?.setPropertyString("correct-pts", "yes")
         mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
-        mpv?.setPropertyString("video-sync-max-video-change", "100")
-        mpv?.setOptionString("video-sync-max-video-change", "100")
-        mpv?.setPropertyDouble("display-fps", targetFps)
-        mpv?.setPropertyDouble("override-display-fps", targetFps)
-        mpv?.setPropertyString("display-fps", targetFps.toString())
-        mpv?.setPropertyString("override-display-fps", targetFps.toString())
-        mpv?.setOptionString("display-fps", targetFps.toString())
-        mpv?.setOptionString("override-display-fps", targetFps.toString())
-        mpv?.setOptionString("display-fps-override", targetFps.toString())
-        mpv?.command("set", "display-fps", targetFps.toString())
-        mpv?.command("set", "override-display-fps", targetFps.toString())
+        mpv?.setPropertyDouble("display-fps", activeRefreshRate)
+        mpv?.setPropertyDouble("override-display-fps", activeRefreshRate)
+        mpv?.setPropertyString("display-fps", activeRefreshRate.toString())
+        mpv?.setPropertyString("override-display-fps", activeRefreshRate.toString())
+        mpv?.setOptionString("display-fps", activeRefreshRate.toString())
+        mpv?.setOptionString("override-display-fps", activeRefreshRate.toString())
+        mpv?.command("set", "display-fps", activeRefreshRate.toString())
+        mpv?.command("set", "override-display-fps", activeRefreshRate.toString())
         mpv?.setPropertyString("gpu-dumb-mode", "no")
-        PlayerStats.displayFps.value = targetFps
+        PlayerStats.displayFps.value = activeRefreshRate
     } else {
         if (prefs.tryHWDecoding().get()) {
             mpv?.setPropertyString("hwdec", "mediacodec")
         }
-        mpv?.setPropertyString("video-sync-max-video-change", "1")
-        mpv?.setOptionString("video-sync-max-video-change", "1")
+        activity?.window?.let { window ->
+            val params = window.attributes
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                params.preferredRefreshRate = 0f
+                window.attributes = params
+            }
+        }
+        mpv?.command("vf", "remove", "@interp_fps")
         mpv?.setPropertyString("video-sync", "audio")
         mpv?.setPropertyString("interpolation", "no")
         mpv?.setPropertyString("gpu-dumb-mode", "auto")
