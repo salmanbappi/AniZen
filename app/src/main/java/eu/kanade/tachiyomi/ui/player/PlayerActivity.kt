@@ -97,11 +97,13 @@ import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.controls.PlayerControls
 import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
+import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.util.system.powerManager
+import eu.kanade.tachiyomi.util.system.setTargetRefreshRate
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPV
@@ -147,6 +149,9 @@ class PlayerActivity : BaseActivity() {
     private val audioPreferences: AudioPreferences = Injekt.get()
     private val advancedPlayerPreferences: AdvancedPlayerPreferences = Injekt.get()
     private val subtitlePreferences: SubtitlePreferences = Injekt.get()
+    // ANZ -->
+    private val decoderPreferences: DecoderPreferences = Injekt.get()
+    // ANZ <--
 
     // ANK -->
     private val mpvConfig: MpvConfig = Injekt.get()
@@ -744,11 +749,25 @@ class PlayerActivity : BaseActivity() {
 
         if (!player.isExiting) {
             super.onResume()
+            // ANZ -->
+            if (decoderPreferences.smoothMotion().get()) {
+                val fpsLimit = decoderPreferences.interpolationFPSLimit().get().toFloat()
+                setTargetRefreshRate(fpsLimit)
+                player.applySurfaceFrameRate(fpsLimit)
+            }
+            // ANZ <--
             return
         }
 
         player.isExiting = false
         super.onResume()
+        // ANZ -->
+        if (decoderPreferences.smoothMotion().get()) {
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get().toFloat()
+            setTargetRefreshRate(fpsLimit)
+            player.applySurfaceFrameRate(fpsLimit)
+        }
+        // ANZ <--
 
         viewModel.currentVolume.update {
             audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).also {

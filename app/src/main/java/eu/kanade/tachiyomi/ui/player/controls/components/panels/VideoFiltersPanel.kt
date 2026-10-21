@@ -96,6 +96,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.roundToInt
 
 @Composable
 fun VideoFiltersPanel(
@@ -585,6 +586,16 @@ fun InterpolationCard() {
                     }
                 }
 
+                val fpsSteps = remember { listOf(0, 30, 60, 90, 120, 144) }
+                val currentStepIndex = remember(fpsLimit) {
+                    val idx = fpsSteps.indexOf(fpsLimit)
+                    if (idx != -1) {
+                        idx
+                    } else {
+                        fpsSteps.indices.minByOrNull { kotlin.math.abs(fpsSteps[it] - fpsLimit) } ?: 0
+                    }
+                }
+
                 val detectedHz = context.getDisplayRefreshRate().toInt()
                 val fpsText = if (fpsLimit == 0) {
                     "Auto (${detectedHz}Hz)"
@@ -594,16 +605,17 @@ fun InterpolationCard() {
 
                 SliderItem(
                     label = stringResource(AMR.strings.pref_interpolation_target_fps),
-                    value = fpsLimit.toFloat(),
+                    value = currentStepIndex.toFloat(),
                     valueText = fpsText,
                     onChange = {
-                        val newFps = it.toInt()
-                        decoderPreferences.interpolationFPSLimit().set(newFps)
+                        val chosenIndex = it.roundToInt().coerceIn(0, fpsSteps.lastIndex)
+                        val chosenFps = fpsSteps[chosenIndex]
+                        decoderPreferences.interpolationFPSLimit().set(chosenFps)
                         applyInterpolation(mpv, decoderPreferences, context)
                     },
-                    max = 144f,
                     min = 0f,
-                    steps = 0,
+                    max = (fpsSteps.size - 1).toFloat(),
+                    steps = fpsSteps.size - 2,
                 )
             }
         }

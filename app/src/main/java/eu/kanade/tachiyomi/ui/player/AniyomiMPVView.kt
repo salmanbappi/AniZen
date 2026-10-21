@@ -81,6 +81,21 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
     val hwdecActive: String
         get() = mpv?.getPropertyString("hwdec-current") ?: "no"
 
+    // ANZ -->
+    fun applySurfaceFrameRate(targetFps: Float) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val rate = if (targetFps > 0f) targetFps else context.getDisplayRefreshRate()
+                holder.surface?.let { surface ->
+                    if (surface.isValid) {
+                        surface.setFrameRate(rate, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+    // ANZ <--
+
     /**
      * Returns the video aspect ratio. Rotation is taken into account.
      */
@@ -119,10 +134,12 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             mpv?.setOptionString("display-fps", targetFps.toString())
             mpv?.setOptionString("override-display-fps", targetFps.toString())
             mpv?.setOptionString("gpu-dumb-mode", "no")
+            applySurfaceFrameRate(targetFps.toFloat())
         } else {
             mpv?.setOptionString("video-sync", "audio")
             mpv?.setOptionString("interpolation", "no")
             mpv?.setOptionString("gpu-dumb-mode", "auto")
+            applySurfaceFrameRate(0f)
         }
         // ANZ <--
 
@@ -197,6 +214,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             mpv?.setPropertyDouble("display-fps", targetFps)
             mpv?.setPropertyDouble("override-display-fps", targetFps)
             mpv?.setPropertyString("gpu-dumb-mode", "no")
+            applySurfaceFrameRate(targetFps.toFloat())
         }
         // ANZ <--
     }
