@@ -175,12 +175,6 @@ fun Activity.setTargetRefreshRate(targetFps: Float) {
             if (updated) {
                 window.attributes = params
             }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                try {
-                    window.setFrameRate(mode.refreshRate, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
-                } catch (_: Throwable) {}
-            }
         }
     } catch (_: Exception) {
         // Gracefully ignore on devices that do not permit display mode switching
