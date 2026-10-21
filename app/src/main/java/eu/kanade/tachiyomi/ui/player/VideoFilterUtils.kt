@@ -18,7 +18,9 @@
 package eu.kanade.tachiyomi.ui.player
 
 import android.content.Context
+import android.hardware.display.DisplayManager
 import android.os.Build
+import android.view.Display
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.util.system.findActivity
@@ -160,40 +162,55 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
             mpv?.setPropertyString("hwdec", "mediacodec-copy")
         }
 
-        // If user explicitly picked 120 or 144, request high refresh rate mode on the window
-        if (fpsLimit >= 120) {
-            activity?.window?.let { window ->
-                val params = window.attributes
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    params.preferredRefreshRate = fpsLimit.toFloat()
-                    window.attributes = params
-                }
+        // Switch display mode on Android Window if 120/144 selected
+        activity?.window?.let { window ->
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                activity.display ?: (activity.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+            } else {
+                @Suppress("DEPRECATION")
+                activity.windowManager.defaultDisplay
             }
-        } else {
-            // Respect user's system refresh rate
-            activity?.window?.let { window ->
-                val params = window.attributes
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    params.preferredRefreshRate = 0f
-                    window.attributes = params
+            val supportedModes = display?.supportedModes
+            if (supportedModes != null && supportedModes.isNotEmpty()) {
+                val targetMode = if (fpsLimit >= 120) {
+                    supportedModes.maxByOrNull { it.refreshRate }
+                } else {
+                    supportedModes.minByOrNull { kotlin.math.abs(it.refreshRate - 60f) }
+                }
+                targetMode?.let { mode ->
+                    val params = window.attributes
+                    var updated = false
+                    if (params.preferredDisplayModeId != mode.modeId) {
+                        params.preferredDisplayModeId = mode.modeId
+                        updated = true
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
+                        params.preferredRefreshRate = mode.refreshRate
+                        updated = true
+                    }
+                    if (updated) {
+                        window.attributes = params
+                    }
                 }
             }
         }
 
+        val syncMode = if (fpsLimit > 0) "display-desync" else "display-resample"
         val activeRefreshRate = if (fpsLimit >= 120) {
             fpsLimit.toDouble()
         } else {
             detectedRefreshRate.toDouble()
         }
 
-        // Apply 30fps filter if target is 30, otherwise clear it
         if (fpsLimit == 30) {
-            mpv?.command("vf", "set", "@interp_fps:fps=30")
+            mpv?.setPropertyString("vf", "fps=30")
         } else {
-            mpv?.command("vf", "remove", "@interp_fps")
+            mpv?.setPropertyString("vf", buildVFChain(prefs))
         }
 
-        mpv?.setPropertyString("video-sync", "display-resample")
+        mpv?.setPropertyString("video-sync", syncMode)
+        mpv?.setPropertyString("video-sync-max-audio-change", "0")
+        mpv?.setPropertyString("video-sync-max-video-change", "100")
         mpv?.setPropertyString("interpolation", "yes")
         mpv?.setPropertyString("correct-pts", "yes")
         mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
@@ -213,13 +230,16 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         }
         activity?.window?.let { window ->
             val params = window.attributes
+            params.preferredDisplayModeId = 0
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 params.preferredRefreshRate = 0f
-                window.attributes = params
             }
+            window.attributes = params
         }
-        mpv?.command("vf", "remove", "@interp_fps")
+        mpv?.setPropertyString("vf", buildVFChain(prefs))
         mpv?.setPropertyString("video-sync", "audio")
+        mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
+        mpv?.setPropertyString("video-sync-max-video-change", "1")
         mpv?.setPropertyString("interpolation", "no")
         mpv?.setPropertyString("gpu-dumb-mode", "auto")
         PlayerStats.displayFps.value = detectedRefreshRate.toDouble()

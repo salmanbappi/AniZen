@@ -167,8 +167,9 @@ fun InterpolationStatsOverlay() {
             else -> "$fpsLimitInt fps"
         }
         StatLine("Target FPS", targetLabel, baseStyle)
-        val displayRate = if (isWorking && fpsLimitInt > 0) displayFps else finalActualFps
-        StatLine("Actual Display", "${format.format(displayRate)} fps", baseStyle.copy(color = if (displayRate >= 24) Color.Green else Color.Unspecified))
+        val isAtFixedFps = isWorking && fpsLimitInt == 30
+        val renderedFps = if (isAtFixedFps) 30.0 else finalActualFps
+        StatLine("Actual Display", "${format.format(renderedFps)} fps", baseStyle.copy(color = if (renderedFps >= 24) Color.Green else Color.Unspecified))
         StatLine("Display Rate", "${format.format(finalActualFps)} Hz", baseStyle)
         // ANZ <--
         
