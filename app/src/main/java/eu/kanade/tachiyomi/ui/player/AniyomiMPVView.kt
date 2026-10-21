@@ -32,6 +32,7 @@ import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitleAssOverride
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
+import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
@@ -81,7 +82,28 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
     val hwdecActive: String
         get() = mpv?.getPropertyString("hwdec-current") ?: "no"
 
-
+    // ANZ -->
+    fun applySurfaceFrameRate(targetFps: Float) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                if (holder.surface?.isValid == true) {
+                    holder.surface.setFrameRate(targetFps, android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
+                } else {
+                    holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                        override fun surfaceCreated(h: android.view.SurfaceHolder) {
+                            h.removeCallback(this)
+                            if (h.surface?.isValid == true) {
+                                h.surface.setFrameRate(targetFps, android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
+                            }
+                        }
+                        override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, hi: Int) {}
+                        override fun surfaceDestroyed(h: android.view.SurfaceHolder) {}
+                    })
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+    // ANZ <--
 
     /**
      * Returns the video aspect ratio. Rotation is taken into account.
@@ -113,6 +135,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
             val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val targetFpsFloat = targetFps.toFloat()
 
             mpv?.setOptionString("video-sync", "display-resample")
             mpv?.setOptionString("interpolation", "yes")
@@ -121,10 +144,20 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             mpv?.setOptionString("display-fps", targetFps.toString())
             mpv?.setOptionString("override-display-fps", targetFps.toString())
             mpv?.setOptionString("gpu-dumb-mode", "no")
+
+            applySurfaceFrameRate(targetFpsFloat)
+            context.findActivity()?.window?.let { window ->
+                val params = window.attributes
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    params.preferredRefreshRate = targetFpsFloat
+                    window.attributes = params
+                }
+            }
         } else {
             mpv?.setOptionString("video-sync", "audio")
             mpv?.setOptionString("interpolation", "no")
             mpv?.setOptionString("gpu-dumb-mode", "auto")
+            applySurfaceFrameRate(0f)
         }
         // ANZ <--
 
@@ -198,7 +231,10 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
             mpv?.setPropertyDouble("display-fps", targetFps)
             mpv?.setPropertyDouble("override-display-fps", targetFps)
+            mpv?.setPropertyString("display-fps", targetFps.toString())
+            mpv?.setPropertyString("override-display-fps", targetFps.toString())
             mpv?.setPropertyString("gpu-dumb-mode", "no")
+            applySurfaceFrameRate(targetFps.toFloat())
         }
         // ANZ <--
     }

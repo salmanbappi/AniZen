@@ -102,6 +102,7 @@ import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
+import eu.kanade.tachiyomi.util.system.enableHighRefreshRate
 import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
@@ -595,6 +596,9 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
+        // ANZ -->
+        enableHighRefreshRate()
+        // ANZ <--
         setPictureInPictureParams(createPipParams())
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -772,6 +776,9 @@ class PlayerActivity : BaseActivity() {
             viewModel.hideControls()
         }
         super.onConfigurationChanged(newConfig)
+        // ANZ -->
+        enableHighRefreshRate()
+        // ANZ <--
     }
 
     fun showToast(message: String) {

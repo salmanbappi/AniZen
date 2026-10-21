@@ -147,7 +147,8 @@ fun Context.getDisplayRefreshRate(): Float {
             @Suppress("DEPRECATION")
             windowManager?.defaultDisplay
         }
-        display?.refreshRate?.takeIf { it > 0f } ?: 60f
+        val maxSupported = display?.supportedModes?.maxOfOrNull { it.refreshRate }
+        maxSupported?.takeIf { it > 0f } ?: display?.refreshRate?.takeIf { it > 0f } ?: 60f
     } catch (_: Exception) {
         60f
     }
