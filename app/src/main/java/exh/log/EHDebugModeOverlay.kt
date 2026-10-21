@@ -161,25 +161,14 @@ fun InterpolationStatsOverlay() {
         StatLine("Source Rate", "${format.format(finalSourceFps)} fps", baseStyle)
         // ANZ -->
         val fpsLimitInt = Injekt.get<DecoderPreferences>().interpolationFPSLimit().get()
-        val isInterpolatingActive = isWorking
         val targetLabel = when {
-            !isInterpolatingActive -> "Off"
+            !isWorking -> "Off"
             fpsLimitInt == 0 -> "Auto"
             else -> "$fpsLimitInt fps"
         }
-        val effectiveDisplayFps = when {
-            !isInterpolatingActive -> finalActualFps
-            fpsLimitInt > 0 -> fpsLimitInt.toDouble()
-            else -> if (finalActualFps > 0.0) finalActualFps else displayFps
-        }
-        val effectiveRefreshRate = when {
-            !isInterpolatingActive -> displayFps
-            fpsLimitInt > 0 -> fpsLimitInt.toDouble()
-            else -> displayFps
-        }
         StatLine("Target FPS", targetLabel, baseStyle)
-        StatLine("Actual Display", "${format.format(effectiveDisplayFps)} fps", baseStyle.copy(color = if (effectiveDisplayFps >= 29) Color.Green else Color.Unspecified))
-        StatLine("Refresh Rate", "${format.format(effectiveRefreshRate)} Hz", baseStyle)
+        StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 29) Color.Green else Color.Unspecified))
+        StatLine("Refresh Rate", "${format.format(displayFps)} Hz", baseStyle)
         // ANZ <--
         
         Spacer(Modifier.height(8.dp))
