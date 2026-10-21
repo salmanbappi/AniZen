@@ -596,9 +596,8 @@ fun InterpolationCard() {
                     }
                 }
 
-                val detectedHz = context.getDisplayRefreshRate().toInt()
                 val fpsText = if (fpsLimit == 0) {
-                    "Auto (${detectedHz}Hz)"
+                    "Auto"
                 } else {
                     "$fpsLimit FPS"
                 }

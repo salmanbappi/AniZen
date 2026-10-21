@@ -145,8 +145,12 @@ fun Activity.setTargetRefreshRate(targetFps: Float) {
         if (supportedModes.isEmpty()) return
 
         val currentMode = display.mode
+        val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
         val sameResModes = supportedModes.filter {
-            it.physicalWidth == currentMode.physicalWidth && it.physicalHeight == currentMode.physicalHeight
+            val modeMax = maxOf(it.physicalWidth, it.physicalHeight)
+            val modeMin = minOf(it.physicalWidth, it.physicalHeight)
+            modeMax == maxDim && modeMin == minDim
         }.ifEmpty { supportedModes.toList() }
 
         val targetMode = if (targetFps > 0f) {
@@ -157,8 +161,6 @@ fun Activity.setTargetRefreshRate(targetFps: Float) {
                 ?: supportedModes.maxByOrNull { it.refreshRate }
         }
 
-        val rate = if (targetFps > 0f) targetFps else (targetMode?.refreshRate ?: 60f)
-
         targetMode?.let { mode ->
             val params = window.attributes
             var updated = false
@@ -166,12 +168,18 @@ fun Activity.setTargetRefreshRate(targetFps: Float) {
                 params.preferredDisplayModeId = mode.modeId
                 updated = true
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != rate) {
-                params.preferredRefreshRate = rate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
+                params.preferredRefreshRate = mode.refreshRate
                 updated = true
             }
             if (updated) {
                 window.attributes = params
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    window.setFrameRate(mode.refreshRate, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                } catch (_: Throwable) {}
             }
         }
     } catch (_: Exception) {
