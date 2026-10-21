@@ -213,6 +213,12 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
             mpv?.setPropertyDouble("display-fps", targetFps)
             mpv?.setPropertyDouble("override-display-fps", targetFps)
+            mpv?.setPropertyString("display-fps", targetFps.toString())
+            mpv?.setPropertyString("override-display-fps", targetFps.toString())
+            mpv?.setOptionString("display-fps", targetFps.toString())
+            mpv?.setOptionString("override-display-fps", targetFps.toString())
+            mpv?.command("set", "display-fps", targetFps.toString())
+            mpv?.command("set", "override-display-fps", targetFps.toString())
             mpv?.setPropertyString("gpu-dumb-mode", "no")
             applySurfaceFrameRate(targetFps.toFloat())
         }

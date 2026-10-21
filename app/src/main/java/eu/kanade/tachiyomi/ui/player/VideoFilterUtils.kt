@@ -169,6 +169,8 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         mpv?.setPropertyString("override-display-fps", targetFps.toString())
         mpv?.setOptionString("display-fps", targetFps.toString())
         mpv?.setOptionString("override-display-fps", targetFps.toString())
+        mpv?.command("set", "display-fps", targetFps.toString())
+        mpv?.command("set", "override-display-fps", targetFps.toString())
         mpv?.setPropertyString("gpu-dumb-mode", "no")
     } else {
         activity?.setTargetRefreshRate(0f)
