@@ -88,6 +88,7 @@ import eu.kanade.tachiyomi.ui.player.controls.CARDS_MAX_WIDTH
 import eu.kanade.tachiyomi.ui.player.controls.panelCardsColors
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.InterpolationMode
+import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.ank.AMR
@@ -525,7 +526,7 @@ fun InterpolationCard() {
     var isExpanded by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
-    val activity = context as? PlayerActivity
+    val activity = context.findActivity() as? PlayerActivity
     val mpv = activity?.viewModel?.mpv
 
     ExpandableCard(

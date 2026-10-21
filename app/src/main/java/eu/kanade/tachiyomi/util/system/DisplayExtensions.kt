@@ -87,6 +87,12 @@ fun Context.isNavigationBarNeedsScrim(): Boolean {
  * Ensures 90Hz / 120Hz / 144Hz displays run at peak fluidity immediately
  * upon launching the app, preventing the initial 60Hz scroll lag.
  */
+tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 fun Activity.enableHighRefreshRate() {
     try {
         val window = window ?: return
@@ -101,9 +107,15 @@ fun Activity.enableHighRefreshRate() {
         if (supportedModes.isEmpty()) return
 
         val currentMode = display.mode
-        val highestRefreshRateMode = supportedModes
-            .filter { it.physicalWidth == currentMode.physicalWidth && it.physicalHeight == currentMode.physicalHeight }
-            .maxByOrNull { it.refreshRate }
+        val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val sameResModes = supportedModes.filter {
+            val modeMax = maxOf(it.physicalWidth, it.physicalHeight)
+            val modeMin = minOf(it.physicalWidth, it.physicalHeight)
+            modeMax == maxDim && modeMin == minDim
+        }.ifEmpty { supportedModes.toList() }
+
+        val highestRefreshRateMode = sameResModes.maxByOrNull { it.refreshRate }
             ?: supportedModes.maxByOrNull { it.refreshRate }
 
         highestRefreshRateMode?.let { mode ->
