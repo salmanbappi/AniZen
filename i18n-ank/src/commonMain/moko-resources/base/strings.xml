@@ -241,4 +241,10 @@
 
     <!-- WebView -->
     <string name="action_webview_close_tab">Close tab</string>
+
+    <!-- Interpolation -->
+    <string name="player_sheets_interpolation_title">Interpolation</string>
+    <string name="pref_interpolation_profile">Profile</string>
+    <string name="pref_interpolation_profile_summary">Optimized for content type</string>
+    <string name="pref_interpolation_target_fps">Target FPS</string>
 </resources>

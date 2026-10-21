@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NotInterested
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,12 +81,16 @@ import eu.kanade.tachiyomi.ui.player.applyAnime4K
 import eu.kanade.tachiyomi.ui.player.applyDebandMode
 import eu.kanade.tachiyomi.ui.player.applyDebandSetting
 import eu.kanade.tachiyomi.ui.player.applyFilter
+import eu.kanade.tachiyomi.ui.player.applyInterpolation
 import eu.kanade.tachiyomi.ui.player.applyTheme
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.ui.player.controls.CARDS_MAX_WIDTH
 import eu.kanade.tachiyomi.ui.player.controls.panelCardsColors
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
+import eu.kanade.tachiyomi.ui.player.settings.InterpolationMode
+import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -149,6 +154,9 @@ fun VideoFiltersPanel(
                 FiltersCard()
                 DebandCard()
                 Anime4KCard()
+                // ANZ -->
+                InterpolationCard()
+                // ANZ <--
             }
         }
     }
@@ -505,3 +513,100 @@ fun Anime4KCard() {
         }
     }
 }
+
+// ANZ -->
+@Composable
+fun InterpolationCard() {
+    val decoderPreferences = remember { Injekt.get<DecoderPreferences>() }
+    val smoothMotion by decoderPreferences.smoothMotion().collectAsState()
+    val currentMode by decoderPreferences.interpolationMode().collectAsState()
+    val fpsLimit by decoderPreferences.interpolationFPSLimit().collectAsState()
+    var isExpanded by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val activity = context as? PlayerActivity
+    val mpv = activity?.viewModel?.mpv
+
+    ExpandableCard(
+        isExpanded = isExpanded,
+        onExpand = { isExpanded = it },
+        title = {
+            Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium)) {
+                Icon(Icons.Outlined.Speed, null)
+                Text(stringResource(AMR.strings.player_sheets_interpolation_title))
+            }
+        },
+        colors = panelCardsColors(),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(MaterialTheme.padding.medium)
+                .animateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(AMR.strings.player_sheets_interpolation_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Switch(
+                    checked = smoothMotion,
+                    onCheckedChange = {
+                        decoderPreferences.smoothMotion().set(it)
+                        applyInterpolation(mpv, decoderPreferences, context)
+                    },
+                )
+            }
+
+            if (smoothMotion) {
+                Text(
+                    text = stringResource(AMR.strings.pref_interpolation_profile),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                ) {
+                    itemsIndexed(
+                        items = InterpolationMode.entries,
+                        key = { _, it -> "vf-interp-${it.name}" },
+                    ) { _, mode ->
+                        InputChip(
+                            selected = currentMode == mode,
+                            onClick = {
+                                decoderPreferences.interpolationMode().set(mode)
+                                applyInterpolation(mpv, decoderPreferences, context)
+                            },
+                            label = { Text(mode.title) },
+                        )
+                    }
+                }
+
+                val detectedHz = context.getDisplayRefreshRate().toInt()
+                val fpsText = if (fpsLimit == 0) {
+                    "Auto (${detectedHz}Hz)"
+                } else {
+                    "$fpsLimit FPS"
+                }
+
+                SliderItem(
+                    label = stringResource(AMR.strings.pref_interpolation_target_fps),
+                    value = fpsLimit.toFloat(),
+                    valueText = fpsText,
+                    onChange = {
+                        val newFps = it.toInt()
+                        decoderPreferences.interpolationFPSLimit().set(newFps)
+                        applyInterpolation(mpv, decoderPreferences, context)
+                    },
+                    max = 144f,
+                    min = 0f,
+                    steps = 0,
+                )
+            }
+        }
+    }
+}
+// ANZ <--

@@ -39,9 +39,11 @@ class DecoderPreferences(
     fun videoFilterTheme() = preferenceStore.getInt("pref_video_filter_theme", 0)
 }
 
+// ANZ -->
 enum class InterpolationMode(val title: String, val value: String) {
-    Linear("Fast (Low Power)", "linear"),
-    Oversample("Balanced (Anime)", "oversample"),
-    Mitchell("Smooth (Cinematic)", "mitchell"),
-    CatmullRom("High Quality (Sharp)", "catmull_rom")
+    Oversample("Anime", "oversample"),
+    Mitchell("Cinema", "mitchell"),
+    CatmullRom("Sharp", "catmull_rom"),
+    Linear("Low Power", "linear"),
 }
+// ANZ <--

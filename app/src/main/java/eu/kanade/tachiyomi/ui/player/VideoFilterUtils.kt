@@ -17,8 +17,10 @@
 
 package eu.kanade.tachiyomi.ui.player
 
+import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
+import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import `is`.xyz.mpv.MPV
 import logcat.LogPriority
 import logcat.logcat
@@ -140,6 +142,27 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
         } else {
             mpv?.setPropertyString("glsl-shaders", "")
         }
+    }
+}
+
+fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
+    val enabled = prefs.smoothMotion().get()
+    if (enabled) {
+        val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
+        val fpsLimit = prefs.interpolationFPSLimit().get()
+        val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+
+        mpv?.setPropertyString("video-sync", "display-resample")
+        mpv?.setPropertyString("interpolation", "yes")
+        mpv?.setPropertyString("correct-pts", "yes")
+        mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
+        mpv?.setPropertyDouble("display-fps", targetFps)
+        mpv?.setPropertyDouble("override-display-fps", targetFps)
+        mpv?.setPropertyString("gpu-dumb-mode", "no")
+    } else {
+        mpv?.setPropertyString("video-sync", "audio")
+        mpv?.setPropertyString("interpolation", "no")
+        mpv?.setPropertyString("gpu-dumb-mode", "auto")
     }
 }
 // ANZ <--
