@@ -125,6 +125,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             mpv?.setOptionString("display-fps", targetFps.toString())
             mpv?.setOptionString("override-display-fps", targetFps.toString())
             mpv?.setOptionString("display-fps-override", targetFps.toString())
+            mpv?.setOptionString("video-sync-max-video-change", "100")
             mpv?.setOptionString("gpu-dumb-mode", "no")
         } else {
             mpv?.setOptionString("video-sync", "audio")
