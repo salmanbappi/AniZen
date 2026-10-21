@@ -234,10 +234,12 @@ object NavConfigValidator {
 }
 
 object NavPresets {
+    // ANZ -->
     val DEFAULT = NavConfig(
-        visibleTabs = persistentListOf(NavItem.LIBRARY.id, NavItem.UPDATES.id, NavItem.HISTORY.id, NavItem.BROWSE.id, NavItem.MORE.id),
-        hiddenTabs = persistentListOf(NavItem.FEED.id)
+        visibleTabs = persistentListOf(NavItem.FEED.id, NavItem.BROWSE.id, NavItem.LIBRARY.id, NavItem.MORE.id),
+        hiddenTabs = persistentListOf(NavItem.UPDATES.id, NavItem.HISTORY.id)
     )
+    // ANZ <--
 
     val MINIMAL = NavConfig(
         visibleTabs = persistentListOf(NavItem.LIBRARY.id, NavItem.MORE.id),

@@ -111,7 +111,9 @@ android {
             applicationIdSuffix = ".beta"
 
             versionNameSuffix = debug.versionNameSuffix
-            signingConfig = release.signingConfig
+            // ANZ -->
+            signingConfig = debug.signingConfig
+            // ANZ <--
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 

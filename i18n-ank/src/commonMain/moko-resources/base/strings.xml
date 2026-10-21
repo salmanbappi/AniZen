@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- ANZ -->
+    <string name="app_name" translatable="false">Anizen</string>
     <string name="pref_app_icon">App icon</string>
     <string name="pref_app_icon_toast">App icon changed to %s</string>
     <string name="episode_progress_short">%1$s/%2$s</string>
