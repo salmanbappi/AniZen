@@ -34,6 +34,7 @@ import eu.kanade.tachiyomi.ui.player.settings.SubtitleAssOverride
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
+import eu.kanade.tachiyomi.util.system.setTargetRefreshRate
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPV
@@ -114,23 +115,25 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
         // ANZ -->
         if (isSmoothMotion) {
-            val detectedRefreshRate = context.getDisplayRefreshRate()
+            val activity = context.findActivity()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
-            val syncMode = if (fpsLimit > 0) "display-desync" else "display-resample"
+            val appliedRefreshRate = activity?.setTargetRefreshRate(fpsLimit)
+                ?: context.getDisplayRefreshRate()
+            val targetFps = appliedRefreshRate.toDouble()
 
-            mpv?.setOptionString("video-sync", syncMode)
-            mpv?.setOptionString("video-sync-max-audio-change", "0")
-            mpv?.setOptionString("video-sync-max-video-change", "100")
+            mpv?.setOptionString("video-sync", "display-resample")
+            mpv?.setOptionString("video-sync-max-audio-change", "0.125")
+            mpv?.setOptionString("video-sync-max-video-change", "1")
             mpv?.setOptionString("interpolation", "yes")
             mpv?.setOptionString("correct-pts", "yes")
             mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
-            mpv?.setOptionString("display-fps", targetFps.toString())
-            mpv?.setOptionString("override-display-fps", targetFps.toString())
             mpv?.setOptionString("display-fps-override", targetFps.toString())
+            mpv?.setOptionString("override-display-fps", targetFps.toString())
             mpv?.setOptionString("gpu-dumb-mode", "no")
         } else {
             mpv?.setOptionString("video-sync", "audio")
+            mpv?.setOptionString("video-sync-max-audio-change", "0.125")
+            mpv?.setOptionString("video-sync-max-video-change", "1")
             mpv?.setOptionString("interpolation", "no")
             mpv?.setOptionString("gpu-dumb-mode", "auto")
         }
@@ -201,17 +204,16 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
         // ANZ -->
         if (decoderPreferences.smoothMotion().get()) {
-            val detectedRefreshRate = context.getDisplayRefreshRate()
+            val activity = context.findActivity()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+            val appliedRefreshRate = activity?.setTargetRefreshRate(fpsLimit)
+                ?: context.getDisplayRefreshRate()
+            val targetFps = appliedRefreshRate.toDouble()
 
-            mpv?.setPropertyDouble("display-fps", targetFps)
+            mpv?.setPropertyDouble("display-fps-override", targetFps)
             mpv?.setPropertyDouble("override-display-fps", targetFps)
-            mpv?.setPropertyString("display-fps", targetFps.toString())
-            mpv?.setPropertyString("override-display-fps", targetFps.toString())
-            mpv?.command("set", "display-fps", targetFps.toString())
-            mpv?.command("set", "override-display-fps", targetFps.toString())
             mpv?.setPropertyString("gpu-dumb-mode", "no")
+            PlayerStats.displayFps.value = targetFps
         }
         // ANZ <--
     }

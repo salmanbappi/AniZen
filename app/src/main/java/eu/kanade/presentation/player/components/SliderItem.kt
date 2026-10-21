@@ -99,6 +99,9 @@ fun SliderItem(
     steps: Int = 0,
     min: Float = 0f,
     icon: @Composable () -> Unit = {},
+    // ANZ -->
+    onValueChangeFinished: (() -> Unit)? = null,
+    // ANZ <--
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -129,6 +132,9 @@ fun SliderItem(
                     onChange(newValue)
                 }
             },
+            // ANZ -->
+            onValueChangeFinished = onValueChangeFinished,
+            // ANZ <--
             modifier = Modifier.weight(1.5f),
             valueRange = min..max,
             steps = steps,

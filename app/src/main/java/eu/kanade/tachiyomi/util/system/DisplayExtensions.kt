@@ -11,6 +11,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.roundToInt
 
 private const val TABLET_UI_REQUIRED_SCREEN_WIDTH_DP = 720
 
@@ -152,5 +153,99 @@ fun Context.getDisplayRefreshRate(): Float {
         60f
     }
 }
+
+// ANZ -->
+/**
+ * Sets the window's preferred refresh rate to match targetFps, or highest available if targetFps <= 0 (Auto).
+ * The device must follow the manual preferences.
+ */
+fun Activity.setTargetRefreshRate(targetFps: Int): Float {
+    try {
+        val window = window ?: return if (targetFps > 0) targetFps.toFloat() else getDisplayRefreshRate()
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        } ?: return if (targetFps > 0) targetFps.toFloat() else getDisplayRefreshRate()
+
+        val supportedModes = display.supportedModes
+        val currentMode = display.mode
+        val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val sameResModes = supportedModes?.filter {
+            val modeMax = maxOf(it.physicalWidth, it.physicalHeight)
+            val modeMin = minOf(it.physicalWidth, it.physicalHeight)
+            modeMax == maxDim && modeMin == minDim
+        }?.ifEmpty { supportedModes.toList() } ?: emptyList()
+
+        val params = window.attributes
+        var updated = false
+
+        if (targetFps > 0) {
+            val targetMode = sameResModes.minByOrNull { kotlin.math.abs(it.refreshRate - targetFps) }
+                ?: supportedModes?.minByOrNull { kotlin.math.abs(it.refreshRate - targetFps) }
+            targetMode?.let {
+                if (params.preferredDisplayModeId != it.modeId) {
+                    params.preferredDisplayModeId = it.modeId
+                    updated = true
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (params.preferredRefreshRate != targetFps.toFloat()) {
+                    params.preferredRefreshRate = targetFps.toFloat()
+                    updated = true
+                }
+            }
+        } else {
+            // Auto: use highest refresh rate mode for smooth motion
+            val maxMode = sameResModes.maxByOrNull { it.refreshRate }
+                ?: supportedModes?.maxByOrNull { it.refreshRate }
+            maxMode?.let {
+                if (params.preferredDisplayModeId != it.modeId) {
+                    params.preferredDisplayModeId = it.modeId
+                    updated = true
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if (params.preferredRefreshRate != it.refreshRate) {
+                        params.preferredRefreshRate = it.refreshRate
+                        updated = true
+                    }
+                }
+            }
+        }
+
+        if (updated) {
+            window.attributes = params
+        }
+        return if (targetFps > 0) targetFps.toFloat() else getDisplayRefreshRate()
+    } catch (_: Exception) {
+        return if (targetFps > 0) targetFps.toFloat() else getDisplayRefreshRate()
+    }
+}
+
+/**
+ * Resets the window's preferred refresh rate and display mode back to system default.
+ */
+fun Activity.resetRefreshRate() {
+    try {
+        val window = window ?: return
+        val params = window.attributes
+        var updated = false
+        if (params.preferredDisplayModeId != 0) {
+            params.preferredDisplayModeId = 0
+            updated = true
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != 0f) {
+            params.preferredRefreshRate = 0f
+            updated = true
+        }
+        if (updated) {
+            window.attributes = params
+        }
+    } catch (_: Exception) {
+    }
+}
+// ANZ <--
 
 

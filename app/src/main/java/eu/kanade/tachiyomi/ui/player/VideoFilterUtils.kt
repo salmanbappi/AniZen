@@ -20,7 +20,10 @@ package eu.kanade.tachiyomi.ui.player
 import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
+import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
+import eu.kanade.tachiyomi.util.system.resetRefreshRate
+import eu.kanade.tachiyomi.util.system.setTargetRefreshRate
 import `is`.xyz.mpv.MPV
 import logcat.LogPriority
 import logcat.logcat
@@ -147,35 +150,30 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
 
 fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
     val enabled = prefs.smoothMotion().get()
-    val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
+    val activity = context?.findActivity()
     if (enabled) {
         val fpsLimit = prefs.interpolationFPSLimit().get()
-        val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
+        val appliedRefreshRate = activity?.setTargetRefreshRate(fpsLimit)
+            ?: context?.getDisplayRefreshRate()
+            ?: 60f
+        val targetFps = appliedRefreshRate.toDouble()
 
         if (prefs.tryHWDecoding().get()) {
             mpv?.setPropertyString("hwdec", "mediacodec-copy")
         }
 
-        val syncMode = if (fpsLimit > 0) "display-desync" else "display-resample"
-
-        mpv?.setPropertyString("video-sync", syncMode)
-        mpv?.setPropertyString("video-sync-max-audio-change", "0")
-        mpv?.setPropertyString("video-sync-max-video-change", "100")
+        mpv?.setPropertyString("video-sync", "display-resample")
+        mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
+        mpv?.setPropertyString("video-sync-max-video-change", "1")
         mpv?.setPropertyString("interpolation", "yes")
         mpv?.setPropertyString("correct-pts", "yes")
         mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
-        mpv?.setPropertyDouble("display-fps", targetFps)
+        mpv?.setPropertyDouble("display-fps-override", targetFps)
         mpv?.setPropertyDouble("override-display-fps", targetFps)
-        mpv?.setPropertyString("display-fps", targetFps.toString())
-        mpv?.setPropertyString("override-display-fps", targetFps.toString())
-        mpv?.setOptionString("display-fps", targetFps.toString())
-        mpv?.setOptionString("override-display-fps", targetFps.toString())
-        mpv?.setOptionString("display-fps-override", targetFps.toString())
-        mpv?.command("set", "display-fps", targetFps.toString())
-        mpv?.command("set", "override-display-fps", targetFps.toString())
         mpv?.setPropertyString("gpu-dumb-mode", "no")
         PlayerStats.displayFps.value = targetFps
     } else {
+        activity?.resetRefreshRate()
         if (prefs.tryHWDecoding().get()) {
             mpv?.setPropertyString("hwdec", "mediacodec")
         }
@@ -183,8 +181,10 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
         mpv?.setPropertyString("video-sync-max-video-change", "1")
         mpv?.setPropertyString("interpolation", "no")
+        mpv?.setPropertyDouble("display-fps-override", 0.0)
+        mpv?.setPropertyDouble("override-display-fps", 0.0)
         mpv?.setPropertyString("gpu-dumb-mode", "auto")
-        PlayerStats.displayFps.value = detectedRefreshRate.toDouble()
+        PlayerStats.displayFps.value = (context?.getDisplayRefreshRate() ?: 60f).toDouble()
     }
 }
 // ANZ <--

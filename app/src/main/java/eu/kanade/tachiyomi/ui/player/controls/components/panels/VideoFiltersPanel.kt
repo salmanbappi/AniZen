@@ -62,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -587,35 +588,57 @@ fun InterpolationCard() {
                     }
                 }
 
-                val fpsSteps = remember { listOf(0, 30, 60, 90, 120, 144) }
-                val currentStepIndex = remember(fpsLimit) {
-                    val idx = fpsSteps.indexOf(fpsLimit)
-                    if (idx != -1) {
-                        idx
-                    } else {
-                        fpsSteps.indices.minByOrNull { kotlin.math.abs(fpsSteps[it] - fpsLimit) } ?: 0
+                Text(
+                    text = stringResource(AMR.strings.pref_interpolation_target_fps),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+
+                val quickFps = remember { listOf(0, 30, 60, 90, 120, 144) }
+                val detectedHz = remember(context) { context.getDisplayRefreshRate().roundToInt() }
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                ) {
+                    items(
+                        items = quickFps,
+                        key = { "vf-interp-quick-$it" },
+                    ) { target ->
+                        val label = if (target == 0) {
+                            if (detectedHz > 0) "Auto (${detectedHz}Hz)" else "Auto"
+                        } else {
+                            "$target FPS"
+                        }
+                        InputChip(
+                            selected = fpsLimit == target,
+                            onClick = {
+                                decoderPreferences.interpolationFPSLimit().set(target)
+                                applyInterpolation(mpv, decoderPreferences, context)
+                            },
+                            label = { Text(label) },
+                        )
                     }
                 }
 
-                val fpsText = if (fpsLimit == 0) {
-                    "Auto"
+                var sliderFps by remember(fpsLimit) { mutableFloatStateOf(fpsLimit.toFloat()) }
+                val sliderText = if (sliderFps.roundToInt() == 0) {
+                    if (detectedHz > 0) "Auto (${detectedHz}Hz)" else "Auto"
                 } else {
-                    "$fpsLimit FPS"
+                    "${sliderFps.roundToInt()} FPS"
                 }
 
                 SliderItem(
                     label = stringResource(AMR.strings.pref_interpolation_target_fps),
-                    value = currentStepIndex.toFloat(),
-                    valueText = fpsText,
-                    onChange = {
-                        val chosenIndex = it.roundToInt().coerceIn(0, fpsSteps.lastIndex)
-                        val chosenFps = fpsSteps[chosenIndex]
-                        decoderPreferences.interpolationFPSLimit().set(chosenFps)
+                    value = sliderFps,
+                    valueText = sliderText,
+                    onChange = { sliderFps = it },
+                    onValueChangeFinished = {
+                        val chosen = sliderFps.roundToInt()
+                        decoderPreferences.interpolationFPSLimit().set(chosen)
                         applyInterpolation(mpv, decoderPreferences, context)
                     },
                     min = 0f,
-                    max = (fpsSteps.size - 1).toFloat(),
-                    steps = fpsSteps.size - 2,
+                    max = 144f,
+                    steps = 0,
                 )
             }
         }

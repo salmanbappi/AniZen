@@ -103,6 +103,7 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.util.system.enableHighRefreshRate
+import eu.kanade.tachiyomi.util.system.resetRefreshRate
 import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
@@ -470,6 +471,7 @@ class PlayerActivity : BaseActivity() {
         // <-- AM (DISCORD)
 
         // ANZ -->
+        resetRefreshRate()
         pipReceiver?.let {
             runCatching { unregisterReceiver(it) }
             pipReceiver = null
@@ -837,7 +839,7 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Double) {
         if (player.isExiting) return
         when (property) {
-            "display-fps", "override-display-fps" -> PlayerStats.displayFps.value = value
+            "display-fps", "override-display-fps", "display-fps-override" -> PlayerStats.displayFps.value = value
             "estimated-display-fps" -> PlayerStats.estimatedDisplayFps.value = value
             "mistime" -> PlayerStats.mistime.value = value
             "video-params/aspect" -> {

@@ -44,8 +44,9 @@ fun InterpolationStatsOverlay() {
             PlayerStats.videoParamsFps.value = mpv?.getPropertyDouble("video-params/fps") ?: 0.0
             PlayerStats.containerFps.value = mpv?.getPropertyDouble("container-fps") ?: 0.0
             val detectedRefreshRate = context.getDisplayRefreshRate().toDouble()
-            PlayerStats.displayFps.value = (mpv?.getPropertyDouble("override-display-fps")?.takeIf { it > 0.0 }
-                ?: mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
+            PlayerStats.displayFps.value = (mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
+                ?: mpv?.getPropertyDouble("display-fps-override")?.takeIf { it > 0.0 }
+                ?: mpv?.getPropertyDouble("override-display-fps")?.takeIf { it > 0.0 }
                 ?: detectedRefreshRate)
             PlayerStats.estimatedDisplayFps.value = mpv?.getPropertyDouble("estimated-display-fps") ?: 0.0
 
@@ -167,10 +168,8 @@ fun InterpolationStatsOverlay() {
             else -> "$fpsLimitInt fps"
         }
         StatLine("Target FPS", targetLabel, baseStyle)
-        val isInterpolatingActive = isWorking
-        val renderedFps = if (isInterpolatingActive && fpsLimitInt > 0) fpsLimitInt.toDouble() else finalActualFps
-        StatLine("Actual Display", "${format.format(renderedFps)} fps", baseStyle.copy(color = if (renderedFps >= 24) Color.Green else Color.Unspecified))
-        StatLine("Display Rate", "${format.format(finalActualFps)} Hz", baseStyle)
+        StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 24) Color.Green else Color.Unspecified))
+        StatLine("Display Rate", "${format.format(displayFps)} Hz", baseStyle)
         // ANZ <--
         
         Spacer(Modifier.height(8.dp))
