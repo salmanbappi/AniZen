@@ -147,9 +147,9 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
 
 fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
     val enabled = prefs.smoothMotion().get()
+    val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
     if (enabled) {
         val fpsLimit = prefs.interpolationFPSLimit().get()
-        val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
         val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
         mpv?.setPropertyString("video-sync", "display-resample")
@@ -158,17 +158,13 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
         mpv?.setPropertyDouble("display-fps", targetFps)
         mpv?.setPropertyDouble("override-display-fps", targetFps)
-        mpv?.setPropertyString("display-fps", targetFps.toString())
-        mpv?.setPropertyString("override-display-fps", targetFps.toString())
-        mpv?.setOptionString("display-fps", targetFps.toString())
-        mpv?.setOptionString("override-display-fps", targetFps.toString())
-        mpv?.command("set", "display-fps", targetFps.toString())
-        mpv?.command("set", "override-display-fps", targetFps.toString())
         mpv?.setPropertyString("gpu-dumb-mode", "no")
+        PlayerStats.displayFps.value = targetFps
     } else {
         mpv?.setPropertyString("video-sync", "audio")
         mpv?.setPropertyString("interpolation", "no")
         mpv?.setPropertyString("gpu-dumb-mode", "auto")
+        PlayerStats.displayFps.value = detectedRefreshRate.toDouble()
     }
 }
 // ANZ <--

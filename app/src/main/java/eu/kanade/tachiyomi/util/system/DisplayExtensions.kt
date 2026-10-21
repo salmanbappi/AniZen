@@ -137,10 +137,13 @@ fun Activity.enableHighRefreshRate() {
  */
 fun Context.getDisplayRefreshRate(): Float {
     return try {
+        val activity = findActivity()
         val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            display ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+            activity?.display
+                ?: display
+                ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
         } else {
-            val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            val windowManager = activity?.windowManager ?: getSystemService(Context.WINDOW_SERVICE) as? WindowManager
             @Suppress("DEPRECATION")
             windowManager?.defaultDisplay
         }

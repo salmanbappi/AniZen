@@ -43,14 +43,9 @@ fun InterpolationStatsOverlay() {
             PlayerStats.videoParamsFps.value = mpv?.getPropertyDouble("video-params/fps") ?: 0.0
             PlayerStats.containerFps.value = mpv?.getPropertyDouble("container-fps") ?: 0.0
             val detectedRefreshRate = context.getDisplayRefreshRate().toDouble()
-            val decoderPreferences = Injekt.get<DecoderPreferences>()
-            val fpsLimit = decoderPreferences.interpolationFPSLimit().get().toDouble()
-            PlayerStats.displayFps.value = when {
-                fpsLimit > 0.0 -> fpsLimit
-                else -> mpv?.getPropertyDouble("override-display-fps")?.takeIf { it > 0.0 }
-                    ?: mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
-                    ?: detectedRefreshRate
-            }
+            PlayerStats.displayFps.value = (mpv?.getPropertyDouble("override-display-fps")?.takeIf { it > 0.0 }
+                ?: mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
+                ?: detectedRefreshRate)
             PlayerStats.estimatedDisplayFps.value = mpv?.getPropertyDouble("estimated-display-fps") ?: 0.0
 
             PlayerStats.isInterpolating.value = mpv?.getPropertyBoolean("interpolation") ?: false
@@ -164,21 +159,8 @@ fun InterpolationStatsOverlay() {
         
         StatLine("Source Rate", "${format.format(finalSourceFps)} fps", baseStyle)
         // ANZ -->
-        val fpsLimitInt = Injekt.get<DecoderPreferences>().interpolationFPSLimit().get()
-        val isInterpolatingActive = isWorking
-        val targetLabel = when {
-            !isInterpolatingActive -> "Off"
-            fpsLimitInt == 0 -> "Auto"
-            else -> "$fpsLimitInt fps"
-        }
-        val displayRate = when {
-            !isInterpolatingActive -> finalActualFps
-            fpsLimitInt > 0 -> fpsLimitInt.toDouble()
-            finalActualFps > 0.0 -> finalActualFps
-            else -> displayFps
-        }
-        StatLine("Target FPS", targetLabel, baseStyle)
-        StatLine("Display Rate", "${format.format(displayRate)} Hz", baseStyle.copy(color = Color.Green))
+        StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 58) Color.Green else Color.Unspecified))
+        StatLine("Refresh Rate", "${format.format(displayFps)} Hz", baseStyle)
         // ANZ <--
         
         Spacer(Modifier.height(8.dp))
