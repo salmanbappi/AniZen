@@ -81,20 +81,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
     val hwdecActive: String
         get() = mpv?.getPropertyString("hwdec-current") ?: "no"
 
-    // ANZ -->
-    fun applySurfaceFrameRate(targetFps: Float) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
-                val rate = if (targetFps > 0f) targetFps else context.getDisplayRefreshRate()
-                holder.surface?.let { surface ->
-                    if (surface.isValid) {
-                        surface.setFrameRate(rate, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
-                    }
-                }
-            } catch (_: Throwable) {}
-        }
-    }
-    // ANZ <--
+
 
     /**
      * Returns the video aspect ratio. Rotation is taken into account.
@@ -123,37 +110,21 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         // ANZ -->
         val isSmoothMotion = decoderPreferences.smoothMotion().get()
         if (isSmoothMotion) {
+            val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            if (fpsLimit == 0) {
-                // Auto: sync with the physical display refresh rate
-                val detectedRefreshRate = context.getDisplayRefreshRate()
-                val targetFps = detectedRefreshRate.toDouble()
+            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
-                mpv?.setOptionString("video-sync", "display-resample")
-                mpv?.setOptionString("interpolation", "yes")
-                mpv?.setOptionString("correct-pts", "yes")
-                mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
-                mpv?.setOptionString("display-fps", targetFps.toString())
-                mpv?.setOptionString("override-display-fps", targetFps.toString())
-                mpv?.setOptionString("gpu-dumb-mode", "no")
-                applySurfaceFrameRate(targetFps.toFloat())
-            } else {
-                // Not Auto: MUST NOT try to sync with the display!
-                val targetFps = fpsLimit.toDouble()
-
-                mpv?.setOptionString("video-sync", "audio")
-                mpv?.setOptionString("interpolation", "no")
-                mpv?.setOptionString("display-fps", targetFps.toString())
-                mpv?.setOptionString("override-display-fps", targetFps.toString())
-                mpv?.setOptionString("fps", targetFps.toString())
-                mpv?.setOptionString("gpu-dumb-mode", "no")
-                applySurfaceFrameRate(targetFps.toFloat())
-            }
+            mpv?.setOptionString("video-sync", "display-resample")
+            mpv?.setOptionString("interpolation", "yes")
+            mpv?.setOptionString("correct-pts", "yes")
+            mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
+            mpv?.setOptionString("display-fps", targetFps.toString())
+            mpv?.setOptionString("override-display-fps", targetFps.toString())
+            mpv?.setOptionString("gpu-dumb-mode", "no")
         } else {
             mpv?.setOptionString("video-sync", "audio")
             mpv?.setOptionString("interpolation", "no")
             mpv?.setOptionString("gpu-dumb-mode", "auto")
-            applySurfaceFrameRate(0f)
         }
         // ANZ <--
 
@@ -221,42 +192,13 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
         // ANZ -->
         if (decoderPreferences.smoothMotion().get()) {
+            val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            if (fpsLimit == 0) {
-                val detectedRefreshRate = context.getDisplayRefreshRate()
-                val targetFps = detectedRefreshRate.toDouble()
+            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
-                mpv?.setPropertyString("video-sync", "display-resample")
-                mpv?.setPropertyString("interpolation", "yes")
-                mpv?.setPropertyDouble("display-fps", targetFps)
-                mpv?.setPropertyDouble("override-display-fps", targetFps)
-                mpv?.setPropertyString("display-fps", targetFps.toString())
-                mpv?.setPropertyString("override-display-fps", targetFps.toString())
-                mpv?.setOptionString("display-fps", targetFps.toString())
-                mpv?.setOptionString("override-display-fps", targetFps.toString())
-                mpv?.command("set", "display-fps", targetFps.toString())
-                mpv?.command("set", "override-display-fps", targetFps.toString())
-                mpv?.setPropertyString("gpu-dumb-mode", "no")
-                applySurfaceFrameRate(targetFps.toFloat())
-            } else {
-                val targetFps = fpsLimit.toDouble()
-
-                mpv?.setPropertyString("video-sync", "audio")
-                mpv?.setPropertyString("interpolation", "no")
-                mpv?.setPropertyDouble("display-fps", targetFps)
-                mpv?.setPropertyDouble("override-display-fps", targetFps)
-                mpv?.setPropertyString("display-fps", targetFps.toString())
-                mpv?.setPropertyString("override-display-fps", targetFps.toString())
-                mpv?.setOptionString("display-fps", targetFps.toString())
-                mpv?.setOptionString("override-display-fps", targetFps.toString())
-                mpv?.setPropertyString("fps", targetFps.toString())
-                mpv?.setOptionString("fps", targetFps.toString())
-                mpv?.command("set", "display-fps", targetFps.toString())
-                mpv?.command("set", "override-display-fps", targetFps.toString())
-                mpv?.command("set", "fps", targetFps.toString())
-                mpv?.setPropertyString("gpu-dumb-mode", "no")
-                applySurfaceFrameRate(targetFps.toFloat())
-            }
+            mpv?.setPropertyDouble("display-fps", targetFps)
+            mpv?.setPropertyDouble("override-display-fps", targetFps)
+            mpv?.setPropertyString("gpu-dumb-mode", "no")
         }
         // ANZ <--
     }

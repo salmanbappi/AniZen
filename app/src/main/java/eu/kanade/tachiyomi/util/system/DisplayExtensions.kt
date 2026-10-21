@@ -132,62 +132,6 @@ fun Activity.enableHighRefreshRate() {
     }
 }
 
-// ANZ -->
-/**
- * Sets the window's preferred refresh rate targeting [targetFps].
- * If targetFps <= 0f, targets the highest available refresh rate.
- */
-fun Activity.setTargetRefreshRate(targetFps: Float) {
-    try {
-        val window = window ?: return
-        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            display ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
-        } else {
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay
-        } ?: return
-
-        val supportedModes = display.supportedModes ?: return
-        if (supportedModes.isEmpty()) return
-
-        val currentMode = display.mode
-        val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
-        val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
-        val sameResModes = supportedModes.filter {
-            val modeMax = maxOf(it.physicalWidth, it.physicalHeight)
-            val modeMin = minOf(it.physicalWidth, it.physicalHeight)
-            modeMax == maxDim && modeMin == minDim
-        }.ifEmpty { supportedModes.toList() }
-
-        val targetMode = if (targetFps > 0f) {
-            sameResModes.minByOrNull { kotlin.math.abs(it.refreshRate - targetFps) }
-                ?: supportedModes.minByOrNull { kotlin.math.abs(it.refreshRate - targetFps) }
-        } else {
-            sameResModes.maxByOrNull { it.refreshRate }
-                ?: supportedModes.maxByOrNull { it.refreshRate }
-        }
-
-        targetMode?.let { mode ->
-            val params = window.attributes
-            var updated = false
-            if (params.preferredDisplayModeId != mode.modeId) {
-                params.preferredDisplayModeId = mode.modeId
-                updated = true
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
-                params.preferredRefreshRate = mode.refreshRate
-                updated = true
-            }
-            if (updated) {
-                window.attributes = params
-            }
-        }
-    } catch (_: Exception) {
-        // Gracefully ignore on devices that do not permit display mode switching
-    }
-}
-// ANZ <--
-
 /**
  * Returns the current display's refresh rate in Hz, or a sensible fallback (60Hz).
  */
