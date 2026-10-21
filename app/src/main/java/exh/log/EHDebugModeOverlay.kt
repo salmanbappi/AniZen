@@ -170,9 +170,17 @@ fun InterpolationStatsOverlay() {
         } else {
             finalSourceFps
         }
+        val displayObj = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            activity?.display ?: (activity?.getSystemService(android.content.Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager)?.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+        } else {
+            activity?.windowManager?.defaultDisplay
+        }
+        val modes = displayObj?.supportedModes?.map { "${it.refreshRate.toInt()}Hz" }?.distinct()?.joinToString(", ") ?: "Unknown"
+
         StatLine("Target FPS", targetLabel, baseStyle)
         StatLine("Effective FPS", "${format.format(effectiveFps)} fps", baseStyle.copy(color = if (effectiveFps >= 58 || !isWorking) Color.Green else Color(0xFFFFAA00)))
         StatLine("Display Rate", "${format.format(finalActualFps)} Hz", baseStyle)
+        StatLine("Screen Modes", modes, baseStyle)
         // ANZ <--
         
         Spacer(Modifier.height(8.dp))
