@@ -154,6 +154,11 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         val fpsLimit = prefs.interpolationFPSLimit().get()
         val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
+        val currentHwdec = mpv?.getPropertyString("hwdec-current") ?: ""
+        if (currentHwdec == "mediacodec" || (currentHwdec.isEmpty() && prefs.tryHWDecoding().get())) {
+            mpv?.setPropertyString("hwdec", "mediacodec-copy")
+        }
+
         mpv?.setPropertyString("video-sync", "display-resample")
         mpv?.setPropertyString("interpolation", "yes")
         mpv?.setPropertyString("correct-pts", "yes")
@@ -164,6 +169,7 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         mpv?.setPropertyString("override-display-fps", targetFps.toString())
         mpv?.setOptionString("display-fps", targetFps.toString())
         mpv?.setOptionString("override-display-fps", targetFps.toString())
+        mpv?.setOptionString("display-fps-override", targetFps.toString())
         mpv?.command("set", "display-fps", targetFps.toString())
         mpv?.command("set", "override-display-fps", targetFps.toString())
         mpv?.setPropertyString("gpu-dumb-mode", "no")

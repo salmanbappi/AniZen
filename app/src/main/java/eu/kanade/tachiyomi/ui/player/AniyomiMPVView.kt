@@ -97,7 +97,13 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setVo(if (decoderPreferences.gpuNext().get()) "gpu-next" else "gpu")
         mpv?.setPropertyBoolean("pause", true)
         setSafeOptionString("profile", "fast")
-        mpv?.setOptionString("hwdec", if (decoderPreferences.tryHWDecoding().get()) "auto" else "no")
+        val isSmoothMotion = decoderPreferences.smoothMotion().get()
+        val defaultHwdec = if (decoderPreferences.tryHWDecoding().get()) {
+            if (isSmoothMotion) "mediacodec-copy" else "auto"
+        } else {
+            "no"
+        }
+        mpv?.setOptionString("hwdec", defaultHwdec)
 
         val isHighQuality = decoderPreferences.highQualityScaling().get()
         val scaler = if (isHighQuality) "spline36" else "bilinear"
