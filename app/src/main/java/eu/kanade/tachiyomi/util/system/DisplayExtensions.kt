@@ -117,16 +117,6 @@ fun Activity.enableHighRefreshRate() {
                 params.preferredRefreshRate = mode.refreshRate
                 updated = true
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (params.preferredMinDisplayRefreshRate != mode.refreshRate) {
-                    params.preferredMinDisplayRefreshRate = mode.refreshRate
-                    updated = true
-                }
-                if (params.preferredMaxDisplayRefreshRate != mode.refreshRate) {
-                    params.preferredMaxDisplayRefreshRate = mode.refreshRate
-                    updated = true
-                }
-            }
             if (updated) {
                 window.attributes = params
             }
@@ -181,16 +171,6 @@ fun Activity.setTargetRefreshRate(targetFps: Float) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
                 params.preferredRefreshRate = mode.refreshRate
                 updated = true
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (params.preferredMinDisplayRefreshRate != mode.refreshRate) {
-                    params.preferredMinDisplayRefreshRate = mode.refreshRate
-                    updated = true
-                }
-                if (params.preferredMaxDisplayRefreshRate != mode.refreshRate) {
-                    params.preferredMaxDisplayRefreshRate = mode.refreshRate
-                    updated = true
-                }
             }
             if (updated) {
                 window.attributes = params
