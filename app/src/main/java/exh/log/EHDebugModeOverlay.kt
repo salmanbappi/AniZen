@@ -165,8 +165,14 @@ fun InterpolationStatsOverlay() {
         StatLine("Source Rate", "${format.format(finalSourceFps)} fps", baseStyle)
         // ANZ -->
         val targetLabel = if (displayFps > 0.0) "${format.format(displayFps)} fps" else "Auto"
+        val effectiveFps = if (isWorking) {
+            if (displayFps > 0.0) displayFps else finalActualFps
+        } else {
+            finalSourceFps
+        }
         StatLine("Target FPS", targetLabel, baseStyle)
-        StatLine("Display Rate", "${format.format(finalActualFps)} Hz", baseStyle.copy(color = if (finalActualFps >= 58) Color.Green else Color.Unspecified))
+        StatLine("Effective FPS", "${format.format(effectiveFps)} fps", baseStyle.copy(color = if (effectiveFps >= 58 || !isWorking) Color.Green else Color(0xFFFFAA00)))
+        StatLine("Display Rate", "${format.format(finalActualFps)} Hz", baseStyle)
         // ANZ <--
         
         Spacer(Modifier.height(8.dp))

@@ -157,10 +157,7 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         (activity as? PlayerActivity)?.player?.applySurfaceFrameRate(targetFpsFloat)
 
         val detectedRefreshRate = context?.getDisplayRefreshRate() ?: 60f
-        val targetFps = when {
-            fpsLimit >= 60 -> fpsLimit.toDouble()
-            else -> detectedRefreshRate.toDouble()
-        }
+        val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
 
         mpv?.setPropertyString("video-sync", "display-resample")
         mpv?.setPropertyString("interpolation", "yes")
