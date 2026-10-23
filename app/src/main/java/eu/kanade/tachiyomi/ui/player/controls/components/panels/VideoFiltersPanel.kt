@@ -90,7 +90,6 @@ import eu.kanade.tachiyomi.ui.player.controls.panelCardsColors
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.InterpolationMode
 import eu.kanade.tachiyomi.util.system.findActivity
-import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.material.padding
@@ -588,40 +587,9 @@ fun InterpolationCard() {
                     }
                 }
 
-                Text(
-                    text = stringResource(AMR.strings.pref_interpolation_target_fps),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-
-                val quickFps = remember { listOf(0, 30, 60, 90, 120, 144) }
-                val detectedHz = remember(context) { context.getDisplayRefreshRate().roundToInt() }
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-                ) {
-                    items(
-                        items = quickFps,
-                        key = { "vf-interp-quick-$it" },
-                    ) { target ->
-                        val label = if (target == 0) {
-                            if (detectedHz > 0) "Auto (${detectedHz}Hz)" else "Auto"
-                        } else {
-                            "$target FPS"
-                        }
-                        InputChip(
-                            selected = fpsLimit == target,
-                            onClick = {
-                                decoderPreferences.interpolationFPSLimit().set(target)
-                                applyInterpolation(mpv, decoderPreferences, context)
-                            },
-                            label = { Text(label) },
-                        )
-                    }
-                }
-
                 var sliderFps by remember(fpsLimit) { mutableFloatStateOf(fpsLimit.toFloat()) }
                 val sliderText = if (sliderFps.roundToInt() == 0) {
-                    if (detectedHz > 0) "Auto (${detectedHz}Hz)" else "Auto"
+                    "Auto"
                 } else {
                     "${sliderFps.roundToInt()} FPS"
                 }

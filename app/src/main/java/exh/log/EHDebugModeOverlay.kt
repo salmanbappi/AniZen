@@ -44,10 +44,8 @@ fun InterpolationStatsOverlay() {
             PlayerStats.videoParamsFps.value = mpv?.getPropertyDouble("video-params/fps") ?: 0.0
             PlayerStats.containerFps.value = mpv?.getPropertyDouble("container-fps") ?: 0.0
             val detectedRefreshRate = context.getDisplayRefreshRate().toDouble()
-            PlayerStats.displayFps.value = (mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
-                ?: mpv?.getPropertyDouble("display-fps-override")?.takeIf { it > 0.0 }
-                ?: mpv?.getPropertyDouble("override-display-fps")?.takeIf { it > 0.0 }
-                ?: detectedRefreshRate)
+            val mpvDisplayFps = mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
+            PlayerStats.displayFps.value = mpvDisplayFps ?: detectedRefreshRate
             PlayerStats.estimatedDisplayFps.value = mpv?.getPropertyDouble("estimated-display-fps") ?: 0.0
 
             PlayerStats.isInterpolating.value = mpv?.getPropertyBoolean("interpolation") ?: false

@@ -598,6 +598,11 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
+        // ANZ -->
+        if (decoderPreferences.smoothMotion().get()) { // ANZ
+            enableHighRefreshRate()
+        }
+        // ANZ <--
         setPictureInPictureParams(createPipParams())
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -839,8 +844,10 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Double) {
         if (player.isExiting) return
         when (property) {
-            "display-fps", "override-display-fps", "display-fps-override" -> PlayerStats.displayFps.value = value
+            // ANZ -->
+            "display-fps" -> if (value > 0.0) PlayerStats.displayFps.value = value
             "estimated-display-fps" -> PlayerStats.estimatedDisplayFps.value = value
+            // ANZ <--
             "mistime" -> PlayerStats.mistime.value = value
             "video-params/aspect" -> {
                 if (isPipSupportedAndEnabled) createPipParams()
