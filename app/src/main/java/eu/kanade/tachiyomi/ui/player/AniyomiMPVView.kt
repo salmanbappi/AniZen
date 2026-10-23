@@ -34,6 +34,7 @@ import eu.kanade.tachiyomi.ui.player.settings.SubtitleAssOverride
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.util.system.enableHighRefreshRate
 import eu.kanade.tachiyomi.util.system.findActivity
+import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPV
@@ -99,7 +100,8 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setSafeOptionString("profile", "fast")
         val isSmoothMotion = decoderPreferences.smoothMotion().get()
         val defaultHwdec = if (decoderPreferences.tryHWDecoding().get()) {
-            if (isSmoothMotion) "mediacodec-copy" else "auto"
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+            if (isSmoothMotion && fpsLimit > 0) "mediacodec-copy" else "mediacodec" // ANZ
         } else {
             "no"
         }
@@ -115,6 +117,11 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         // ANZ -->
         if (isSmoothMotion) {
             context.findActivity()?.enableHighRefreshRate() // ANZ
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get() // ANZ
+            val detectedRefreshRate = context.getDisplayRefreshRate().toDouble()
+            if (fpsLimit == 0) {
+                mpv?.setOptionString("override-display-fps", detectedRefreshRate.toString())
+            }
 
             mpv?.setOptionString("video-sync", "display-resample")
             mpv?.setOptionString("video-sync-max-audio-change", "0.125")
@@ -198,6 +205,17 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
         // ANZ -->
         if (decoderPreferences.smoothMotion().get()) {
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+            val detectedRefreshRate = context.getDisplayRefreshRate().toDouble()
+            if (fpsLimit == 0) {
+                mpv?.setPropertyDouble("override-display-fps", detectedRefreshRate)
+            } else {
+                mpv?.setPropertyDouble("override-display-fps", 0.0)
+            }
+            if (decoderPreferences.tryHWDecoding().get()) {
+                val hwdecMode = if (fpsLimit > 0) "mediacodec-copy" else "mediacodec"
+                mpv?.setPropertyString("hwdec", hwdecMode)
+            }
             mpv?.setPropertyString("interpolation-threshold", "-1")
             mpv?.setPropertyString("gpu-dumb-mode", "no")
             val vfChain = buildVFChain(decoderPreferences)
