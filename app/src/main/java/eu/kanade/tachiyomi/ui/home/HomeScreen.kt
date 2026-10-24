@@ -95,6 +95,7 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
+import eu.kanade.tachiyomi.ui.download.DownloadsTab
 import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
@@ -318,6 +319,9 @@ object HomeScreen : Screen() {
                             is HomeTab.Updates -> UpdatesTab
                             is HomeTab.History -> HistoryTab
                             is HomeTab.Schedule -> AiringScheduleTab
+                            // ANZ -->
+                            is HomeTab.Downloads -> DownloadsTab
+                            // ANZ <--
                             is HomeTab.Browse -> {
                                 if (it.toExtensions) {
                                     BrowseTab.showExtension()
@@ -331,7 +335,7 @@ object HomeScreen : Screen() {
                             navigator.push(AnimeScreen(it.animeIdToOpen))
                         }
                         if (it is HomeTab.More && it.toDownloads) {
-                            navigator.push(DownloadQueueScreen)
+                            tabNavigator.current = DownloadsTab
                         }
                     }
                 }
@@ -600,6 +604,7 @@ object HomeScreen : Screen() {
                 navItem.iconVector != null -> null
                 animatedPainter != null -> animatedPainter
                 FeedTab::class.isInstance(tab) -> painterResource(R.drawable.ic_dynamic_feed_24dp)
+                DownloadsTab::class.isInstance(tab) -> painterResource(R.drawable.ic_download_item_24dp)
                 AiringScheduleTab::class.isInstance(tab) -> painterResource(R.drawable.ic_progress_clock_24dp)
                 else -> painterResource(R.drawable.ic_browse_filled_24dp)
             }
@@ -638,7 +643,10 @@ object HomeScreen : Screen() {
         data object Updates : HomeTab
         data object History : HomeTab
         data object Schedule : HomeTab
+        // ANZ -->
+        data object Downloads : HomeTab
+        // ANZ <--
         data class Browse(val toExtensions: Boolean = false, val anime: Boolean = false) : HomeTab
-        data class More(val toDownloads: Boolean) : HomeTab
+        data class More(val toDownloads: Boolean = false) : HomeTab
     }
 }

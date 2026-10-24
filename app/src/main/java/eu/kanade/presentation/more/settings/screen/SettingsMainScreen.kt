@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,8 @@ import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.more.components.MoreItem
 import eu.kanade.presentation.more.components.MoreSection
 import eu.kanade.presentation.more.settings.screen.about.AboutScreen
+import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
+import eu.kanade.presentation.more.settings.screen.browse.ExtensionsSettingsScreen
 import eu.kanade.presentation.more.settings.screen.NavigationSettingsScreen
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
@@ -127,18 +130,32 @@ object SettingsMainScreen : Screen() {
                         screen = SettingsAiScreen,
                     ),
                 ),
-                "Connections" to listOf(
+                "Extensions & Sources" to listOf(
                     Item(
-                        titleRes = KMR.strings.pref_category_connections,
-                        subtitleRes = KMR.strings.pref_connections_summary,
-                        icon = Icons.Outlined.Link,
-                        screen = SettingsConnectionsScreen,
+                        titleRes = MR.strings.label_extensions,
+                        subtitleRes = MR.strings.pref_browse_summary,
+                        icon = Icons.Outlined.Explore,
+                        screen = ExtensionsSettingsScreen(),
+                    ),
+                    Item(
+                        titleRes = MR.strings.label_extension_repos,
+                        subtitleRes = MR.strings.pref_clear_anime_database_summary,
+                        icon = Icons.Outlined.Settings,
+                        screen = ExtensionReposScreen(),
                     ),
                     Item(
                         titleRes = MR.strings.browse,
                         subtitleRes = MR.strings.pref_browse_summary,
                         icon = Icons.Outlined.Explore,
                         screen = SettingsBrowseScreen,
+                    ),
+                ),
+                "Connections" to listOf(
+                    Item(
+                        titleRes = KMR.strings.pref_category_connections,
+                        subtitleRes = KMR.strings.pref_connections_summary,
+                        icon = Icons.Outlined.Link,
+                        screen = SettingsConnectionsScreen,
                     ),
                 ),
                 "System" to listOf(
