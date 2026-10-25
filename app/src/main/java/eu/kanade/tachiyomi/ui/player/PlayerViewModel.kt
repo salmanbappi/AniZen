@@ -2019,15 +2019,25 @@ class PlayerViewModel @JvmOverloads constructor(
                                         }
                                     } else {
                                         val prefIndex = hosterState.videoList.indexOfFirst { it.preferred }
-                                        if (prefIndex != -1) {
+                                        val targetIndex = if (prefIndex != -1) { // ANZ
+                                            prefIndex
+                                        } else {
+                                            val preferredQuality = playerPreferences.preferredQuality().get()
+                                            val preferredAudio = audioPreferences.preferredAudioLanguages().get()
+                                            hosterState.videoList.indexOfFirst { v ->
+                                                (preferredQuality.isNotBlank() && v.quality.contains(preferredQuality, ignoreCase = true)) ||
+                                                (preferredAudio.isNotBlank() && v.quality.contains(preferredAudio, ignoreCase = true))
+                                            }
+                                        }
+                                        if (targetIndex != -1) {
                                             if (hasFoundPreferredVideo.compareAndSet(false, true)) {
                                                 if (selectedHosterVideoIndex.value == Pair(-1, -1)) {
                                                     val success =
                                                         loadVideo(
                                                             source,
-                                                            hosterState.videoList[prefIndex],
+                                                            hosterState.videoList[targetIndex],
                                                             hosterIdx,
-                                                            prefIndex,
+                                                            targetIndex,
                                                         )
                                                     if (!success) {
                                                         hasFoundPreferredVideo.set(false)
@@ -2239,7 +2249,9 @@ class PlayerViewModel @JvmOverloads constructor(
                     val hosterState = EpisodeLoader.loadHosterVideos(
                         source = currentSource.value!!,
                         hoster = hosterList.value[index],
-                        
+                        // ANZ -->
+                        force = true,
+                        // ANZ <--
                     )
                     _hosterState.updateAt(index, hosterState)
 

@@ -7,11 +7,15 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.getChangedAt
 import eu.kanade.tachiyomi.ui.player.utils.DefaultStreamSelector
+import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
+import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.withContext
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import kotlin.coroutines.cancellation.CancellationException
 
 class HosterLoader {
@@ -66,6 +70,36 @@ class HosterLoader {
                 val prefVideoIdx = videoList.indexOfFirst(isPreferred)
                 return availableHosters[prefHosterIdx].index to prefVideoIdx
             }
+
+            // ANZ -->
+            // Check for preferred quality / audio language from settings
+            try {
+                val playerPreferences: PlayerPreferences = Injekt.get() // ANZ
+                val audioPreferences: AudioPreferences = Injekt.get()
+                val preferredQuality = playerPreferences.preferredQuality().get()
+                val preferredAudio = audioPreferences.preferredAudioLanguages().get()
+
+                val isQualityOrAudioMatch: (Pair<Video, Video.State>) -> Boolean = { (v, s) ->
+                    (s == Video.State.READY || s == Video.State.QUEUE) && (
+                        (preferredQuality.isNotBlank() && v.quality.contains(preferredQuality, ignoreCase = true)) ||
+                        (preferredAudio.isNotBlank() && v.quality.contains(preferredAudio, ignoreCase = true))
+                    )
+                }
+                val matchHosterIdx = availableHosters.indexOfFirst {
+                    (it.value as HosterState.Ready).let { hoster ->
+                        hoster.videoList zip hoster.videoState
+                    }.any(isQualityOrAudioMatch)
+                }
+                if (matchHosterIdx != -1) {
+                    val hoster = availableHosters[matchHosterIdx].value as HosterState.Ready
+                    val videoList = hoster.videoList zip hoster.videoState
+                    val matchVideoIdx = videoList.indexOfFirst(isQualityOrAudioMatch)
+                    return availableHosters[matchHosterIdx].index to matchVideoIdx
+                }
+            } catch (_: Throwable) {
+                // Ignore if Injekt is uninitialized
+            }
+            // ANZ <--
 
             // Check for first video (we no longer require videoUrl to be non-empty,
             // because unresolved videos from extensions like Torrent/Stremio
@@ -150,7 +184,10 @@ class HosterLoader {
                 withContext(Dispatchers.IO) {
                     hosterList.mapIndexed { hosterIdx, hoster ->
                         async {
-                            val hosterState = EpisodeLoader.loadHosterVideos(source, hoster)
+                            // ANZ -->
+                            val force = DefaultStreamSelector.getSelectorForHoster(defaultSelector, hoster.hosterName).isNotBlank()
+                            val hosterState = EpisodeLoader.loadHosterVideos(source, hoster, force = force)
+                            // ANZ <--
                             hosterStates[hosterIdx] = hosterState
                         }
                     }.awaitAll()
@@ -225,6 +262,15 @@ class HosterLoader {
                     }.awaitAll()
 
                     var (hosterIdx, videoIdx) = selectBestVideo(hosterStates)
+                    // ANZ -->
+                    if (hosterIdx == -1 && hosterList.isNotEmpty()) {
+                        val forcedState = EpisodeLoader.loadHosterVideos(source, hosterList[0], force = true)
+                        hosterStates[0] = forcedState
+                        val fallback = selectBestVideo(hosterStates)
+                        hosterIdx = fallback.first
+                        videoIdx = fallback.second
+                    }
+                    // ANZ <--
                     while (hosterIdx != -1) {
                         val hosterState = hosterStates[hosterIdx] as HosterState.Ready
                         val video = hosterState.videoList[videoIdx]

@@ -234,7 +234,12 @@ class EpisodeLoader {
             }
         }
 
-        suspend fun loadHosterVideos(source: AnimeSource, hoster: Hoster): HosterState {
+        // ANZ -->
+        suspend fun loadHosterVideos(source: AnimeSource, hoster: Hoster, force: Boolean = false): HosterState { // ANZ
+            if (!force && hoster.lazy) {
+                return HosterState.Idle(hoster.hosterName)
+            }
+
             return try {
                 val videos = getVideos(source, hoster)
                 HosterState.Ready(hoster.hosterName, videos, List(videos.size) { Video.State.QUEUE })
@@ -246,5 +251,6 @@ class EpisodeLoader {
                 HosterState.Error(hoster.hosterName)
             }
         }
+        // ANZ <--
     }
 }
