@@ -221,8 +221,11 @@ object ScheduleTitleMatcher {
         return entries.firstOrNull { entry ->
             val candidates = candidateTitlesFromEntry(entry)
             candidates.any { candidate ->
-                if (animeTitle.equals(candidate, ignoreCase = true)) true
-                else normalizedKeys(candidate).any { it in targetKeys }
+                if (animeTitle.equals(candidate, ignoreCase = true)) {
+                    true
+                } else {
+                    normalizedKeys(candidate).any { it in targetKeys }
+                }
             }
         }
     }

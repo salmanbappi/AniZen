@@ -50,9 +50,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
-import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.presentation.util.formatEpisodeNumber
 import eu.kanade.presentation.util.rememberResourceBitmapPainter
 import eu.kanade.tachiyomi.R
@@ -121,9 +121,9 @@ fun MigrationListScreenContent(
     ) { contentPadding ->
         FastScrollLazyColumn(contentPadding = contentPadding + topSmallPaddingValues) {
             itemsIndexed(
-            items = items,
-            key = { index, it -> "migration-list-${it.anime.id}-$index" }
-        ) { _, item ->
+                items = items,
+                key = { index, it -> "migration-list-${it.anime.id}-$index" },
+            ) { _, item ->
                 Row(
                     Modifier
                         .fillMaxWidth()

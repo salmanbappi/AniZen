@@ -2,10 +2,10 @@ package eu.kanade.tachiyomi.util
 
 import eu.kanade.domain.anime.interactor.UpdateAnime
 import eu.kanade.domain.anime.model.hasCustomCover
-import tachiyomi.domain.anime.model.toSAnime
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.source.model.SAnime
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.source.localanime.image.LocalAnimeSourceCoverManager
 import tachiyomi.source.localanime.isLocal
 import uy.kohesive.injekt.Injekt

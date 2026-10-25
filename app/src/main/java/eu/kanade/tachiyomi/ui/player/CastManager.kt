@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.ui.player
 import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.viewModels
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily

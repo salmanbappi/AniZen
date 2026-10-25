@@ -1,6 +1,7 @@
 package eu.kanade.domain.track.interactor
 
 import eu.kanade.domain.track.model.toDbTrack
+import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.tachiyomi.data.track.AnimeTracker
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import logcat.LogPriority
@@ -9,7 +10,6 @@ import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
 import tachiyomi.domain.episode.interactor.UpdateEpisode
 import tachiyomi.domain.episode.model.toEpisodeUpdate
 import tachiyomi.domain.track.interactor.InsertTrack
-import eu.kanade.domain.track.service.TrackPreferences
 import tachiyomi.domain.track.model.Track
 import kotlin.math.max
 

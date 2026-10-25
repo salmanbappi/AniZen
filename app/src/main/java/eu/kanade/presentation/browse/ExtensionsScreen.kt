@@ -1,9 +1,6 @@
 package eu.kanade.presentation.browse
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,17 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.GetApp
@@ -49,18 +41,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -71,13 +55,9 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.anime.components.DotSeparatorNoSpaceText
 import eu.kanade.presentation.browse.components.BaseBrowseItem
 import eu.kanade.presentation.browse.components.ExtensionIcon
-import eu.kanade.presentation.components.AnimatedFloatingSearchBox
-import eu.kanade.presentation.components.SOURCE_SEARCH_BOX_HEIGHT
 import eu.kanade.presentation.components.WarningBanner
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
 import eu.kanade.presentation.util.rememberRequestPackageInstallsPermissionState
-import tachiyomi.presentation.core.icons.CustomIcons
-import tachiyomi.presentation.core.icons.Magnet
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionUiModel
@@ -89,8 +69,9 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.components.material.PullRefresh
 import tachiyomi.presentation.core.components.material.padding
-import tachiyomi.presentation.core.components.material.topSmallPaddingValues
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.icons.CustomIcons
+import tachiyomi.presentation.core.icons.Magnet
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.screens.LoadingScreen
@@ -229,7 +210,7 @@ private fun ExtensionContent(
             start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
             end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
             top = contentPadding.calculateTopPadding() + 8.dp,
-            bottom = contentPadding.calculateBottomPadding() + 8.dp
+            bottom = contentPadding.calculateBottomPadding() + 8.dp,
         ),
     ) {
         if (!installGranted && state.installer?.requiresSystemPermission == true) {
@@ -244,63 +225,74 @@ private fun ExtensionContent(
         }
 
         state.items.forEach { (header, items) ->
-        item(
-            contentType = "header",
-            key = "extensionHeader-${header.hashCode()}",
-        ) {
-            when (header) {
-                is ExtensionUiModel.Header.Resource -> {
-                    val action: @Composable RowScope.() -> Unit =
-                        if (header.textRes == MR.strings.ext_updates_pending) {
-                            {
-                                Button(onClick = { onClickUpdateAll() }) {
-                                    Text(
-                                        text = stringResource(MR.strings.ext_update_all),
-                                        style = LocalTextStyle.current.copy(
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                        ),
-                                    )
+            item(
+                contentType = "header",
+                key = "extensionHeader-${header.hashCode()}",
+            ) {
+                when (header) {
+                    is ExtensionUiModel.Header.Resource -> {
+                        val action: @Composable RowScope.() -> Unit =
+                            if (header.textRes == MR.strings.ext_updates_pending) {
+                                {
+                                    Button(onClick = { onClickUpdateAll() }) {
+                                        Text(
+                                            text = stringResource(MR.strings.ext_update_all),
+                                            style = LocalTextStyle.current.copy(
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                            ),
+                                        )
+                                    }
                                 }
+                            } else {
+                                {}
                             }
-                        } else {
-                            {}
-                        }
-                    ExtensionHeader(
-                        textRes = header.textRes,
-                        modifier = Modifier,
-                        action = action,
-                    )
-                }
-                is ExtensionUiModel.Header.Text -> {
-                    ExtensionHeader(
-                        text = header.text,
-                        modifier = Modifier,
-                    )
+                        ExtensionHeader(
+                            textRes = header.textRes,
+                            modifier = Modifier,
+                            action = action,
+                        )
+                    }
+                    is ExtensionUiModel.Header.Text -> {
+                        ExtensionHeader(
+                            text = header.text,
+                            modifier = Modifier,
+                        )
+                    }
                 }
             }
-        }
 
-        itemsIndexed(
-            items = items,
-            key = { _, item -> "extension-${item.extension.pkgName}-${item.repoName}" },
-            contentType = { _, _ -> "extension_item" },
-        ) { index, item ->
-            if (useContainer) {
-                val isFirst = index == 0
-                val isLast = index == items.lastIndex
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
-                    shape = RoundedCornerShape(
-                        topStart = if (isFirst) 16.dp else 0.dp,
-                        topEnd = if (isFirst) 16.dp else 0.dp,
-                        bottomStart = if (isLast) 16.dp else 0.dp,
-                        bottomEnd = if (isLast) 16.dp else 0.dp,
-                    ),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 2.dp
-                ) {
+            itemsIndexed(
+                items = items,
+                key = { _, item -> "extension-${item.extension.pkgName}-${item.repoName}" },
+                contentType = { _, _ -> "extension_item" },
+            ) { index, item ->
+                if (useContainer) {
+                    val isFirst = index == 0
+                    val isLast = index == items.lastIndex
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        shape = RoundedCornerShape(
+                            topStart = if (isFirst) 16.dp else 0.dp,
+                            topEnd = if (isFirst) 16.dp else 0.dp,
+                            bottomStart = if (isLast) 16.dp else 0.dp,
+                            bottomEnd = if (isLast) 16.dp else 0.dp,
+                        ),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = 2.dp,
+                    ) {
+                        ExtensionItem(
+                            modifier = Modifier,
+                            item = item,
+                            onClickItem = handleItemClick,
+                            onLongClickItem = onLongClickItem,
+                            onClickItemSecondaryAction = handleItemSecondaryAction,
+                            onClickItemCancel = onClickItemCancel,
+                            onClickItemAction = handleItemAction,
+                        )
+                    }
+                } else {
                     ExtensionItem(
                         modifier = Modifier,
                         item = item,
@@ -311,19 +303,8 @@ private fun ExtensionContent(
                         onClickItemAction = handleItemAction,
                     )
                 }
-            } else {
-                ExtensionItem(
-                    modifier = Modifier,
-                    item = item,
-                    onClickItem = handleItemClick,
-                    onLongClickItem = onLongClickItem,
-                    onClickItemSecondaryAction = handleItemSecondaryAction,
-                    onClickItemCancel = onClickItemCancel,
-                    onClickItemAction = handleItemAction,
-                )
             }
         }
-    }
     }
     if (trustState != null) {
         ExtensionTrustDialog(
@@ -666,4 +647,3 @@ private fun ExtensionTrustDialog(
 }
 
 private const val TORRENT_ICON = "torrentIcon"
-

@@ -10,20 +10,20 @@ import eu.kanade.tachiyomi.data.track.anilist.dto.ALOAuth
 import eu.kanade.tachiyomi.data.track.anilist.dto.ALSearchResult
 import eu.kanade.tachiyomi.data.track.anilist.dto.ALUserListEntryQueryResult
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
-import eu.kanade.tachiyomi.util.lang.htmlDecode
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.network.parseAs
+import eu.kanade.tachiyomi.util.lang.htmlDecode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.OkHttpClient
@@ -399,7 +399,6 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
         }
     }
 
-
     suspend fun getRelations(mediaId: Int): List<eu.kanade.tachiyomi.data.track.anilist.dto.ALRelationEdge> {
         return withIOContext {
             val query = """
@@ -441,8 +440,8 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
                 )
                     .awaitSuccess()
                     .parseAs<eu.kanade.tachiyomi.data.track.anilist.dto.ALRelationResult>()
-                    .data.Media?.relations?.edges?.filter { 
-                        it.relationType == "PREQUEL" || it.relationType == "SEQUEL" 
+                    .data.Media?.relations?.edges?.filter {
+                        it.relationType == "PREQUEL" || it.relationType == "SEQUEL"
                     } ?: emptyList()
             }
         }
@@ -536,7 +535,7 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
                         body = payload.toString().toRequestBody(jsonMime),
                     ),
                 ).execute()
-                
+
                 if (!response.isSuccessful) return@withIOContext null
                 val bodyStr = response.body.string()
                 val parsed = json.parseToJsonElement(bodyStr).jsonObject
@@ -553,7 +552,7 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
                     val charImage = node?.get("image")?.jsonObject?.get("large")?.jsonPrimitive?.contentOrNull
                     val charId = node?.get("id")?.jsonPrimitive?.contentOrNull
                     val charUrl = charId?.let { "https://anilist.co/character/$it" }
-                    
+
                     val vas = edge["voiceActors"]?.jsonArray
                     val vaNames = mutableListOf<String>()
                     var vaImage: String? = null

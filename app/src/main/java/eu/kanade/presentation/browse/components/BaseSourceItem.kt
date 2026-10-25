@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,9 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,7 +77,6 @@ private val defaultContent: @Composable RowScope.(SourceUiModel.Item) -> Unit = 
                 modifier = Modifier.weight(1f, fill = false),
             )
 
-            
             if (item.isApi) {
                 StatusBadge("API", Color(0xFF43A047))
             }
@@ -109,8 +103,8 @@ private val defaultContent: @Composable RowScope.(SourceUiModel.Item) -> Unit = 
                                 NodeStatus.OPERATIONAL -> Color(0xFF4CAF50)
                                 NodeStatus.DEGRADED -> Color(0xFFFFC107)
                                 else -> Color(0xFFF44336)
-                            }
-                        )
+                            },
+                        ),
                 )
             }
 
@@ -133,7 +127,7 @@ private fun StatusBadge(text: String, color: Color) {
         modifier = Modifier
             .clip(MaterialTheme.shapes.extraSmall)
             .background(color.copy(alpha = 0.2f))
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(
             text = text,
@@ -141,10 +135,9 @@ private fun StatusBadge(text: String, color: Color) {
             fontSize = 12.sp,
             lineHeight = 14.sp,
             fontWeight = FontWeight.Black,
-            fontFamily = FontFamily.SansSerif
+            fontFamily = FontFamily.SansSerif,
         )
     }
 }
 
 private const val TORRENT_ICON = "torrentIcon"
-

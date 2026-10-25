@@ -11,7 +11,6 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import kotlin.math.roundToInt
 
 private const val TABLET_UI_REQUIRED_SCREEN_WIDTH_DP = 720
 
@@ -178,5 +177,3 @@ fun Activity.resetRefreshRate() {
     }
 }
 // ANZ <--
-
-

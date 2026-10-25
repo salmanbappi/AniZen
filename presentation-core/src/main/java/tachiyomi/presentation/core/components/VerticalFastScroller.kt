@@ -1,7 +1,5 @@
 package tachiyomi.presentation.core.components
 
-import kotlinx.collections.immutable.toImmutableList
-
 import android.view.ViewConfiguration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -31,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -47,20 +44,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastForEach
-import androidx.compose.ui.util.fastLastOrNull
 import androidx.compose.ui.util.fastMaxBy
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.sample
-import tachiyomi.presentation.core.components.Scroller.EXACT_HEIGHT_KEY_PREFIX
-import tachiyomi.presentation.core.components.Scroller.STICKY_HEADER_KEY_PREFIX
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
@@ -182,7 +174,7 @@ private fun ListFastScrollThumb(
             for (index in 0 until firstItem.index) {
                 pastItemsSize += itemSizeCache[index] ?: medianSize
             }
-            
+
             val beforePadding = info.beforeContentPadding
             val afterPadding = info.afterContentPadding
             val currentOffset = pastItemsSize + beforePadding + (info.viewportStartOffset - firstItem.offset)
@@ -195,7 +187,7 @@ private fun ListFastScrollThumb(
             val viewportPx = info.viewportEndOffset - info.viewportStartOffset
             val totalScrollableSize = totalSize + beforePadding + afterPadding
             val proportion = currentOffset.toFloat() / (totalScrollableSize - viewportPx).coerceAtLeast(1)
-            
+
             proportion.coerceIn(0f, 1f)
         }.collectLatest { proportion ->
             if (proportion == null) return@collectLatest
@@ -252,7 +244,7 @@ private fun ListFastScrollThumb(
                     }
                     accumulatedSize += size
                 }
-                
+
                 val targetItemOffset = (targetOffsetPx - accumulatedSize).roundToInt()
 
                 if (targetIndex != lastScrolledIndex || abs(targetItemOffset - lastScrolledOffset) > 4) {
@@ -400,14 +392,14 @@ private fun GridFastScrollThumb(
             if (totalItems == 0 || info.visibleItemsInfo.isEmpty()) return@snapshotFlow null
 
             val visibleItems = info.visibleItemsInfo
-            
+
             // Group items by row offset to find the height of each row
             val rowHeights = mutableMapOf<Int, Int>()
             visibleItems.fastForEach { item ->
                 val currentMax = rowHeights[item.offset.y] ?: 0
                 rowHeights[item.offset.y] = max(currentMax, item.size.height)
             }
-            
+
             // Assign row heights to cache by index
             visibleItems.fastForEach { item ->
                 itemSizeCache[item.index] = rowHeights[item.offset.y] ?: item.size.height
@@ -423,13 +415,13 @@ private fun GridFastScrollThumb(
 
             val firstItem = visibleItems.first()
             val avgItemsPerRow = columnCount.coerceAtLeast(1)
-            
+
             var pastItemsSize = 0
             for (index in 0 until firstItem.index) {
                 val size = itemSizeCache[index] ?: medianSize
                 pastItemsSize += size / avgItemsPerRow
             }
-            
+
             val beforePadding = info.beforeContentPadding
             val afterPadding = info.afterContentPadding
             val currentOffset = pastItemsSize + beforePadding + (info.viewportStartOffset - firstItem.offset.y)
@@ -463,7 +455,7 @@ private fun GridFastScrollThumb(
                     lastScrolledOffset = -1
                     return@collectLatest
                 }
-                
+
                 val proportion = ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
 
                 val info = state.layoutInfo
@@ -504,7 +496,7 @@ private fun GridFastScrollThumb(
                     }
                     accumulatedSize += effectiveSize
                 }
-                
+
                 val targetRowIndex = (targetIndex / avgItemsPerRow)
                 val accumulatedRowSize = (accumulatedSize)
                 val targetItemOffset = (targetOffsetPx - accumulatedRowSize).roundToInt()
@@ -590,8 +582,6 @@ private fun rememberColumnWidthSums(
         }
     }
 }
-
-
 
 private class MutableData<T>(var value: T)
 

@@ -83,10 +83,10 @@ fun SkeletonFeedIsland(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 2.dp
+        tonalElevation = 2.dp,
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp)
+            modifier = Modifier.padding(vertical = 12.dp),
         ) {
             SkeletonItem(
                 modifier = Modifier
@@ -94,10 +94,10 @@ fun SkeletonFeedIsland(
                     .width(150.dp)
                     .height(20.dp),
             )
-            
+
             androidx.compose.foundation.layout.Row(
                 modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
             ) {
                 repeat(4) {
                     SkeletonAnimeCard()

@@ -5,7 +5,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -17,7 +16,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel.Dialog
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
-import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -65,18 +63,18 @@ fun bulkSelectionButton(
     val title = stringResource(KMR.strings.action_bulk_select)
     return if (isRunning) {
         AppBar.Action(
-            title = title, 
+            title = title,
             onClick = {},
             iconContent = {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp,
                 )
-            }
+            },
         )
     } else {
         AppBar.Action(
-            title = title, 
+            title = title,
             icon = Icons.Outlined.Checklist,
             onClick = toggleSelectionMode,
         )

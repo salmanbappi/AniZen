@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.PanoramaMode
 import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.presentation.browse.components.BrowseSourceComfortableGrid
 import eu.kanade.presentation.browse.components.BrowseSourceCompactGrid
@@ -51,11 +50,10 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.EmptyScreenAction
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import tachiyomi.presentation.core.util.plus
-import tachiyomi.source.localanime.LocalAnimeSource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 @Composable
 fun BrowseSourceContent(
@@ -141,7 +139,7 @@ fun BrowseSourceContent(
                 val uiPreferences = remember { Injekt.get<UiPreferences>() }
                 val globalPanoramaState = uiPreferences.panoramaCover().collectAsStatePref()
                 val browseModeState = uiPreferences.browsePanoramaMode().collectAsStatePref()
-                
+
                 val globalPanorama = globalPanoramaState.value
                 val browseMode = browseModeState.value
                 val effectivePanorama = remember(globalPanorama, browseMode) { browseMode.resolve(globalPanorama) }
@@ -156,7 +154,7 @@ fun BrowseSourceContent(
                 val uiPreferences = remember { Injekt.get<UiPreferences>() }
                 val globalPanoramaState = uiPreferences.panoramaCover().collectAsStatePref()
                 val browseModeState = uiPreferences.browsePanoramaMode().collectAsStatePref()
-                
+
                 val globalPanorama = globalPanoramaState.value
                 val browseMode = browseModeState.value
                 val effectivePanorama = remember(globalPanorama, browseMode) { browseMode.resolve(globalPanorama) }

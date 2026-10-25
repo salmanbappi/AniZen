@@ -68,13 +68,13 @@ private fun ExtensionSummaryHeader(report: List<ExtensionHealth>) {
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp)
+        shape = RoundedCornerShape(24.dp),
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
             Text(
                 text = "Operational Overview",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -98,7 +98,7 @@ private fun SummaryMetric(label: String, value: String, color: Color) {
 private fun ExtensionDetailCard(health: ExtensionHealth) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -106,39 +106,39 @@ private fun ExtensionDetailCard(health: ExtensionHealth) {
                     modifier = Modifier
                         .size(12.dp)
                         .clip(CircleShape)
-                        .background(if (health.isOnline) Color(0xFF4CAF50) else Color(0xFFF44336))
+                        .background(if (health.isOnline) Color(0xFF4CAF50) else Color(0xFFF44336)),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = health.name,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
                 Surface(
                     shape = RoundedCornerShape(4.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier.padding(start = 8.dp),
                 ) {
                     Text(
                         text = health.type,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(modifier = Modifier.alpha(0.2f).padding(vertical = 4.dp))
-            
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 DetailMetric(Icons.Outlined.Speed, "Latency", "${health.latency}ms")
                 DetailMetric(
                     if (health.isOnline) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline,
                     "Status",
-                    if (health.isOnline) "Stable" else "Connection Err"
+                    if (health.isOnline) "Stable" else "Connection Err",
                 )
             }
 
@@ -148,7 +148,7 @@ private fun ExtensionDetailCard(health: ExtensionHealth) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.ErrorOutline, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)

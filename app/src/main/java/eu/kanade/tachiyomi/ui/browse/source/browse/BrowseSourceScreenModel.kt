@@ -5,8 +5,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastAny
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
@@ -16,14 +16,11 @@ import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.anime.interactor.UpdateAnime
-import tachiyomi.domain.anime.model.toDomainAnime
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.data.cache.CoverCache
-import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
-import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.util.removeCovers
@@ -37,8 +34,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
@@ -61,6 +56,7 @@ import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
 import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.toAnimeUpdate
+import tachiyomi.domain.anime.model.toDomainAnime
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
@@ -183,6 +179,7 @@ class BrowseSourceScreenModel(
      * Flow of Pager flow tied to [State.listing]
      */
     private val hideInLibraryItems = sourcePreferences.hideInAnimeLibraryItems().get()
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val animePagerFlowFlow = state.map { it.listing }
         .distinctUntilChanged()
@@ -494,7 +491,7 @@ class BrowseSourceScreenModel(
             state.copy(
                 selection = newSelection,
                 isSelectAllMode = true,
-                targetCount = newTarget
+                targetCount = newTarget,
             )
         }
     }
@@ -556,7 +553,7 @@ class BrowseSourceScreenModel(
                     changeAnimeFavorite(anime)
                 }
             } else {
-                // Just add to default if no specific category chosen yet, 
+                // Just add to default if no specific category chosen yet,
                 // but usually we should show category dialog for the first one and apply to all if multiple
                 // For simplicity and to fix the "only one added" bug, we'll show the dialog for the whole selection
                 val preselectedIds = emptyList<Long>() // New additions

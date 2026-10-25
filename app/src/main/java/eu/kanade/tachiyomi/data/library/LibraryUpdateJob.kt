@@ -16,13 +16,11 @@ import androidx.work.WorkInfo
 import androidx.work.WorkQuery
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import eu.kanade.domain.anime.interactor.UpdateAnime
 import eu.kanade.domain.anime.interactor.SyncSeasonsWithSource
-import eu.kanade.tachiyomi.animesource.model.FetchType
-import tachiyomi.domain.season.interactor.GetAnimeSeasonsById
-import tachiyomi.domain.anime.model.toSAnime
+import eu.kanade.domain.anime.interactor.UpdateAnime
 import eu.kanade.domain.episode.interactor.SyncEpisodesWithSource
 import eu.kanade.domain.sync.SyncPreferences
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.notification.Notifications
@@ -56,6 +54,7 @@ import tachiyomi.domain.anime.interactor.FetchInterval
 import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.anime.interactor.GetLibraryAnime
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.history.interactor.LogActivity
@@ -71,13 +70,14 @@ import tachiyomi.domain.library.service.LibraryPreferences.Companion.ANIME_OUTSI
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.DEVICE_CHARGING
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.DEVICE_NETWORK_NOT_METERED
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.DEVICE_ONLY_ON_WIFI
-import tachiyomi.domain.source.model.SourceNotInstalledException
-import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.libraryUpdateError.interactor.DeleteLibraryUpdateErrors
 import tachiyomi.domain.libraryUpdateError.interactor.InsertLibraryUpdateErrors
 import tachiyomi.domain.libraryUpdateError.model.LibraryUpdateError
 import tachiyomi.domain.libraryUpdateErrorMessage.interactor.InsertLibraryUpdateErrorMessages
 import tachiyomi.domain.libraryUpdateErrorMessage.model.LibraryUpdateErrorMessage
+import tachiyomi.domain.season.interactor.GetAnimeSeasonsById
+import tachiyomi.domain.source.model.SourceNotInstalledException
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
@@ -265,12 +265,12 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         }
 
         val includeSeasonsGlobal = libraryPreferences.useHierarchicalSeasons().get()
-        
+
         val lastToUpdateWithSeasons = listToUpdate.flatMap { libAnime ->
             when (libAnime.anime.fetchType) {
                 FetchType.Seasons -> {
                     val list = mutableListOf(libAnime)
-                    
+
                     if (includeSeasonsGlobal) {
                         val seasons = getAnimeSeasonsById.await(libAnime.anime.id)
                         list.addAll(
@@ -278,7 +278,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                                 .filter { s ->
                                     s.anime.fetchType == FetchType.Episodes && !s.anime.favorite
                                 }
-                                .map { it.toLibraryAnime() }
+                                .map { it.toLibraryAnime() },
                         )
                     }
                     list
@@ -439,7 +439,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
         if (newUpdates.isNotEmpty()) {
             notifier.showUpdateNotifications(newUpdates)
-            
+
             // Pre-fetch covers for new updates to make them load instantly in the library
             coroutineScope {
                 val imageLoader = coil3.SingletonImageLoader.get(context)
@@ -528,7 +528,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             completed.get(),
             animeToUpdate.size,
         )
-        
+
         if (showBanner && animeToUpdate.isNotEmpty()) {
             setProgress(workDataOf("progress" to (completed.get() * 100 / animeToUpdate.size)))
         }
@@ -544,7 +544,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             completed.get(),
             animeToUpdate.size,
         )
-        
+
         if (showBanner && animeToUpdate.isNotEmpty()) {
             setProgress(workDataOf("progress" to (completed.get() * 100 / animeToUpdate.size)))
         }

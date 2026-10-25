@@ -57,7 +57,7 @@ class DownloadStore(
         val key = getKey(download)
         val now = System.currentTimeMillis()
         val lastUpdate = lastUpdateMap.getOrDefault(key, 0L)
-        
+
         if (force || now - lastUpdate > 2000L) { // Flush to disk every 2 seconds
             preferences.edit {
                 putString(key, serialize(download))
@@ -125,12 +125,12 @@ class DownloadStore(
                 val source = sourceManager.get(anime.source) as? HttpSource ?: continue
                 val episode = runBlocking { getEpisode.await(obj.episodeId) } ?: continue
                 val download = Download(source, anime, episode)
-                
+
                 // Restore metadata for 1DM-style resume
                 download.totalSegments = obj.totalSegments
                 download.downloadedSegments = obj.downloadedSegments
                 obj.segmentProgress?.let { download.segmentProgress.putAll(it) }
-                
+
                 downloads.add(download)
             }
         }
@@ -147,12 +147,12 @@ class DownloadStore(
      */
     private fun serialize(download: Download): String {
         val obj = AnimeDownloadObject(
-            animeId = download.anime.id, 
-            episodeId = download.episode.id!!, 
+            animeId = download.anime.id,
+            episodeId = download.episode.id!!,
             order = counter++,
             totalSegments = download.totalSegments,
             downloadedSegments = download.downloadedSegments,
-            segmentProgress = if (download.totalSegments > 0) download.segmentProgress.toMap() else null
+            segmentProgress = if (download.totalSegments > 0) download.segmentProgress.toMap() else null,
         )
         return json.encodeToString(obj)
     }
@@ -180,10 +180,10 @@ class DownloadStore(
  */
 @Serializable
 private data class AnimeDownloadObject(
-    val animeId: Long, 
-    val episodeId: Long, 
+    val animeId: Long,
+    val episodeId: Long,
     val order: Int,
     val totalSegments: Int = 0,
     val downloadedSegments: Int = 0,
-    val segmentProgress: Map<Int, Boolean>? = null
+    val segmentProgress: Map<Int, Boolean>? = null,
 )

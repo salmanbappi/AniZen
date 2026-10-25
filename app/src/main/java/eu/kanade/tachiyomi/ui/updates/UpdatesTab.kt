@@ -5,23 +5,21 @@ import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.NavItem
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.NavItem
 import eu.kanade.presentation.updates.UpdateScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
@@ -32,15 +30,16 @@ import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import mihon.feature.airingschedule.AiringScheduleTab
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import mihon.feature.airingschedule.AiringScheduleTab
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import androidx.compose.runtime.collectAsState
 import tachiyomi.core.common.i18n.stringResource as stringResourceContext
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 data object UpdatesTab : Tab {
 
@@ -49,7 +48,7 @@ data object UpdatesTab : Tab {
         get() {
             val uiPreferences = remember { Injekt.get<UiPreferences>() }
             val visibleTabs by uiPreferences.bottomNavTabs().collectAsStatePref()
-            val index = remember(visibleTabs) { 
+            val index = remember(visibleTabs) {
                 val i = visibleTabs.indexOf(NavItem.UPDATES.id)
                 if (i != -1) i.toUShort() else 4u
             }

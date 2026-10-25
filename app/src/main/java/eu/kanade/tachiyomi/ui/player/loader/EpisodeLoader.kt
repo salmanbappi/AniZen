@@ -1,30 +1,25 @@
 package eu.kanade.tachiyomi.ui.player.loader
 
 import eu.kanade.domain.episode.model.toSEpisode
-import tachiyomi.domain.anime.model.toSAnime
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
+import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
+import eu.kanade.tachiyomi.util.subtitles.StremioSubtitleResolver
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.i18n.MR
 import tachiyomi.source.localanime.LocalAnimeSource
 import tachiyomi.source.localanime.io.LocalAnimeSourceFileSystem
-import eu.kanade.tachiyomi.util.subtitles.StremioSubtitleResolver
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
-import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
-import eu.kanade.tachiyomi.ui.player.PlayerViewModel
-import tachiyomi.i18n.MR
 
 /**
  * Loader used to retrieve the hosters for a given episode.
@@ -194,7 +189,7 @@ class EpisodeLoader {
             } else {
                 videos
             }
-            
+
             return sortedVideos.resolveSubtitles()
         }
 

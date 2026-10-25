@@ -7,8 +7,6 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.databinding.DownloadItemBinding
 import eu.kanade.tachiyomi.util.view.popupMenu
-import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.i18n.MR
 
 /**
  * Class used to hold the data of a download.
@@ -69,14 +67,14 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         val isDash = download.engineType?.contains("DASH") == true // ANZ
         val showGranular = !isDash && (
             (download.engineType == "HLS" && download.totalSegments > 1) ||
-            (download.activeThreads > 1)
-        )
+                (download.activeThreads > 1)
+            )
         binding.granularProgress.visibility = if (showGranular) View.VISIBLE else View.GONE
         if (showGranular) {
             binding.granularProgress.bind(download)
         }
         // ANZ <--
-        
+
         if (download.progress == 0) {
             binding.downloadProgress.isIndeterminate = true
         } else {
@@ -95,7 +93,7 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         val engine = download.engineType ?: "Normal"
         val isDash = engine.contains("DASH")
         val isHls = engine == "HLS"
-        
+
         // 1DM+ Core Status Logic
         val statusText = buildString {
             when (download.status) {
@@ -147,7 +145,7 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
                 }
                 append("\n")
             }
-            
+
             // Line 3: Connection Intelligence
             // ANZ -->
             append("Threads: ").append(download.activeThreads.coerceAtLeast(1)).append(" Active")
@@ -156,17 +154,17 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
                 append(" • ").append(if (isHls) "Segments: " else "Parts: ")
                 append(download.downloadedSegments).append("/").append(download.totalSegments)
             }
-            
+
             // Line 4: Engine Identity
             append("\nEngine: ").append(
                 when {
                     isDash -> "DASH (FFmpeg Adaptive)"
                     isHls -> "HLS (Sequential Merge)"
                     else -> "Normal (Direct Multi-threaded)"
-                }
+                },
             )
         }
-        
+
         binding.downloadProgressText.text = statusText
 
         // Update Engine Icon & Visibility

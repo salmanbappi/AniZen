@@ -6,8 +6,10 @@ class AdvancedPlayerPreferences(
     private val preferenceStore: PreferenceStore,
 ) {
     fun mpvScripts() = preferenceStore.getBoolean("mpv_scripts", false)
+
     // ANZ -->
     fun mpvUserFiles() = mpvScripts()
+
     // ANZ <--
     fun mpvConf() = preferenceStore.getString("pref_mpv_conf", "")
     fun mpvInput() = preferenceStore.getString("pref_mpv_input", "")

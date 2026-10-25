@@ -38,6 +38,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -47,21 +54,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
-import eu.kanade.domain.connections.service.ConnectionsPreferences
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
-import uy.kohesive.injekt.injectLazy
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
@@ -71,6 +66,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.browse.BrowseSourceContent
@@ -79,6 +75,8 @@ import eu.kanade.presentation.browse.components.RemoveAnimeDialog
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
+import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
@@ -102,12 +100,13 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.tvFocusHighlight
 import tachiyomi.presentation.core.screens.LoadingScreen
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
+import tachiyomi.presentation.core.util.tvFocusHighlight
 import tachiyomi.source.localanime.LocalAnimeSource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 data class BrowseSourceScreen(
     private val sourceId: Long,
@@ -276,7 +275,7 @@ data class BrowseSourceScreen(
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(FilterChipDefaults.IconSize),
-                                 )
+                                )
                             },
                             label = {
                                 Text(text = stringResource(MR.strings.popular))
@@ -370,7 +369,7 @@ data class BrowseSourceScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
                             TextButton(
-                                onClick = { 
+                                onClick = {
                                     if (allFavorite) {
                                         screenModel.removeSelectionFromLibrary()
                                     } else {
@@ -382,14 +381,14 @@ data class BrowseSourceScreen(
                                     Icon(
                                         imageVector = if (allFavorite) Icons.Outlined.Delete else Icons.Outlined.Favorite,
                                         contentDescription = null,
-                                        tint = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                        tint = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current,
                                     )
                                     Text(
                                         text = stringResource(
-                                            if (allFavorite) MR.strings.action_remove else MR.strings.add_to_library
+                                            if (allFavorite) MR.strings.action_remove else MR.strings.add_to_library,
                                         ),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                        color = if (allFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current,
                                     )
                                 }
                             }
@@ -402,7 +401,7 @@ data class BrowseSourceScreen(
         ) { paddingValues ->
             var isPoking by remember { mutableStateOf(false) }
             val isSelectAllMode = state.isSelectAllMode
-            
+
             // Reactive Selection Engine: Observes load state to expand selection in 'Select All' mode.
             // It selects items in batches of 60 and uses 'safe boundary access' to trigger Paging 3 fetches.
             LaunchedEffect(isSelectAllMode) {
@@ -411,40 +410,40 @@ data class BrowseSourceScreen(
                     return@LaunchedEffect
                 }
 
-                snapshotFlow { 
+                snapshotFlow {
                     if (!state.isSelectAllMode) return@snapshotFlow null
                     val target = state.targetCount
                     val current = state.selection.size
                     val total = animeList.itemCount
                     Triple(target, current, total)
                 }
-                .collectLatest { data ->
-                    val (target, current, total) = data ?: return@collectLatest
-                    // Expand selection to available items, capped at the current targetCount.
-                    val snapshot = animeList.itemSnapshotList
-                    val loadedItems = snapshot.items.filterNotNull()
-                    
-                    if (loadedItems.size > current) {
-                        val nextBatch = loadedItems.take(target).map { it.value }
-                        if (nextBatch.size > current) {
-                            screenModel.updateSelection(nextBatch)
-                        }
-                    }
+                    .collectLatest { data ->
+                        val (target, current, total) = data ?: return@collectLatest
+                        // Expand selection to available items, capped at the current targetCount.
+                        val snapshot = animeList.itemSnapshotList
+                        val loadedItems = snapshot.items.filterNotNull()
 
-                    // TRIGGER THE NEXT PAGE (The Safe Poke) only if we haven't reached the manual targetCount
-                    // AND we are not already poking.
-                    if (current < target && total > 0 && total < target && !isPoking) {
-                        val appendState = animeList.loadState.append
-                        if (appendState is androidx.paging.LoadState.NotLoading && !appendState.endOfPaginationReached) {
-                            isPoking = true
-                            try {
-                                animeList[total - 1]
-                            } catch (e: Exception) {}
+                        if (loadedItems.size > current) {
+                            val nextBatch = loadedItems.take(target).map { it.value }
+                            if (nextBatch.size > current) {
+                                screenModel.updateSelection(nextBatch)
+                            }
+                        }
+
+                        // TRIGGER THE NEXT PAGE (The Safe Poke) only if we haven't reached the manual targetCount
+                        // AND we are not already poking.
+                        if (current < target && total > 0 && total < target && !isPoking) {
+                            val appendState = animeList.loadState.append
+                            if (appendState is androidx.paging.LoadState.NotLoading && !appendState.endOfPaginationReached) {
+                                isPoking = true
+                                try {
+                                    animeList[total - 1]
+                                } catch (e: Exception) {}
+                            }
                         }
                     }
-                }
             }
-            
+
             // Reset poking state when loading completes or state changes
             LaunchedEffect(animeList.loadState.append) {
                 if (animeList.loadState.append is androidx.paging.LoadState.NotLoading) {

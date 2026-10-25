@@ -6,7 +6,9 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
 import eu.kanade.domain.source.interactor.SetMigrateSorting
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.presentation.browse.SourceUiModel
 import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
+import eu.kanade.tachiyomi.ui.browse.source.SourceUiModelMapper
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
@@ -31,9 +33,6 @@ import tachiyomi.domain.source.model.Pin
 import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
-import eu.kanade.presentation.browse.SourceUiModel
-import eu.kanade.tachiyomi.ui.browse.source.SourceUiModelMapper
 
 class MigrateSourceScreenModel(
     private val preferences: SourcePreferences = Injekt.get(),
@@ -63,9 +62,9 @@ class MigrateSourceScreenModel(
                         }
                     }
                 }
-                
+
                 val filtered = sourceCounts.filter(queryFilter(searchQuery))
-                
+
                 filtered.map { (source, count) ->
                     mapper.map(source) to count
                 }

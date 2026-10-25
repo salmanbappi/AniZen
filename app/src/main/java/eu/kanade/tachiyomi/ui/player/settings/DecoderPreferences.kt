@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
-import eu.kanade.tachiyomi.ui.player.PlayerEfficiency
 import eu.kanade.tachiyomi.ui.player.Debanding
+import eu.kanade.tachiyomi.ui.player.PlayerEfficiency
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 

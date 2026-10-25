@@ -4,8 +4,8 @@ import android.app.Application
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.model.toDomainTrack
-import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.animesource.model.Credit
+import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.ImmutableList

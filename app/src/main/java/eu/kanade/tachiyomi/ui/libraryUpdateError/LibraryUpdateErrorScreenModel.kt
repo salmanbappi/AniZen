@@ -15,7 +15,6 @@ import tachiyomi.domain.libraryUpdateError.interactor.GetLibraryUpdateErrorWithR
 import tachiyomi.domain.libraryUpdateError.model.LibraryUpdateErrorWithRelations
 import tachiyomi.domain.libraryUpdateErrorMessage.interactor.GetLibraryUpdateErrorMessages
 import tachiyomi.domain.libraryUpdateErrorMessage.model.LibraryUpdateErrorMessage
-import tachiyomi.domain.anime.model.AnimeCover
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get

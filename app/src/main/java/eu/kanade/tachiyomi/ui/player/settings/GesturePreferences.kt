@@ -32,7 +32,7 @@ class GesturePreferences(
     fun rightDoubleTapGesture() = preferenceStore.getEnum("pref_right_double_tap", SingleActionGesture.Seek)
 
     // Long press
-    
+
     fun longPressAction() = preferenceStore.getEnum("pref_long_press_action", LongPressAction.Speed)
     fun pausedLongPressAction() = preferenceStore.getEnum("pref_paused_long_press_action", PausedLongPressAction.DoNothing)
     fun gestureLongPressSpeedSliding() = preferenceStore.getBoolean("pref_gesture_long_press_speed_sliding", true)

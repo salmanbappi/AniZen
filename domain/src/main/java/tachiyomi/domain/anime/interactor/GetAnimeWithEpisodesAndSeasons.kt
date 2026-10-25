@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.anime.model.CustomAnimeInfo
 import tachiyomi.domain.anime.model.SeasonAnime
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.episode.model.Episode

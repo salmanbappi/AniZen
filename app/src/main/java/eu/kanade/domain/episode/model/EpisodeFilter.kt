@@ -29,7 +29,7 @@ fun List<Episode>.applyFilters(anime: Anime, downloadManager: DownloadManager, s
                     compareBy<Episode> { it.bookmark }
                         .thenBy { it.seen }
                         .thenBy { it.lastSecondSeen }
-                        .thenBy { it.dateFetch }
+                        .thenBy { it.dateFetch },
                 )!!
             }
     } else {
@@ -78,7 +78,7 @@ fun List<EpisodeList.Item>.applyFilters(anime: Anime, skipDupeEpisodes: Boolean)
                     compareBy<EpisodeList.Item> { it.episode.bookmark }
                         .thenBy { it.episode.seen }
                         .thenBy { it.episode.lastSecondSeen }
-                        .thenBy { it.episode.dateFetch }
+                        .thenBy { it.episode.dateFetch },
                 )!!
             }
     } else {

@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.player.controls.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -9,8 +8,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,31 +39,29 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
 
 @Composable
 fun SlideToUnlock(
     onUnlock: () -> Unit,
     onDraggingChanged: (Boolean) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var sliderWidth by remember { mutableStateOf(0) }
     var isDragging by remember { mutableStateOf(false) }
-    
+
     val density = LocalDensity.current
     val buttonSize = 48.dp
     val buttonSizePx = with(density) { buttonSize.toPx() }
-    
+
     val maxOffset = if (sliderWidth > 0) sliderWidth - buttonSizePx else 0f
     val unlockThreshold = maxOffset * 0.85f
 
     val animatedOffsetX by animateFloatAsState(
         targetValue = offsetX,
         animationSpec = tween(durationMillis = if (isDragging) 0 else 300),
-        label = "sliderOffset"
+        label = "sliderOffset",
     )
 
     LaunchedEffect(isDragging) {
@@ -79,11 +74,11 @@ fun SlideToUnlock(
             .height(56.dp)
             .onSizeChanged { sliderWidth = it.width },
         shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.5f)
+        color = Color.Black.copy(alpha = 0.5f),
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.CenterStart
+            contentAlignment = Alignment.CenterStart,
         ) {
             // Background Text
             val textAlpha = 1f - (animatedOffsetX / (maxOffset.coerceAtLeast(1f)))
@@ -91,7 +86,7 @@ fun SlideToUnlock(
                 text = "Slide to Unlock",
                 color = Color.White.copy(alpha = textAlpha.coerceIn(0f, 1f)),
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.Center)
+                modifier = Modifier.align(Alignment.Center),
             )
 
             // Draggable Button
@@ -114,19 +109,19 @@ fun SlideToUnlock(
                                 onUnlock()
                             }
                             offsetX = 0f
-                        }
+                        },
                     ),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 Crossfade(
                     targetState = offsetX > unlockThreshold / 2f,
-                    label = "lockIcon"
+                    label = "lockIcon",
                 ) { isUnlocking ->
                     Icon(
                         imageVector = if (isUnlocking) Icons.Default.LockOpen else Icons.Default.Lock,
                         contentDescription = "Unlock",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(24.dp),
                     )
                 }
             }

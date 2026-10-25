@@ -113,7 +113,7 @@ class StatsScreenModel(
                     .map { entry ->
                         val source = sourceManager.getOrStub(entry.key)
                         val ext = installedExtensions.find { it: eu.kanade.tachiyomi.extension.model.Extension.Installed -> it.sources.any { s -> s.id == entry.key } }
-                        
+
                         // Robust repo parsing
                         val repoName = when {
                             ext?.repoUrl == null -> null
@@ -186,10 +186,10 @@ class StatsScreenModel(
 
                     val isStale = libraryAnime.hasStarted && libraryAnime.lastSeen < thirtyDaysAgo && libraryAnime.unseenCount > 0
 
-                    val isDropped = parsedStatuses.any { it == TrackStatus.DROPPED } || 
+                    val isDropped = parsedStatuses.any { it == TrackStatus.DROPPED } ||
                                    (isStale && !libraryAnime.anime.favorite)
-                    
-                    val isOnHold = parsedStatuses.any { it == TrackStatus.PAUSED } || 
+
+                    val isOnHold = parsedStatuses.any { it == TrackStatus.PAUSED } ||
                                    (isStale && libraryAnime.anime.favorite)
 
                     when {
@@ -232,7 +232,7 @@ class StatsScreenModel(
             val thirtyDaysAgoFeedDate = Calendar.getInstance().apply {
                 add(Calendar.DAY_OF_YEAR, -30)
             }.time
-            
+
             getActivityLog.subscribeByPeriod(thirtyDaysAgoFeedDate)
                 .combine(Injekt.get<tachiyomi.domain.source.interactor.GetFeedSavedSearchGlobal>().subscribe()) { logs, feeds ->
                     calculateFeedActivity(logs, feeds)
@@ -252,7 +252,7 @@ class StatsScreenModel(
 
     private fun calculateFeedActivity(allLogs: List<ActivityLog>, feedSavedSearches: List<FeedSavedSearch>): StatsData.FeedActivity {
         val thirtyDaysAgo = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -30) }.time
-        
+
         val activity = allLogs
             .filter { it.eventType == ActivityLog.TYPE_OPEN || it.eventType == ActivityLog.TYPE_PLAY || it.eventType == ActivityLog.TYPE_COMPLETE }
             .groupBy { it.sourceId to it.feedId }
@@ -260,7 +260,7 @@ class StatsScreenModel(
                 val (sourceId, feedId) = ids
                 val source = sourceManager.getOrStub(sourceId)
                 val feed = feedSavedSearches.find { it.id == feedId }
-                
+
                 val feedLabel = when {
                     feed == null -> ""
                     feed.savedSearch != null -> " (Saved Search)"
@@ -279,7 +279,7 @@ class StatsScreenModel(
             }
             .filter { it.openCount + it.playCount + it.completeCount > 0 }
             .sortedByDescending { it.openCount + it.playCount + it.completeCount }
-        
+
         return StatsData.FeedActivity(activity)
     }
 
@@ -300,7 +300,7 @@ class StatsScreenModel(
     private fun startAiAnalysis(currentState: StatsScreenState.SuccessAnime) {
         mutableState.update {
             if (it is StatsScreenState.SuccessAnime) it.copy(
-                isAiLoading = true, 
+                isAiLoading = true,
                 streamingAnalysis = "",
                 aiAnalysis = null
             ) else it
@@ -365,22 +365,22 @@ class StatsScreenModel(
             .append(", Ongoing=").append(statuses.ongoingCount)
             .append(", Dropped=").append(statuses.droppedCount)
             .append(", OnHold=").append(statuses.onHoldCount).append("\n")
-        
-        val scoreDist = scores.distribution.entries.joinToString { entry -> 
-            entry.key.toString() + ": " + entry.value.toString() 
+
+        val scoreDist = scores.distribution.entries.joinToString { entry ->
+            entry.key.toString() + ": " + entry.value.toString()
         }
         summary.append("Score Distribution: ").append(scoreDist).append("\n")
-        
+
         summary.append("Total Episodes Watched: ").append(episodes.readEpisodeCount).append("\n")
-        
+
         val extUsage = extensions.topExtensions.joinToString { info ->
             info.name + " (" + (info.repo ?: "Unknown Repo") + ")"
         }
         summary.append("Top Extensions (with repos): ").append(extUsage).append("\n")
-        
+
         val favGenres = genres.genreScores.joinToString { it.first }
         summary.append("Favorite Genres: ").append(favGenres).append("\n")
-        
+
         val recentTitles = animeList.take(10).joinToString { it.anime.title }
         summary.append("Recent Highlights: ").append(recentTitles).append("\n")
 
@@ -429,7 +429,7 @@ class StatsScreenModel(
         val healthReport = topSources.map { sourceId ->
             val source = sourceManager.getOrStub(sourceId)
             val name = source.name
-            
+
             ExtensionHealth(
                 name = name,
                 isOnline = true,
@@ -456,7 +456,7 @@ class StatsScreenModel(
             val cal = Calendar.getInstance().apply { time = item.seenAt ?: return@forEach }
             val day = cal.get(Calendar.DAY_OF_WEEK)
             val hour = cal.get(Calendar.HOUR_OF_DAY)
-            
+
             daysDistribution[day] = (daysDistribution[day] ?: 0L) + 1
             weeklyHeatmap[hour] = (weeklyHeatmap[hour] ?: 0) + 1
         }
@@ -475,7 +475,7 @@ class StatsScreenModel(
             val cal = Calendar.getInstance().apply { time = it.seenAt!! }
             cal.get(Calendar.WEEK_OF_YEAR)
         }.size
-        
+
         val divisorWeeks = if (history.isNotEmpty()) {
             val earliestSeen = history.mapNotNull { it.seenAt?.time }.minOrNull() ?: now
             val totalSpanDays = ((now - earliestSeen) / (24 * 60 * 60 * 1000L)).coerceAtLeast(1)
@@ -497,7 +497,7 @@ class StatsScreenModel(
         val hourCounts = history.mapNotNull { it.seenAt }.map {
             Calendar.getInstance().apply { time = it }.get(Calendar.HOUR_OF_DAY)
         }.groupingBy { it }.eachCount()
-        
+
         val preferredTime = if (hourCounts.isEmpty()) {
             "N/A"
         } else {
@@ -529,22 +529,22 @@ class StatsScreenModel(
             .append(", Ongoing=").append(statuses.ongoingCount)
             .append(", Dropped=").append(statuses.droppedCount)
             .append(", OnHold=").append(statuses.onHoldCount).append("\n")
-        
-        val scoreDist = scores.distribution.entries.joinToString { entry -> 
-            entry.key.toString() + ": " + entry.value.toString() 
+
+        val scoreDist = scores.distribution.entries.joinToString { entry ->
+            entry.key.toString() + ": " + entry.value.toString()
         }
         summary.append("Score Distribution: ").append(scoreDist).append("\n")
-        
+
         summary.append("Total Episodes Watched: ").append(episodes.readEpisodeCount).append("\n")
-        
+
         val extUsage = extensions.topExtensions.joinToString { info ->
             info.name + " (" + (info.repo ?: "Unknown Repo") + ")"
         }
         summary.append("Top Extensions (with repos): ").append(extUsage).append("\n")
-        
+
         val favGenres = genres.genreScores.joinToString { it.first }
         summary.append("Favorite Genres: ").append(favGenres).append("\n")
-        
+
         val recentTitles = animeList.take(10).joinToString { it.anime.title }
         summary.append("Recent Highlights: ").append(recentTitles).append("\n")
 
@@ -619,7 +619,7 @@ class StatsScreenModel(
         scoredTrackMap: Map<Long, List<Track>>
     ): Double {
         val scores = mutableListOf<Double>()
-        
+
         libraryAnime.forEach { item ->
             val localScore = item.anime.score
             if (localScore != null && localScore > 0) {
@@ -631,7 +631,7 @@ class StatsScreenModel(
                 }
             }
         }
-        
+
         return if (scores.isEmpty()) 0.0 else scores.average()
     }
 
@@ -640,7 +640,7 @@ class StatsScreenModel(
         scoredTrackMap: Map<Long, List<Track>>
     ): Map<Int, Int> {
         val distribution = mutableMapOf<Int, Int>()
-        
+
         libraryAnime.forEach { item ->
             val localScore = item.anime.score
             if (localScore != null && localScore > 0) {
@@ -655,7 +655,7 @@ class StatsScreenModel(
                 }
             }
         }
-        
+
         return distribution
     }
 

@@ -19,9 +19,6 @@ package eu.kanade.tachiyomi.ui.player.controls.components.panels
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.ui.res.painterResource
-import eu.kanade.tachiyomi.R
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,7 +44,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Gradient
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NotInterested
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.Card
@@ -68,13 +64,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import eu.kanade.presentation.player.components.ExpandableCard
 import eu.kanade.presentation.player.components.SliderItem
+import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.player.DebandSettings
 import eu.kanade.tachiyomi.ui.player.Debanding
-import androidx.compose.ui.platform.LocalContext
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import eu.kanade.tachiyomi.ui.player.VideoFilterTheme
 import eu.kanade.tachiyomi.ui.player.VideoFilters
@@ -84,11 +82,11 @@ import eu.kanade.tachiyomi.ui.player.applyDebandSetting
 import eu.kanade.tachiyomi.ui.player.applyFilter
 import eu.kanade.tachiyomi.ui.player.applyInterpolation
 import eu.kanade.tachiyomi.ui.player.applyTheme
-import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.ui.player.controls.CARDS_MAX_WIDTH
 import eu.kanade.tachiyomi.ui.player.controls.panelCardsColors
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.InterpolationMode
+import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.util.system.findActivity
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.ank.AMR
@@ -184,11 +182,11 @@ fun FilterPresetsCard() {
 
     val currentPreset = VideoFilterTheme.entries.find { preset ->
         preset.brightness == brightness &&
-        preset.contrast == contrast &&
-        preset.saturation == saturation &&
-        preset.gamma == gamma &&
-        preset.hue == hue &&
-        preset.sharpen == sharpen
+            preset.contrast == contrast &&
+            preset.saturation == saturation &&
+            preset.gamma == gamma &&
+            preset.hue == hue &&
+            preset.sharpen == sharpen
     }
 
     ExpandableCard(
@@ -204,7 +202,7 @@ fun FilterPresetsCard() {
     ) {
         Column(
             modifier = Modifier.padding(MaterialTheme.padding.medium),
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
@@ -226,14 +224,14 @@ fun FilterPresetsCard() {
                     }
                 }
             }
-            
+
             currentPreset?.let {
                 if (it.description.isNotEmpty()) {
                     Text(
                         text = it.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
@@ -345,7 +343,7 @@ fun DebandCard() {
                             // ANZ -->
                             applyDebandMode(mpv, mode, decoderPreferences)
                             // ANZ <--
-                        }
+                        },
                     ) {
                         when (mode) {
                             Debanding.None -> Icon(Icons.Default.NotInterested, null)
@@ -354,11 +352,11 @@ fun DebandCard() {
                         }
                     }
                 }
-                
+
                 Text(text = stringResource(debandMode.titleRes))
-                
+
                 Spacer(Modifier.weight(1f))
-                
+
                 TextButton(onClick = {
                     decoderPreferences.videoDebanding().set(Debanding.None)
                     // ANZ -->
@@ -372,7 +370,7 @@ fun DebandCard() {
                 }) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(painterResource(R.drawable.reset_iso_24px), null)
                         Text(stringResource(MR.strings.action_reset))
@@ -437,7 +435,7 @@ fun Anime4KCard() {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
                     text = stringResource(MR.strings.pref_anime4k_title),
@@ -450,7 +448,7 @@ fun Anime4KCard() {
                         // ANZ -->
                         applyAnime4K(mpv, decoderPreferences, anime4kManager)
                         // ANZ <--
-                    }
+                    },
                 )
             }
 
@@ -467,7 +465,7 @@ fun Anime4KCard() {
                 ) {
                     itemsIndexed(
                         items = Anime4KManager.Mode.entries,
-                        key = { index, it -> "a4k-m-$index-${it.name}" }
+                        key = { index, it -> "a4k-m-$index-${it.name}" },
                     ) { _, mode ->
                         if (mode == Anime4KManager.Mode.OFF) return@itemsIndexed
                         InputChip(
@@ -492,7 +490,7 @@ fun Anime4KCard() {
                 ) {
                     itemsIndexed(
                         items = Anime4KManager.Quality.entries,
-                        key = { index, it -> "a4k-q-$index-${it.name}" }
+                        key = { index, it -> "a4k-q-$index-${it.name}" },
                     ) { _, quality ->
                         val label = when (quality) {
                             Anime4KManager.Quality.FAST -> stringResource(MR.strings.anime4k_quality_fast)

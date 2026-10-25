@@ -78,7 +78,7 @@ fun CastControlSheet(
             LazyColumn {
                 itemsIndexed(
                     items = queueItems,
-                    key = { index, it -> "cast-control-${it.itemId}-$index" }
+                    key = { index, it -> "cast-control-${it.itemId}-$index" },
                 ) { _, item ->
                     QueueItemRow(
                         item = item,

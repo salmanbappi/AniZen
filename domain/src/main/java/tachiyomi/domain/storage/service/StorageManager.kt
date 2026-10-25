@@ -107,6 +107,7 @@ private const val MPV_CONFIG_PATH = "mpv-config"
 private const val FONTS_PATH = "fonts"
 const val SCRIPTS_PATH = "scripts"
 const val SCRIPT_OPTS_PATH = "script-opts"
+
 // ANZ -->
 const val SHADERS_PATH = "shaders"
 // ANZ <--

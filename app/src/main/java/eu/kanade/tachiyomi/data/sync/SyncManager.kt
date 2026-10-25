@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupAnime
 import eu.kanade.tachiyomi.data.backup.models.BackupEpisode
+import eu.kanade.tachiyomi.data.backup.models.BackupTracking
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.backup.restore.restorers.AnimeRestorer
@@ -24,16 +25,14 @@ import tachiyomi.data.Episodes
 import tachiyomi.data.anime.AnimeMapper.mapAnime
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.track.interactor.GetTracks
+import tachiyomi.domain.track.model.Track
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.IOException
 import java.util.Date
 import kotlin.system.measureTimeMillis
-
-import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.model.Track
-import eu.kanade.tachiyomi.data.backup.models.BackupTracking
 
 /**
  * A manager to handle synchronization tasks in the app, such as updating

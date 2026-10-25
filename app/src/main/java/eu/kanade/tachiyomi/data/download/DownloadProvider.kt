@@ -5,6 +5,8 @@ import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.util.size
 import eu.kanade.tachiyomi.util.storage.DiskUtil
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.storage.displayablePath
@@ -18,9 +20,6 @@ import tachiyomi.source.localanime.io.LocalAnimeSourceFileSystem
 import tachiyomi.source.localanime.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * This class is used to provide the directories where the downloads should be saved.
@@ -50,10 +49,10 @@ class DownloadProvider(
      */
     suspend fun getAnimeDir(animeTitle: String, source: Source): UniFile {
         val cacheKey = "${source.id}_$animeTitle"
-        animeDirCache.get(cacheKey)?.let { 
-            if (it.exists()) return it else animeDirCache.remove(cacheKey) 
+        animeDirCache.get(cacheKey)?.let {
+            if (it.exists()) return it else animeDirCache.remove(cacheKey)
         }
-        
+
         try {
             return dirMutex.withLock {
                 val dir = downloadsDir!!

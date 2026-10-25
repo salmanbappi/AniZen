@@ -12,28 +12,24 @@ import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.source.interactor.DeleteFeedSavedSearchById
+import tachiyomi.domain.source.interactor.DeleteFeedSavedSearchCategory
+import tachiyomi.domain.source.interactor.GetFeedSavedSearchCategories
 import tachiyomi.domain.source.interactor.GetFeedSavedSearchGlobal
 import tachiyomi.domain.source.interactor.GetSavedSearchGlobalFeed
+import tachiyomi.domain.source.interactor.InsertFeedSavedSearchCategory
 import tachiyomi.domain.source.interactor.ReorderFeed
 import tachiyomi.domain.source.interactor.UpdateFeedSavedSearch
+import tachiyomi.domain.source.interactor.UpdateFeedSavedSearchCategory
 import tachiyomi.domain.source.model.FeedSavedSearch
+import tachiyomi.domain.source.model.FeedSavedSearchCategory
 import tachiyomi.domain.source.model.FeedSavedSearchUpdate
 import tachiyomi.domain.source.model.SavedSearch
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
-import tachiyomi.domain.source.interactor.DeleteFeedSavedSearchCategory
-import tachiyomi.domain.source.interactor.GetFeedSavedSearchCategories
-import tachiyomi.domain.source.interactor.InsertFeedSavedSearchCategory
-import tachiyomi.domain.source.interactor.UpdateFeedSavedSearchCategory
-import tachiyomi.domain.source.model.FeedSavedSearchCategory
 
 class FeedManageScreenModel(
     private val sourceManager: SourceManager = Injekt.get(),
@@ -75,16 +71,16 @@ class FeedManageScreenModel(
                     combine(
                         getFeedSavedSearchGlobal.subscribe(category.id),
                         sourceManager.isInitialized,
-                        ::Pair
+                        ::Pair,
                     ).collectLatest { (feedSavedSearches, isInitialized) ->
                         if (!isInitialized) return@collectLatest
 
                         val savedSearches = getSavedSearchGlobalFeed.await(category.id)
-                        
+
                         val items = feedSavedSearches.map { feed ->
                             val source = sourceManager.get(feed.source)
                             val savedSearch = savedSearches.find { it.id == feed.savedSearch }
-                            
+
                             FeedItem(
                                 feed = feed,
                                 title = source?.name ?: "Unknown",
@@ -134,17 +130,17 @@ class FeedManageScreenModel(
                     searchType = type.value.toLong(),
                     savedSearch = savedSearchId,
                     deleteSavedSearch = savedSearchId == null,
-                )
+                ),
             )
         }
     }
-    
+
     fun updateFeedCategory(feed: FeedSavedSearch, newCategoryId: Long) {
         screenModelScope.launchIO {
             // Get max order in new category to append at end
             val targetFeed = getFeedSavedSearchGlobal.await(newCategoryId)
             val nextOrder = (targetFeed.maxOfOrNull { it.feedOrder } ?: -1) + 1
-            
+
             // Delete from old category (or update)
             // UpdateFeedSavedSearch supports updating category?
             // FeedSavedSearchUpdate needs category field?
@@ -155,19 +151,19 @@ class FeedManageScreenModel(
             // I'll check FeedSavedSearchUpdate model first.
             // Assuming I can't update category easily without DB support,
             // I'll check if I added category to Update model.
-            
+
             // Checking FeedSavedSearchUpdate.kt (from previous context or file)
             // It seems I only added category to FeedSavedSearch.
             // I should check if UpdateFeedSavedSearch supports it.
             // If not, I'll delete and re-insert.
-            
+
             deleteFeedSavedSearchById.await(feed.id)
             insertFeedSavedSearch.await(
                 feed.copy(
                     id = -1,
                     category = newCategoryId,
-                    feedOrder = nextOrder
-                )
+                    feedOrder = nextOrder,
+                ),
             )
         }
     }
@@ -179,8 +175,8 @@ class FeedManageScreenModel(
             insertFeedSavedSearch.await(
                 feed.copy(
                     id = -1,
-                    feedOrder = nextOrder
-                )
+                    feedOrder = nextOrder,
+                ),
             )
         }
     }

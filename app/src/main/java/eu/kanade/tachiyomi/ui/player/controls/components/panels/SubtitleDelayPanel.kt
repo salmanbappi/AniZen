@@ -55,9 +55,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.compose.ui.platform.LocalContext
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.player.components.OutlinedNumericChooser
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
@@ -118,9 +118,11 @@ fun SubtitleDelayPanel(
         }
         LaunchedEffect(affectedSubtitle) {
             secondaryDelay = (
-                (mpv?.getPropertyDouble(
-                    if (affectedSubtitle == SubtitleDelayType.Both) "sub-delay" else "secondary-sub-delay",
-                ) ?: 0.0) * 1000
+                (
+                    mpv?.getPropertyDouble(
+                        if (affectedSubtitle == SubtitleDelayType.Both) "sub-delay" else "secondary-sub-delay",
+                    ) ?: 0.0
+                    ) * 1000
                 ).toInt()
             delay = ((mpv?.getPropertyDouble("sub-delay") ?: 0.0) * 1000).toInt()
         }

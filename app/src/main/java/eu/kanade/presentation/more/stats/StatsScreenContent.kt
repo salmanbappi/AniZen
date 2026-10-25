@@ -1,8 +1,11 @@
 package eu.kanade.presentation.more.stats
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,16 +25,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.LocalLibrary
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
@@ -42,16 +47,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,31 +68,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import androidx.compose.ui.res.painterResource
-import android.content.Intent
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
-import eu.kanade.tachiyomi.R
 import eu.kanade.domain.ai.AiPreferences
 import eu.kanade.presentation.anime.components.MarkdownRender
-import eu.kanade.presentation.more.stats.data.ExtensionInfo
 import eu.kanade.presentation.more.stats.data.StatsData
 import eu.kanade.presentation.util.toDurationString
+import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.system.copyToClipboard
-import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
-import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.secondaryItemAlpha
 import uy.kohesive.injekt.Injekt
@@ -130,7 +121,7 @@ fun StatsScreenContent(
                     analysis = state.aiAnalysis ?: state.streamingAnalysis,
                     isLoading = state.isAiLoading,
                     onGenerate = onGenerateAiAnalysis,
-                    onRegenerate = onRegenerateAiAnalysis
+                    onRegenerate = onRegenerateAiAnalysis,
                 )
             }
         }
@@ -182,13 +173,13 @@ private fun ProfileHeaderSection(state: StatsScreenState.SuccessAnime) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
     val pickImage = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.GetContent(),
     ) { uri: Uri? ->
         if (uri != null) {
             try {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
                 )
             } catch (e: Exception) {
                 // Ignore if not supported
@@ -201,13 +192,13 @@ private fun ProfileHeaderSection(state: StatsScreenState.SuccessAnime) {
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow, // 30% Secondary
-        tonalElevation = 2.dp
+        tonalElevation = 2.dp,
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally, 
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(24.dp),
         ) {
             Box(
                 modifier = Modifier
@@ -215,14 +206,14 @@ private fun ProfileHeaderSection(state: StatsScreenState.SuccessAnime) {
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primaryContainer) // Accent highlight
                     .clickable { pickImage.launch("image/*") },
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 if (profilePhotoUri.isNotEmpty()) {
                     AsyncImage(
                         model = profilePhotoUri,
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     )
                 } else {
                     AsyncImage(
@@ -245,14 +236,14 @@ private fun ProfileHeaderSection(state: StatsScreenState.SuccessAnime) {
                 textStyle = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
                 ),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Done
+                    imeAction = ImeAction.Done,
                 ),
                 keyboardActions = KeyboardActions(
-                    onDone = { focusManager.clearFocus() }
+                    onDone = { focusManager.clearFocus() },
                 ),
                 decorationBox = { innerTextField ->
                     val lineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -268,9 +259,9 @@ private fun ProfileHeaderSection(state: StatsScreenState.SuccessAnime) {
                                     color = lineColor,
                                     start = Offset(0f, y),
                                     end = Offset(size.width, y),
-                                    strokeWidth = strokeWidth
+                                    strokeWidth = strokeWidth,
                                 )
-                            }
+                            },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             if (editText.isEmpty()) {
@@ -278,23 +269,23 @@ private fun ProfileHeaderSection(state: StatsScreenState.SuccessAnime) {
                                     text = "Your Name",
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                 )
                             }
                             innerTextField()
                         }
                     }
-                }
+                },
             )
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "${state.overview.libraryAnimeCount} Titles in Collection",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
                 ),
                 modifier = Modifier.secondaryItemAlpha(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -309,25 +300,25 @@ private fun AiIntelligenceSection(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    
+
     StatsSectionCard(
         title = "Behavioral Analytics",
-        modifier = Modifier.clickable(enabled = analysis != null) { expanded = !expanded }
+        modifier = Modifier.clickable(enabled = analysis != null) { expanded = !expanded },
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize()
+                .animateContentSize(),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(MaterialTheme.padding.medium)
+                modifier = Modifier.padding(MaterialTheme.padding.medium),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.AutoAwesome,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -338,27 +329,27 @@ private fun AiIntelligenceSection(
                             else -> "Generate behavioral insight"
                         },
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (analysis != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        color = if (analysis != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     )
                     if (analysis == null && !isLoading) {
                         Text(
                             text = "AI will analyze your watch patterns",
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.secondaryItemAlpha()
+                            modifier = Modifier.secondaryItemAlpha(),
                         )
                     }
                 }
-                
+
                 if (analysis == null && isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 } else if (analysis == null) {
                     TextButton(
                         onClick = onGenerate,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.padding(start = 8.dp),
                     ) {
                         Text("Generate")
                     }
@@ -368,25 +359,25 @@ private fun AiIntelligenceSection(
                             onClick = {
                                 context.copyToClipboard("AniZen AI Analysis", analysis)
                             },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(32.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.ContentCopy,
                                 contentDescription = "Copy",
                                 modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         }
                         IconButton(
                             onClick = onRegenerate,
                             enabled = !isLoading,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(32.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Refresh,
                                 contentDescription = "Regenerate",
                                 modifier = Modifier.size(18.dp),
-                                tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.primary
+                                tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
@@ -398,7 +389,7 @@ private fun AiIntelligenceSection(
                     SelectionContainer {
                         MarkdownRender(
                             content = analysis,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
@@ -440,7 +431,7 @@ private fun MetricItem(icon: ImageVector, label: String, value: String) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.primary // 10% Accent
+                color = MaterialTheme.colorScheme.primary, // 10% Accent
             )
             Text(text = label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.secondaryItemAlpha())
         }
@@ -454,7 +445,7 @@ private fun GenreAffinitySection(genreAffinity: StatsData.GenreAffinity) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(MaterialTheme.padding.medium),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val genres = genreAffinity.genreScores.take(6)
             if (genres.size >= 3) {
@@ -463,7 +454,7 @@ private fun GenreAffinitySection(genreAffinity: StatsData.GenreAffinity) {
                     labels = genres.map { it.first },
                     modifier = Modifier
                         .size(240.dp)
-                        .padding(MaterialTheme.padding.large)
+                        .padding(MaterialTheme.padding.large),
                 )
             } else {
                 genres.forEach { pair ->
@@ -534,7 +525,7 @@ private fun RadarChart(
                     this.color = textColor
                     this.textSize = with(density) { 10.sp.toPx() }
                     this.textAlign = android.graphics.Paint.Align.CENTER
-                }
+                },
             )
         }
     }
@@ -547,9 +538,9 @@ private fun GenreBar(genre: String, count: Int, maxCount: Int) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = genre, style = MaterialTheme.typography.bodySmall)
             Text(
-                text = count.toString(), 
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), 
-                modifier = Modifier.secondaryItemAlpha()
+                text = count.toString(),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.secondaryItemAlpha(),
             )
         }
         Box(
@@ -557,14 +548,14 @@ private fun GenreBar(genre: String, count: Int, maxCount: Int) {
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh) // 30% Structural
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh), // 30% Structural
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(progress)
                     .fillMaxHeight()
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary) // 10% Accent
+                    .background(MaterialTheme.colorScheme.primary), // 10% Accent
             )
         }
     }
@@ -578,11 +569,11 @@ private fun FeedActivitySection(feedActivity: StatsData.FeedActivity) {
                 Text(
                     text = "No updates recorded yet.",
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.secondaryItemAlpha()
+                    modifier = Modifier.secondaryItemAlpha(),
                 )
             } else {
                 val maxActivity = feedActivity.activity.maxOf { it.fetchCount }.coerceAtLeast(1)
-                
+
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     feedActivity.activity.take(10).forEach { activity ->
                         SourceActivityBar(activity, maxActivity)
@@ -602,7 +593,7 @@ private fun SourceActivityBar(activity: eu.kanade.presentation.more.stats.data.S
             Text(
                 text = "$totalEngagement Actions",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.secondaryItemAlpha()
+                modifier = Modifier.secondaryItemAlpha(),
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -611,7 +602,7 @@ private fun SourceActivityBar(activity: eu.kanade.presentation.more.stats.data.S
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         ) {
             val totalF = totalEngagement.toFloat().coerceAtLeast(1f)
             val openWeight = activity.openCount.toFloat() / totalF
@@ -624,7 +615,7 @@ private fun SourceActivityBar(activity: eu.kanade.presentation.more.stats.data.S
         }
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ActivityLegendItem(MaterialTheme.colorScheme.secondary, "Opened", activity.openCount)
             ActivityLegendItem(MaterialTheme.colorScheme.tertiary, "Started", activity.playCount)
@@ -643,7 +634,7 @@ private fun ActivityLegendItem(color: Color, label: String, count: Int, forceSho
                 text = "$label: $count",
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 8.sp,
-                modifier = Modifier.secondaryItemAlpha()
+                modifier = Modifier.secondaryItemAlpha(),
             )
         }
     }
@@ -660,7 +651,7 @@ private fun ExtensionUsageSection(extensions: StatsData.ExtensionUsage) {
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(24.dp)
+                        modifier = Modifier.width(24.dp),
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = info.name, style = MaterialTheme.typography.bodyMedium)
@@ -669,14 +660,14 @@ private fun ExtensionUsageSection(extensions: StatsData.ExtensionUsage) {
                                 text = info.repo,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.alpha(0.7f)
+                                modifier = Modifier.alpha(0.7f),
                             )
                         }
                     }
                     Text(
-                        text = "${info.count} titles", 
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), 
-                        modifier = Modifier.secondaryItemAlpha()
+                        text = "${info.count} titles",
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        modifier = Modifier.secondaryItemAlpha(),
                     )
                 }
             }
@@ -688,7 +679,7 @@ private fun ExtensionUsageSection(extensions: StatsData.ExtensionUsage) {
 private fun InfrastructureSection(infra: StatsData.InfrastructureAnalytics, onClickReport: () -> Unit) {
     StatsSectionCard(
         title = "Extension Infrastructure Analytics",
-        modifier = Modifier.clickable { onClickReport() }
+        modifier = Modifier.clickable { onClickReport() },
     ) {
         Column(modifier = Modifier.padding(MaterialTheme.padding.medium), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             // Topology
@@ -698,18 +689,18 @@ private fun InfrastructureSection(infra: StatsData.InfrastructureAnalytics, onCl
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
                         ) {
                             Column(
                                 modifier = Modifier.padding(8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Text(text = type, style = MaterialTheme.typography.labelSmall)
                                 Text(
                                     text = count.toString(),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
+                                    fontFamily = FontFamily.Monospace,
                                 )
                             }
                         }
@@ -722,7 +713,7 @@ private fun InfrastructureSection(infra: StatsData.InfrastructureAnalytics, onCl
                 Text(
                     text = "Latency Matrix (ms)",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 infra.latencyMatrix.forEach { (name, ms) ->
@@ -731,7 +722,13 @@ private fun InfrastructureSection(infra: StatsData.InfrastructureAnalytics, onCl
                         Text(
                             text = "${ms}ms",
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            color = if (ms < 100) Color(0xFF4CAF50) else if (ms < 300) Color(0xFFFFC107) else Color(0xFFF44336)
+                            color = if (ms < 100) {
+                                Color(0xFF4CAF50)
+                            } else if (ms < 300) {
+                                Color(0xFFFFC107)
+                            } else {
+                                Color(0xFFF44336)
+                            },
                         )
                     }
                 }
@@ -742,7 +739,7 @@ private fun InfrastructureSection(infra: StatsData.InfrastructureAnalytics, onCl
                 Text(
                     text = "Endpoint Reliability Index",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 infra.reliabilityIndex.forEach { (name, rate) ->
@@ -750,9 +747,9 @@ private fun InfrastructureSection(infra: StatsData.InfrastructureAnalytics, onCl
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
                         Text(text = name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                         Text(
-                            text = "${percentage}% SR",
+                            text = "$percentage% SR",
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
                         )
                     }
                 }
@@ -785,10 +782,10 @@ private fun HabitItem(label: String, value: String) {
     Column {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            text = value, 
-            style = MaterialTheme.typography.bodyLarge, 
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary // 10% Accent
+            color = MaterialTheme.colorScheme.primary, // 10% Accent
         )
     }
 }
@@ -800,31 +797,31 @@ private fun StatusBreakdownSection(statuses: StatsData.StatusBreakdown) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(MaterialTheme.padding.medium),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             val data = listOf(
                 statuses.completedCount.toFloat(),
                 statuses.ongoingCount.toFloat(),
                 statuses.droppedCount.toFloat(),
                 statuses.onHoldCount.toFloat(),
-                statuses.planToWatchCount.toFloat()
+                statuses.planToWatchCount.toFloat(),
             )
             val colors = listOf(
                 MaterialTheme.colorScheme.primary,
                 MaterialTheme.colorScheme.tertiary,
                 MaterialTheme.colorScheme.error,
                 MaterialTheme.colorScheme.secondary,
-                MaterialTheme.colorScheme.outline
+                MaterialTheme.colorScheme.outline,
             )
-            
+
             PieChart(
                 data = data,
                 colors = colors,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(120.dp),
             )
-            
+
             Spacer(modifier = Modifier.width(24.dp))
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 StatusLegendItem(MaterialTheme.colorScheme.primary, "Completed", statuses.completedCount)
                 StatusLegendItem(MaterialTheme.colorScheme.tertiary, "Ongoing", statuses.ongoingCount)
@@ -843,9 +840,9 @@ private fun StatusLegendItem(color: Color, label: String, count: Int) {
         Spacer(modifier = Modifier.width(8.dp))
         Text(text = label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
         Text(
-            text = count.toString(), 
-            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace), 
-            fontWeight = FontWeight.Bold
+            text = count.toString(),
+            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -856,7 +853,7 @@ private fun ScoreDistributionSection(scores: StatsData.ScoreDistribution) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(MaterialTheme.padding.medium)
+                .padding(MaterialTheme.padding.medium),
         ) {
             val maxCount = scores.distribution.values.maxOrNull() ?: 1
             Row(
@@ -865,24 +862,24 @@ private fun ScoreDistributionSection(scores: StatsData.ScoreDistribution) {
                     .height(160.dp)
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.Bottom,
             ) {
                 for (i in 1..10) {
                     val count = scores.distribution[i] ?: 0
                     val weight = count.toFloat() / maxCount
                     Column(
                         modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         if (count > 0) {
                             Text(
                                 text = count.toString(),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
                                 ),
                                 fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
@@ -895,17 +892,17 @@ private fun ScoreDistributionSection(scores: StatsData.ScoreDistribution) {
                                     Brush.verticalGradient(
                                         colors = listOf(
                                             MaterialTheme.colorScheme.primary,
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                                        )
-                                    )
-                                )
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                        ),
+                                    ),
+                                ),
                         )
                         HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outlineVariant)
                         Text(
                             text = i.toString(),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (count > 0) FontWeight.ExtraBold else FontWeight.Normal,
-                            color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -914,7 +911,7 @@ private fun ScoreDistributionSection(scores: StatsData.ScoreDistribution) {
             Text(
                 text = "Based on ${scores.scoredAnimeCount} rated titles",
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.secondaryItemAlpha().align(Alignment.CenterHorizontally)
+                modifier = Modifier.secondaryItemAlpha().align(Alignment.CenterHorizontally),
             )
         }
     }
@@ -924,7 +921,7 @@ private fun ScoreDistributionSection(scores: StatsData.ScoreDistribution) {
 private fun PieChart(
     data: List<Float>,
     colors: List<Color>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val total = data.sum()
     Canvas(modifier = modifier) {
@@ -935,7 +932,7 @@ private fun PieChart(
                 color = colors[index % colors.size],
                 startAngle = startAngle,
                 sweepAngle = sweepAngle,
-                useCenter = true
+                useCenter = true,
             )
             startAngle += sweepAngle
         }
@@ -952,15 +949,15 @@ private fun StatsSectionCard(
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small)
+            modifier = Modifier.padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
         )
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow // 30% Secondary
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow, // 30% Secondary
             ),
-            elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         ) {
             content()
         }

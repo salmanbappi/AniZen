@@ -157,7 +157,7 @@ fun Scaffold(
                         )
                     } else {
                         Modifier
-                    }
+                    },
                 ) {
                     topBar(topBarScrollBehavior)
                 }
@@ -176,7 +176,7 @@ fun Scaffold(
                         )
                     } else {
                         Modifier
-                    }
+                    },
                 ) {
                     bottomBar()
                 }

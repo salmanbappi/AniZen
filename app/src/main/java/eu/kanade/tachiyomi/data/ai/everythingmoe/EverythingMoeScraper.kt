@@ -9,16 +9,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import logcat.LogPriority
 import okhttp3.Request
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
-import logcat.LogPriority
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -266,7 +264,7 @@ class EverythingMoeScraper(
                             time = rTime,
                             vote = rVote,
                             type = rType,
-                        )
+                        ),
                     )
                 }
             }
@@ -611,7 +609,7 @@ class EverythingMoeScraper(
             val posPct = (pos * 100) / totalReviews
             val mixedPct = (mixed * 100) / totalReviews
             val negPct = (neg * 100) / totalReviews
-            " | **Sentiment**: 🟢 ${posPct}% Pos ($pos) / 🟡 ${mixedPct}% Mixed ($mixed) / 🔴 ${negPct}% Neg ($neg)"
+            " | **Sentiment**: 🟢 $posPct% Pos ($pos) / 🟡 $mixedPct% Mixed ($mixed) / 🔴 $negPct% Neg ($neg)"
         } else {
             ""
         }
@@ -665,7 +663,9 @@ class EverythingMoeScraper(
                         } catch (e: Exception) {
                             null
                         }
-                    } else null
+                    } else {
+                        null
+                    }
 
                     val timeTag = if (dateStr != null) " ($dateStr)" else ""
                     sb.append("    - [$author]$timeTag: \"$clean\"\n")

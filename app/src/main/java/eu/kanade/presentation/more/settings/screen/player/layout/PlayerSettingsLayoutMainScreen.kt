@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -76,19 +75,19 @@ object PlayerSettingsLayoutMainScreen : Screen() {
                         RegionSummaryItem(
                             region = LayoutRegion.TopRight,
                             playerPreferences = playerPreferences,
-                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.TopRight)) }
+                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.TopRight)) },
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                         RegionSummaryItem(
                             region = LayoutRegion.BottomLeft,
                             playerPreferences = playerPreferences,
-                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.BottomLeft)) }
+                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.BottomLeft)) },
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                         RegionSummaryItem(
                             region = LayoutRegion.BottomRight,
                             playerPreferences = playerPreferences,
-                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.BottomRight)) }
+                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.BottomRight)) },
                         )
                     }
                 }
@@ -109,7 +108,7 @@ object PlayerSettingsLayoutMainScreen : Screen() {
                         RegionSummaryItem(
                             region = LayoutRegion.Portrait,
                             playerPreferences = playerPreferences,
-                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.Portrait)) }
+                            onClick = { navigator.push(PlayerSettingsLayoutScreen(LayoutRegion.Portrait)) },
                         )
                     }
                 }
@@ -123,7 +122,7 @@ object PlayerSettingsLayoutMainScreen : Screen() {
             text = title,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
         )
     }
 
@@ -131,7 +130,7 @@ object PlayerSettingsLayoutMainScreen : Screen() {
     private fun RegionSummaryItem(
         region: LayoutRegion,
         playerPreferences: PlayerPreferences,
-        onClick: () -> Unit
+        onClick: () -> Unit,
     ) {
         val buttonsPref = remember(region) {
             when (region) {
@@ -148,7 +147,7 @@ object PlayerSettingsLayoutMainScreen : Screen() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 4.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -170,7 +169,7 @@ object PlayerSettingsLayoutMainScreen : Screen() {
                     )
                 }
             }
-            
+
             @OptIn(ExperimentalLayoutApi::class)
             FlowRow(
                 modifier = Modifier
@@ -192,7 +191,7 @@ object PlayerSettingsLayoutMainScreen : Screen() {
                             enabled = true,
                             onClick = null,
                             badgeIcon = null,
-                            badgeColor = null
+                            badgeColor = null,
                         )
                     }
                 }

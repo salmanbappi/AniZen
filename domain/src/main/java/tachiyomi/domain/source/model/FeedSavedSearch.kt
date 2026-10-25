@@ -20,7 +20,8 @@ data class FeedSavedSearch(
     enum class Type(val value: Int) {
         Popular(0),
         Latest(1),
-        SavedSearch(2);
+        SavedSearch(2),
+        ;
 
         companion object {
             fun from(value: Int): Type = entries.find { it.value == value } ?: Latest

@@ -6,9 +6,9 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.getChangedAt
-import eu.kanade.tachiyomi.ui.player.utils.DefaultStreamSelector
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
+import eu.kanade.tachiyomi.ui.player.utils.DefaultStreamSelector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -80,10 +80,11 @@ class HosterLoader {
                 val preferredAudio = audioPreferences.preferredAudioLanguages().get()
 
                 val isQualityOrAudioMatch: (Pair<Video, Video.State>) -> Boolean = { (v, s) ->
-                    (s == Video.State.READY || s == Video.State.QUEUE) && (
-                        (preferredQuality.isNotBlank() && v.quality.contains(preferredQuality, ignoreCase = true)) ||
-                        (preferredAudio.isNotBlank() && v.quality.contains(preferredAudio, ignoreCase = true))
-                    )
+                    (s == Video.State.READY || s == Video.State.QUEUE) &&
+                        (
+                            (preferredQuality.isNotBlank() && v.quality.contains(preferredQuality, ignoreCase = true)) ||
+                                (preferredAudio.isNotBlank() && v.quality.contains(preferredAudio, ignoreCase = true))
+                            )
                 }
                 val matchHosterIdx = availableHosters.indexOfFirst {
                     (it.value as HosterState.Ready).let { hoster ->

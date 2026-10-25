@@ -26,7 +26,6 @@ interface Episode : SEpisode, Serializable {
 
     var last_second_seen: Long
 
-
     var total_seconds: Long
 
     var date_fetch: Long

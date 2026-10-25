@@ -424,7 +424,6 @@ androidComponents {
     }
 }
 
-
 buildscript {
     dependencies {
         classpath(kotlinx.gradle)

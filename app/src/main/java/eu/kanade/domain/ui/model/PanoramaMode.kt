@@ -6,7 +6,8 @@ import tachiyomi.i18n.MR
 enum class PanoramaMode {
     FOLLOW_GLOBAL,
     FORCE_ON,
-    FORCE_OFF;
+    FORCE_OFF,
+    ;
 
     fun resolve(global: Boolean): Boolean = when (this) {
         FOLLOW_GLOBAL -> global

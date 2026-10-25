@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -292,7 +291,7 @@ object ExtensionLoader {
                         else -> null
                     }
                 }
-        ) ?: versionName.substringBeforeLast('.').toDoubleOrNull()
+            ) ?: versionName.substringBeforeLast('.').toDoubleOrNull()
         if (libVersion == null || libVersion < LIB_VERSION_MIN || libVersion >= LIB_VERSION_MAX + 1.0) {
             logcat(LogPriority.WARN) {
                 "Lib version is $libVersion, while only versions " +

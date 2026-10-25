@@ -1,36 +1,35 @@
 package eu.kanade.tachiyomi.ui.home
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.painterResource
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import cafe.adriel.voyager.navigator.tab.TabOptions
-import eu.kanade.presentation.util.Tab
-import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.ui.anime.AnimeScreen
-import tachiyomi.i18n.sy.SYMR
-import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.components.material.Scaffold
-import androidx.compose.material3.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.IconButton
-
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
-import eu.kanade.tachiyomi.ui.browse.BrowseTab
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
+import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.PanoramaMode
 import eu.kanade.presentation.components.PanoramaModeToggle
+import eu.kanade.presentation.util.Tab
+import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.anime.AnimeScreen
+import eu.kanade.tachiyomi.ui.browse.BrowseTab
+import kotlinx.coroutines.launch
+import tachiyomi.i18n.sy.SYMR
+import tachiyomi.presentation.core.components.material.Scaffold
+import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import androidx.compose.runtime.getValue
 
 fun feedTab(): Tab = FeedTab
 
@@ -77,9 +76,9 @@ data object FeedTab : Tab {
                                 contentDescription = "Edit Feed",
                             )
                         }
-                    }
+                    },
                 )
-            }
+            },
         ) { contentPadding ->
             Content(contentPadding, effectivePanorama)
         }
@@ -91,14 +90,14 @@ data object FeedTab : Tab {
         val tabNavigator = LocalTabNavigator.current
         val scope = rememberCoroutineScope()
         val screenModel = rememberScreenModel { FeedScreenModel() }
-        
+
         FeedScreen(
             screenModel = screenModel,
-            onAnimeClick = { anime, feedId -> 
+            onAnimeClick = { anime, feedId ->
                 screenModel.onAnimeClicked(anime, feedId)
-                navigator.push(AnimeScreen(anime.id)) 
+                navigator.push(AnimeScreen(anime.id))
             },
-            onAddSourceClick = { 
+            onAddSourceClick = {
                 scope.launch {
                     tabNavigator.current = BrowseTab
                     // BrowseTab is already at index 0 (sourcesTab)

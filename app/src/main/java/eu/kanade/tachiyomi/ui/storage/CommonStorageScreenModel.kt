@@ -73,7 +73,7 @@ abstract class CommonStorageScreenModel<T>(
 
                 // Immediate cancellation of any previous job
                 calculationJob?.cancel()
-                
+
                 calculationJob = launch {
                     coroutineScope {
                         val distinctLibraries = libraries.distinctBy { it.getId() }.filter { item ->
@@ -88,7 +88,7 @@ abstract class CommonStorageScreenModel<T>(
                         // Process in chunks to reduce state churn
                         distinctLibraries.chunked(10).forEachIndexed { index, chunk ->
                             if (!isActive) return@forEachIndexed
-                            
+
                             val newItems = chunk.map { library ->
                                 val random = Random(library.getId())
                                 StorageItem(
@@ -117,7 +117,7 @@ abstract class CommonStorageScreenModel<T>(
                                 }
                             }
                         }
-                        
+
                         // Final safety update to ensure isLoading is false
                         mutableState.update { state ->
                             if (state is StorageScreenState.Success && state.selectedCategory == selectedCategory) {
@@ -135,7 +135,6 @@ abstract class CommonStorageScreenModel<T>(
     fun setSelectedCategory(category: Category) {
         selectedCategory.update { category }
     }
-
 
     abstract fun deleteEntry(id: Long)
 

@@ -15,9 +15,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.repository.StubSourceRepository
@@ -51,8 +51,8 @@ class AndroidSourceManager(
     ) { sources, initialized ->
         sources to initialized
     }
-    .filter { it.second }
-    .map { it.first.values.filterIsInstance<CatalogueSource>() }
+        .filter { it.second }
+        .map { it.first.values.filterIsInstance<CatalogueSource>() }
 
     init {
         scope.launch {

@@ -18,7 +18,7 @@ class Anime4KManager(private val context: Context) {
     enum class Quality(val suffix: String) {
         FAST("S"),
         BALANCED("M"),
-        HIGH("L")
+        HIGH("L"),
     }
 
     // Anime4K modes
@@ -29,7 +29,7 @@ class Anime4KManager(private val context: Context) {
         C,
         A_PLUS,
         B_PLUS,
-        C_PLUS
+        C_PLUS,
     }
 
     private var shaderDir: File? = null

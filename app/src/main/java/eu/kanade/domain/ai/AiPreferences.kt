@@ -52,7 +52,7 @@ class AiPreferences(
 
     // Assistant
     fun enableAiAssistant() = preferenceStore.getBoolean("enable_ai_assistant", true)
-    
+
     fun aiAssistantLogs() = preferenceStore.getBoolean("ai_assistant_logs", true)
 
     fun aiAssistantLibrary() = preferenceStore.getBoolean("ai_assistant_library", true)

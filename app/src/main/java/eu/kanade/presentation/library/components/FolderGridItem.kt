@@ -17,19 +17,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryDisplayMode
-import eu.kanade.domain.ui.UiPreferences
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 @Composable
@@ -103,7 +99,7 @@ fun FolderGridItem(
                         imageVector = Icons.Outlined.Folder,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxSize(0.5f)
+                        modifier = Modifier.fillMaxSize(0.5f),
                     )
                 }
 
@@ -133,7 +129,7 @@ fun FolderGridItem(
 private fun FolderPreviewCover(item: LibraryItem, usePanorama: Boolean) {
     val anime = item.libraryAnime.anime
     val coverEntry = if (usePanorama) AnimeCover.Panorama else AnimeCover.Book
-    
+
     coverEntry(
         data = anime,
         modifier = Modifier.fillMaxSize(),

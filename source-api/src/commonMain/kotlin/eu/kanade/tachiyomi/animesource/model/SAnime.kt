@@ -2,8 +2,8 @@
 
 package eu.kanade.tachiyomi.animesource.model
 
-import java.io.Serializable
 import kotlinx.serialization.json.JsonObject
+import java.io.Serializable
 
 interface SAnime : Serializable {
 

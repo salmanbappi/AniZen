@@ -1,20 +1,16 @@
 package eu.kanade.presentation.more.settings.screen
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import eu.kanade.presentation.more.settings.widget.BasePreferenceWidget
-import eu.kanade.presentation.more.settings.widget.PrefsHorizontalPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.Close
@@ -30,7 +26,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import cafe.adriel.voyager.navigator.LocalNavigator
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,10 +43,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.navigator.LocalNavigator
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.track.model.AutoTrackState
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.more.settings.widget.BasePreferenceWidget
+import eu.kanade.presentation.more.settings.widget.PrefsHorizontalPadding
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.Tracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
@@ -62,7 +60,6 @@ import eu.kanade.tachiyomi.data.track.shikimori.ShikimoriApi
 import eu.kanade.tachiyomi.data.track.simkl.SimklApi
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentMap
 import tachiyomi.core.common.util.lang.launchIO
@@ -185,41 +182,43 @@ object SettingsTrackingScreen : SearchableSettings {
                             },
                             logout = { dialog = LogoutDialog(trackerManager.myAnimeList) },
                         ),
-                    ) + (if (isMyanimelistLoggedIn) {
-                        listOf(
-                            Preference.PreferenceItem.CustomPreference(
-                                title = stringResource(MR.strings.pref_import_from_myanimelist),
-                            ) {
-                                BasePreferenceWidget(
-                                    subcomponent = {
-                                        OutlinedButton(
-                                            onClick = {
-                                                navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(1L))
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = PrefsHorizontalPadding),
-                                            shape = CircleShape,
-                                            border = BorderStroke(
-                                                width = 1.dp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            ),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.primary,
-                                            ),
-                                        ) {
-                                            Text(
-                                                text = stringResource(MR.strings.pref_import_from_myanimelist),
-                                                style = MaterialTheme.typography.bodyLarge,
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                        )
-                    } else {
-                        emptyList()
-                    }) + listOf(
+                    ) + (
+                        if (isMyanimelistLoggedIn) {
+                            listOf(
+                                Preference.PreferenceItem.CustomPreference(
+                                    title = stringResource(MR.strings.pref_import_from_myanimelist),
+                                ) {
+                                    BasePreferenceWidget(
+                                        subcomponent = {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(1L))
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = PrefsHorizontalPadding),
+                                                shape = CircleShape,
+                                                border = BorderStroke(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                ),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.primary,
+                                                ),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(MR.strings.pref_import_from_myanimelist),
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                        } else {
+                            emptyList()
+                        }
+                        ) + listOf(
                         Preference.PreferenceItem.TrackerPreference(
                             title = trackerManager.aniList.name,
                             tracker = trackerManager.aniList,
@@ -231,41 +230,43 @@ object SettingsTrackingScreen : SearchableSettings {
                             },
                             logout = { dialog = LogoutDialog(trackerManager.aniList) },
                         ),
-                    ) + (if (isAnilistLoggedIn) {
-                        listOf(
-                             Preference.PreferenceItem.CustomPreference(
-                                title = stringResource(MR.strings.pref_import_from_anilist),
-                            ) {
-                                BasePreferenceWidget(
-                                    subcomponent = {
-                                        OutlinedButton(
-                                            onClick = {
-                                                navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(trackerManager.aniList.id))
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = PrefsHorizontalPadding),
-                                            shape = CircleShape,
-                                            border = BorderStroke(
-                                                width = 1.dp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            ),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.primary,
-                                            ),
-                                        ) {
-                                            Text(
-                                                text = stringResource(MR.strings.pref_import_from_anilist),
-                                                style = MaterialTheme.typography.bodyLarge,
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                        )
-                    } else {
-                        emptyList()
-                    }) + listOf(
+                    ) + (
+                        if (isAnilistLoggedIn) {
+                            listOf(
+                                Preference.PreferenceItem.CustomPreference(
+                                    title = stringResource(MR.strings.pref_import_from_anilist),
+                                ) {
+                                    BasePreferenceWidget(
+                                        subcomponent = {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(trackerManager.aniList.id))
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = PrefsHorizontalPadding),
+                                                shape = CircleShape,
+                                                border = BorderStroke(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                ),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.primary,
+                                                ),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(MR.strings.pref_import_from_anilist),
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                        } else {
+                            emptyList()
+                        }
+                        ) + listOf(
                         Preference.PreferenceItem.TrackerPreference(
                             title = trackerManager.kitsu.name,
                             tracker = trackerManager.kitsu,
@@ -294,41 +295,43 @@ object SettingsTrackingScreen : SearchableSettings {
                             },
                             logout = { dialog = LogoutDialog(trackerManager.simkl) },
                         ),
-                    ) + (if (isSimklLoggedIn) {
-                        listOf(
-                            Preference.PreferenceItem.CustomPreference(
-                                title = stringResource(MR.strings.pref_import_from_simkl),
-                            ) {
-                                BasePreferenceWidget(
-                                    subcomponent = {
-                                        OutlinedButton(
-                                            onClick = {
-                                                navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(trackerManager.simkl.id))
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = PrefsHorizontalPadding),
-                                            shape = CircleShape,
-                                            border = BorderStroke(
-                                                width = 1.dp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            ),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.primary,
-                                            ),
-                                        ) {
-                                            Text(
-                                                text = stringResource(MR.strings.pref_import_from_simkl),
-                                                style = MaterialTheme.typography.bodyLarge,
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                        )
-                    } else {
-                        emptyList()
-                    }) + listOf(
+                    ) + (
+                        if (isSimklLoggedIn) {
+                            listOf(
+                                Preference.PreferenceItem.CustomPreference(
+                                    title = stringResource(MR.strings.pref_import_from_simkl),
+                                ) {
+                                    BasePreferenceWidget(
+                                        subcomponent = {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(trackerManager.simkl.id))
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = PrefsHorizontalPadding),
+                                                shape = CircleShape,
+                                                border = BorderStroke(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                ),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.primary,
+                                                ),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(MR.strings.pref_import_from_simkl),
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                        } else {
+                            emptyList()
+                        }
+                        ) + listOf(
                         Preference.PreferenceItem.TrackerPreference(
                             title = trackerManager.trakt.name,
                             tracker = trackerManager.trakt,
@@ -340,41 +343,43 @@ object SettingsTrackingScreen : SearchableSettings {
                             },
                             logout = { dialog = LogoutDialog(trackerManager.trakt) },
                         ),
-                    ) + (if (isTraktLoggedIn) {
-                        listOf(
-                            Preference.PreferenceItem.CustomPreference(
-                                title = stringResource(MR.strings.pref_import_from_trakt),
-                            ) {
-                                BasePreferenceWidget(
-                                    subcomponent = {
-                                        OutlinedButton(
-                                            onClick = {
-                                                navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(trackerManager.trakt.id))
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = PrefsHorizontalPadding),
-                                            shape = CircleShape,
-                                            border = BorderStroke(
-                                                width = 1.dp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            ),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.primary,
-                                            ),
-                                        ) {
-                                            Text(
-                                                text = stringResource(MR.strings.pref_import_from_trakt),
-                                                style = MaterialTheme.typography.bodyLarge,
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                        )
-                    } else {
-                        emptyList()
-                    }) + listOf(
+                    ) + (
+                        if (isTraktLoggedIn) {
+                            listOf(
+                                Preference.PreferenceItem.CustomPreference(
+                                    title = stringResource(MR.strings.pref_import_from_trakt),
+                                ) {
+                                    BasePreferenceWidget(
+                                        subcomponent = {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    navigator?.push(eu.kanade.tachiyomi.ui.trackerimport.TrackerImportScreen(trackerManager.trakt.id))
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = PrefsHorizontalPadding),
+                                                shape = CircleShape,
+                                                border = BorderStroke(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                ),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.primary,
+                                                ),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(MR.strings.pref_import_from_trakt),
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                        } else {
+                            emptyList()
+                        }
+                        ) + listOf(
                         Preference.PreferenceItem.TrackerPreference(
                             title = trackerManager.tmdb.name,
                             tracker = trackerManager.tmdb,
@@ -413,7 +418,7 @@ object SettingsTrackingScreen : SearchableSettings {
                         ),
                         Preference.PreferenceItem.InfoPreference(stringResource(MR.strings.tracking_info)),
                     )
-                ).toImmutableList(),
+                    ).toImmutableList(),
             ),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.enhanced_services),
@@ -687,4 +692,3 @@ private fun TrackingApiKeyDialog(
         },
     )
 }
-

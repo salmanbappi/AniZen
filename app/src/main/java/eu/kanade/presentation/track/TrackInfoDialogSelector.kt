@@ -115,7 +115,7 @@ fun TrackItemSelector(
                 items = items,
                 modifier = Modifier.align(Alignment.Center),
                 startIndex = items.indexOf(selection).coerceAtLeast(0),
-                onSelectionChanged = { 
+                onSelectionChanged = {
                     internalSelection = items[it].toInt()
                 },
             )
@@ -144,7 +144,7 @@ fun TrackScoreSelector(
                 items = selections,
                 modifier = Modifier.align(Alignment.Center),
                 startIndex = selections.indexOf(selection).takeIf { it >= 0 } ?: (selections.size / 2),
-                onSelectionChanged = { 
+                onSelectionChanged = {
                     internalSelection = selections[it]
                 },
             )

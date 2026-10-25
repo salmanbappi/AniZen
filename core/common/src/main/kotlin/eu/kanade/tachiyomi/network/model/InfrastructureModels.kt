@@ -17,7 +17,10 @@ data class SourceNode(
 )
 
 enum class NodeStatus {
-    OPERATIONAL, DEGRADED, CRITICAL, OFFLINE
+    OPERATIONAL,
+    DEGRADED,
+    CRITICAL,
+    OFFLINE,
 }
 
 data class NetworkDiagnostics(
@@ -50,7 +53,9 @@ data class SystemLogEntry(
 )
 
 enum class LogLevel {
-    INFO, WARN, ERROR
+    INFO,
+    WARN,
+    ERROR,
 }
 
 data class ExtensionHealth(

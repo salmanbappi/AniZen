@@ -1,7 +1,5 @@
 package eu.kanade.tachiyomi.ui.stats
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -16,12 +14,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.more.stats.StatsScreenContent
 import eu.kanade.presentation.more.stats.StatsScreenState
 import eu.kanade.tachiyomi.network.model.ExtensionHealth
 import eu.kanade.tachiyomi.ui.main.MainActivity
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -45,7 +41,7 @@ object StatsScreen : Screen {
                     navigateUp = navigator::pop,
                 )
             },
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = MaterialTheme.colorScheme.background,
         ) { contentPadding ->
             if (state is StatsScreenState.Loading) {
                 LoadingScreen()
@@ -84,11 +80,11 @@ data class ExtensionReportScreen(
                     navigateUp = navigator::pop,
                 )
             },
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = MaterialTheme.colorScheme.background,
         ) { contentPadding ->
             eu.kanade.presentation.more.stats.ExtensionReportScreen(
                 healthReport = healthReport,
-                contentPadding = contentPadding
+                contentPadding = contentPadding,
             )
         }
     }
@@ -122,7 +118,7 @@ object InfrastructureScreen : Screen {
                 )
             },
             containerColor = MaterialTheme.colorScheme.background,
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { contentPadding ->
             eu.kanade.presentation.more.stats.InfrastructureScreen(
                 state = state,

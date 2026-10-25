@@ -1,13 +1,12 @@
 package eu.kanade.tachiyomi.util.lang
 
 import kotlin.math.max
-import kotlin.math.min
 
 object StringSimilarity {
 
     private val STOP_WORDS = setOf(
         "the", "a", "an", "my", "no", "in", "of", "to", "for", "with", "on", "at", "by", "from",
-        "season", "2nd", "3rd", "4th", "5th", "s1", "s2", "s3", "s4", "s5", "tv", "ova", "ona", "movie"
+        "season", "2nd", "3rd", "4th", "5th", "s1", "s2", "s3", "s4", "s5", "tv", "ova", "ona", "movie",
     )
 
     // Pre-compiled scalpel regex: replaces special chars with space to preserve tokens
@@ -27,7 +26,7 @@ object StringSimilarity {
             .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
             .replace(WHITESPACE_REGEX, " ")
             .trim()
-        
+
         // Fallback: If stripping everything left us with too little, return first three words
         return if (root.length < 3 || root.split(" ").size < 1) {
             title.split(" ").take(3).joinToString(" ").lowercase().replace(SCALPEL_REGEX, " ").trim()
@@ -109,9 +108,9 @@ object StringSimilarity {
             for (j in 1..minLen) {
                 val cost = if (long[i - 1] == short[j - 1]) 0 else 1
                 currentRow[j] = minOf(
-                    currentRow[j - 1] + 1,     // Insertion
-                    previousRow[j] + 1,        // Deletion
-                    previousRow[j - 1] + cost  // Substitution
+                    currentRow[j - 1] + 1, // Insertion
+                    previousRow[j] + 1, // Deletion
+                    previousRow[j - 1] + cost, // Substitution
                 )
             }
             // Swap arrays to reuse memory
@@ -132,14 +131,14 @@ object StringSimilarity {
         // Transition window: Below 0.4 we trust tags (80%), above 0.8 we trust title (80%)
         val minThreshold = 0.4
         val maxThreshold = 0.8
-        
+
         // Calculate interpolation factor (alpha) between 0 and 1
         val alpha = ((titleSim - minThreshold) / (maxThreshold - minThreshold)).coerceIn(0.0, 1.0)
-        
+
         // titleWeight shifts from 0.2 to 0.8
         val titleWeight = 0.2 + (alpha * 0.6)
         val genreWeight = 1.0 - titleWeight
-        
+
         return (titleSim * titleWeight) + (genreOverlap * genreWeight)
     }
 }

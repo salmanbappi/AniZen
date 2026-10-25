@@ -1,8 +1,8 @@
 package tachiyomi.domain.ai.repository
 
 import kotlinx.coroutines.flow.Flow
-import tachiyomi.domain.ai.model.ChatSession
 import tachiyomi.domain.ai.model.ChatMessage
+import tachiyomi.domain.ai.model.ChatSession
 
 interface ChatRepository {
     fun getSessions(): Flow<List<ChatSession>>

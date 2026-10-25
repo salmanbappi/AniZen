@@ -2,8 +2,8 @@ package eu.kanade.tachiyomi.data.track.trakt
 
 import androidx.core.net.toUri
 import eu.kanade.tachiyomi.BuildConfig
-import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.ImportStatusFilter
+import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktOAuth
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktSearchResult
 import eu.kanade.tachiyomi.data.track.trakt.dto.TraktSyncMovie
@@ -460,8 +460,8 @@ class TraktApi(private val client: OkHttpClient, private val interceptor: TraktI
                             statusFilter = statusFilter,
                             startDate = 0L,
                             finishDate = 0L,
-                            trackingUrl = "https://trakt.tv/shows/$slug"
-                        )
+                            trackingUrl = "https://trakt.tv/shows/$slug",
+                        ),
                     )
                 }
             }
@@ -501,8 +501,8 @@ class TraktApi(private val client: OkHttpClient, private val interceptor: TraktI
                             statusFilter = ImportStatusFilter.COMPLETED,
                             startDate = 0L,
                             finishDate = 0L,
-                            trackingUrl = "https://trakt.tv/movies/$slug"
-                        )
+                            trackingUrl = "https://trakt.tv/movies/$slug",
+                        ),
                     )
                 }
             }
@@ -544,8 +544,8 @@ class TraktApi(private val client: OkHttpClient, private val interceptor: TraktI
                                 statusFilter = ImportStatusFilter.PLAN_TO_WATCH,
                                 startDate = 0L,
                                 finishDate = 0L,
-                                trackingUrl = "https://trakt.tv/shows/$slug"
-                            )
+                                trackingUrl = "https://trakt.tv/shows/$slug",
+                            ),
                         )
                     }
                 }
@@ -587,8 +587,8 @@ class TraktApi(private val client: OkHttpClient, private val interceptor: TraktI
                                 statusFilter = ImportStatusFilter.PLAN_TO_WATCH,
                                 startDate = 0L,
                                 finishDate = 0L,
-                                trackingUrl = "https://trakt.tv/movies/$slug"
-                            )
+                                trackingUrl = "https://trakt.tv/movies/$slug",
+                            ),
                         )
                     }
                 }

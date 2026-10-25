@@ -43,13 +43,15 @@ object CreditListColumnAdapter {
     fun encode(value: List<Credit>): String {
         val arr = JSONArray()
         value.forEach { c ->
-            arr.put(JSONObject().apply {
-                put("name", c.name)
-                c.role?.let { put("role", it) }
-                c.character?.let { put("character", it) }
-                c.image_url?.let { put("image_url", it) }
-                c.url?.let { put("url", it) }
-            })
+            arr.put(
+                JSONObject().apply {
+                    put("name", c.name)
+                    c.role?.let { put("role", it) }
+                    c.character?.let { put("character", it) }
+                    c.image_url?.let { put("image_url", it) }
+                    c.url?.let { put("url", it) }
+                },
+            )
         }
         return arr.toString()
     }
@@ -73,4 +75,3 @@ object CreditListColumnAdapter {
         }
     }
 }
-
