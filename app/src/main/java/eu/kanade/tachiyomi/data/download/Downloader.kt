@@ -789,9 +789,19 @@ class Downloader(
             output.copyTo(muxed, overwrite = true)
             output.delete()
         }
-        // Muxed sidecars would otherwise be copied again by finalizeDownload and show up as
-        // duplicate subtitle tracks in most players.
-        subtitles.forEach { it.file.delete() }
+        // ANZ -->
+        // Delete original un-muxed source video if it was a different file to prevent storage leakage
+        if (source.absolutePath != muxed.absolutePath) {
+            source.delete()
+        }
+        // Clean up all subtitle sidecars in the sandbox so none linger as duplicates
+        sandboxDir.listFiles()?.forEach { file ->
+            val ext = file.extension.lowercase()
+            if (file.name.startsWith("$videoFilename.") && ext in SIDECAR_SUBTITLE_EXTENSIONS) {
+                file.delete()
+            }
+        }
+        // ANZ <--
         download.progress = FULL_PROGRESS
         notifyProgress(download)
         return UniFile.fromFile(muxed)?.let { RemuxResult(it, "mkv") }
@@ -832,7 +842,12 @@ class Downloader(
                 logCallback,
                 statCallback,
             )
-            continuation.invokeOnCancellation { session.cancel() }
+            continuation.invokeOnCancellation {
+                session.cancel()
+                // ANZ -->
+                output.delete()
+                // ANZ <--
+            }
         }
     }
     // ANZ <--
@@ -923,9 +938,12 @@ class Downloader(
         // Pro-Active: Move soft subtitles to the destination directory
         val sandboxDir = getLocalFile(videoFile)?.parentFile ?: File(context.getExternalFilesDir("downloads"), filename)
         val baseName = videoFilename
+        // ANZ -->
         sandboxDir.listFiles()?.forEach { file ->
+            val ext = file.extension.lowercase()
             if (file.nameWithoutExtension.startsWith(baseName) &&
                 file.name != videoFile.name &&
+                ext in SIDECAR_SUBTITLE_EXTENSIONS &&
                 !file.name.endsWith(".part") &&
                 !file.name.endsWith(".tmp")
             ) {
@@ -939,6 +957,7 @@ class Downloader(
                 }
             }
         }
+        // ANZ <--
 
         // Finalize: Rename directory to final name
         val finalDir = publicDir.findFile(filename)
@@ -1952,7 +1971,8 @@ private fun collectSidecarSubtitles(sandboxDir: File, videoFilename: String): Li
 
 private fun File.toSidecarSubtitle(videoFilename: String): SidecarSubtitle? {
     val extension = name.substringAfterLast('.', "").lowercase()
-    val language = name.removePrefix("$videoFilename.").substringBeforeLast('.')
+    val suffix = name.removePrefix("$videoFilename.")
+    val language = if (suffix.contains('.')) suffix.substringBeforeLast('.') else "und"
     val isSidecar = name.startsWith("$videoFilename.") && extension in SIDECAR_SUBTITLE_EXTENSIONS
     return if (isSidecar) SidecarSubtitle(this, language, extension).takeIf { it.hasSubtitleSignature() } else null
 }
@@ -1983,7 +2003,7 @@ private fun File.readHead(byteCount: Int): String {
 private fun hasSpaceForRemux(source: File, targetDir: File): Boolean {
     val stats = StatFs(targetDir.absolutePath)
     val available = stats.availableBlocksLong * stats.blockSizeLong
-    return available > (source.length() * REMUX_SPACE_FACTOR).toLong()
+    return available > (source.length() * REMUX_SPACE_FACTOR).toLong() + MIN_DISK_SPACE
 }
 
 /**
