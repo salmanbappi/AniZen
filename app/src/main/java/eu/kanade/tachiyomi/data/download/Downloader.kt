@@ -617,7 +617,27 @@ class Downloader(
                     throw IOException("Downloaded video is empty")
                 }
 
-                finalizeDownload(download, videoFile, animeDir, episodeDirname)
+                // ANZ -->
+                // Mux the subtitle sidecars into the finished file so an episode stays a single
+                // self-contained video. Best effort by design: when there is nothing to mux, or
+                // when FFmpeg refuses the remux, the plain file is finalized with its sidecars.
+                val remuxed = try {
+                    remuxSidecars(download, videoFile, sandboxDir, videoFilename)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN, e) { "Sidecar remux skipped: ${e.message}" }
+                    null
+                }
+
+                finalizeDownload(
+                    download = download,
+                    videoFile = remuxed?.file ?: videoFile,
+                    publicDir = animeDir,
+                    filename = episodeDirname,
+                    overrideExt = remuxed?.extension,
+                )
+                // ANZ <--
             } finally {
                 downloadHttpServer?.stop()
             }
@@ -694,14 +714,154 @@ class Downloader(
         }
     }
 
-    private suspend fun finalizeDownload(download: Download, videoFile: UniFile, publicDir: UniFile, filename: String) {
+    // ANZ -->
+    /**
+     * Muxes the subtitle sidecars of [download] into the finished video, so the episode stays a
+     * single self-contained file.
+     *
+     * Sidecars are deliberately kept separate until this point: a subtitle that is unreachable,
+     * malformed or blocked by the hoster must never fail an episode whose video is already on
+     * disk. The remux only reads and writes local files, and returns `null` on any problem so the
+     * caller finalizes the plain video file with its sidecars, exactly like before.
+     */
+    private suspend fun remuxSidecars(
+        download: Download,
+        videoFile: UniFile,
+        sandboxDir: File,
+        videoFilename: String,
+    ): RemuxResult? {
+        val source = getLocalFile(videoFile)?.takeIf { it.length() > 0L }
+        val subtitles = collectSidecarSubtitles(sandboxDir, videoFilename)
+        return if (source != null && subtitles.isNotEmpty() && hasSpaceForRemux(source, sandboxDir)) {
+            performRemux(download, source, sandboxDir, videoFilename, subtitles)
+        } else {
+            null
+        }
+    }
+
+    private suspend fun performRemux(
+        download: Download,
+        source: File,
+        sandboxDir: File,
+        videoFilename: String,
+        subtitles: List<SidecarSubtitle>,
+    ): RemuxResult? {
+        val output = File(sandboxDir, "$videoFilename.remux.tmp")
+        download.status = Download.State.MERGING
+        download.progress = 0
+        download.activeThreads = 0
+        notifyProgress(download)
+
+        // Matroska can technically store WebVTT (S_TEXT/WEBVTT), but Android players routinely
+        // ignore that codec, so VTT is always converted: ASS keeps the styling, SubRip is the
+        // fallback used when a cue cannot be converted.
+        val codecs = if (subtitles.any { it.needsConversion }) listOf("ass", "srt") else listOf("copy")
+        var result: RemuxResult? = null
+        for (codec in codecs) {
+            output.delete()
+            if (runFFmpegRemux(download, source, output, subtitles, codec)) {
+                result = publishRemuxedFile(download, source, output, sandboxDir, videoFilename, subtitles)
+                break
+            }
+            logcat(LogPriority.WARN) { "Sidecar remux with '$codec' failed" }
+        }
+
+        if (result == null) {
+            output.delete()
+            logcat(LogPriority.WARN) { "Keeping plain video file and subtitle sidecars" }
+        }
+        return result
+    }
+
+    private fun publishRemuxedFile(
+        download: Download,
+        source: File,
+        output: File,
+        sandboxDir: File,
+        videoFilename: String,
+        subtitles: List<SidecarSubtitle>,
+    ): RemuxResult? {
+        val muxed = File(sandboxDir, "$videoFilename.mkv")
+        // The DASH engine already produces that exact path; renaming onto it is atomic, so the
+        // file is only deleted first when it is a different artifact.
+        if (muxed.absolutePath != source.absolutePath) muxed.delete()
+        if (!output.renameTo(muxed)) {
+            output.copyTo(muxed, overwrite = true)
+            output.delete()
+        }
+        // Muxed sidecars would otherwise be copied again by finalizeDownload and show up as
+        // duplicate subtitle tracks in most players.
+        subtitles.forEach { it.file.delete() }
+        download.progress = FULL_PROGRESS
+        notifyProgress(download)
+        return UniFile.fromFile(muxed)?.let { RemuxResult(it, "mkv") }
+    }
+
+    private suspend fun runFFmpegRemux(
+        download: Download,
+        source: File,
+        output: File,
+        subtitles: List<SidecarSubtitle>,
+        convertedCodec: String,
+    ): Boolean {
+        val arguments = buildRemuxArguments(source, output, subtitles, convertedCodec)
+        val duration = download.totalDuration
+        var lastNotified = System.currentTimeMillis()
+
+        val logCallback = LogCallback { log ->
+            if (log.level <= Level.AV_LOG_WARNING) {
+                logcat(LogPriority.WARN) { "FFmpeg remux: ${log.message}" }
+            }
+        }
+        val statCallback = StatisticsCallback { stats ->
+            if (duration > 0L) {
+                val seconds = stats.time / MILLIS_PER_SECOND
+                download.progress = (FULL_PROGRESS * seconds / duration).toInt().coerceIn(0, FULL_PROGRESS - 1)
+            }
+            val now = System.currentTimeMillis()
+            if (now - lastNotified > REMUX_NOTIFY_INTERVAL_MS) {
+                lastNotified = now
+                notifier.onProgressChange(download)
+            }
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            val session = FFmpegKit.executeWithArgumentsAsync(
+                arguments,
+                { continuation.resume(it.returnCode.isValueSuccess) },
+                logCallback,
+                statCallback,
+            )
+            continuation.invokeOnCancellation { session.cancel() }
+        }
+    }
+    // ANZ <--
+
+    private suspend fun finalizeDownload(
+        download: Download,
+        videoFile: UniFile,
+        publicDir: UniFile,
+        filename: String,
+        // ANZ -->
+        // Container to advertise for the finished file. A subtitle remux always outputs
+        // Matroska, so the caller must be able to override the extension derived from the URL.
+        overrideExt: String? = null,
+        // ANZ <--
+    ) {
         download.status = Download.State.FINALIZING
         download.progress = 0
         notifyProgress(download)
 
         val videoFilename = DiskUtil.buildValidFilename(download.episode.name)
         // ANZ -->
-        val finalExt = if (download.video?.videoUrl?.contains(".mp4") == true && download.engineType != "DASH") "mp4" else "mkv"
+        val finalExt = overrideExt ?: if (
+            download.video?.videoUrl?.contains(".mp4") == true &&
+            download.engineType != "DASH"
+        ) {
+            "mp4"
+        } else {
+            "mkv"
+        }
         // ANZ <--
         val finalName = "$videoFilename.$finalExt"
 
@@ -1726,6 +1886,167 @@ class Downloader(
 }
 
 private const val MIN_DISK_SPACE = 200L * 1024 * 1024
+
+// ANZ -->
+/** Result of a subtitle remux: the muxed file, plus the container its name must advertise. */
+private data class RemuxResult(val file: UniFile, val extension: String)
+
+/** A subtitle already downloaded next to the video, waiting to be muxed into it. */
+private data class SidecarSubtitle(val file: File, val language: String, val extension: String) {
+    val needsConversion: Boolean get() = extension == "vtt"
+
+    val languageTag: String get() = subtitleLanguageTag(language)
+
+    val displayTitle: String get() = subtitleDisplayTitle(language)
+
+    /** Lower wins when the same language is available in several formats. */
+    val formatPriority: Int
+        get() = when (extension) {
+            "ass", "ssa" -> 0
+            "srt" -> 1
+            else -> 2
+        }
+
+    /**
+     * Cheap guard against sidecars that are not subtitles at all: hosts answer a blocked or
+     * expired subtitle URL with an HTML page, which would otherwise become an empty track.
+     */
+    fun hasSubtitleSignature(): Boolean {
+        val head = file.readHead(SUBTITLE_SIGNATURE_PROBE_BYTES)
+        return when (extension) {
+            "ass", "ssa" -> head.contains("[Script Info]") || head.contains("Dialogue:")
+            "vtt" -> head.contains("WEBVTT") || head.contains("-->")
+            else -> head.contains("-->")
+        }
+    }
+}
+
+private val SIDECAR_SUBTITLE_EXTENSIONS = setOf("ass", "ssa", "srt", "vtt")
+
+/** ISO 639-2 tags players and Matroska expect, keyed by the labels extensions actually emit. */
+private val SUBTITLE_LANGUAGE_TAGS = mapOf(
+    "fr" to "fre", "fra" to "fre", "vf" to "fre", "vff" to "fre", "vostfr" to "fre", "french" to "fre",
+    "en" to "eng", "eng" to "eng", "english" to "eng",
+    "es" to "spa", "spa" to "spa", "spanish" to "spa",
+    "de" to "ger", "deu" to "ger", "german" to "ger",
+    "it" to "ita", "ita" to "ita", "italian" to "ita",
+    "pt" to "por", "pt-br" to "por", "por" to "por", "portuguese" to "por",
+    "ja" to "jpn", "jp" to "jpn", "jpn" to "jpn", "japanese" to "jpn",
+    "ko" to "kor", "kor" to "kor",
+    "ru" to "rus", "rus" to "rus",
+    "ar" to "ara", "ara" to "ara",
+    "zh" to "chi", "chi" to "chi",
+    "hi" to "hin", "hin" to "hin",
+)
+
+private val ISO639_2_CODE = Regex("[a-z]{3}")
+
+private fun collectSidecarSubtitles(sandboxDir: File, videoFilename: String): List<SidecarSubtitle> = sandboxDir
+    .listFiles()
+    .orEmpty()
+    .filter { it.isFile && it.length() > 0L }
+    .mapNotNull { it.toSidecarSubtitle(videoFilename) }
+    .groupBy { it.language.lowercase() }
+    .mapNotNull { (_, candidates) -> candidates.minByOrNull { it.formatPriority } }
+    .sortedBy { it.language.lowercase() }
+
+private fun File.toSidecarSubtitle(videoFilename: String): SidecarSubtitle? {
+    val extension = name.substringAfterLast('.', "").lowercase()
+    val language = name.removePrefix("$videoFilename.").substringBeforeLast('.')
+    val isSidecar = name.startsWith("$videoFilename.") && extension in SIDECAR_SUBTITLE_EXTENSIONS
+    return if (isSidecar) SidecarSubtitle(this, language, extension).takeIf { it.hasSubtitleSignature() } else null
+}
+
+private fun subtitleLanguageTag(language: String): String {
+    val key = language.trim().lowercase()
+    return SUBTITLE_LANGUAGE_TAGS[key]
+        ?: key.takeIf { ISO639_2_CODE.matches(it) }
+        ?: "und"
+}
+
+private fun subtitleDisplayTitle(language: String): String {
+    val label = language.trim().replace('\n', ' ').take(MAX_SUBTITLE_TITLE_LENGTH)
+    return if (label.length <= SHORT_LANGUAGE_CODE_LENGTH) label.uppercase() else label
+}
+
+private fun File.readHead(byteCount: Int): String {
+    val buffer = ByteArray(byteCount)
+    val read = try {
+        inputStream().use { it.read(buffer) }
+    } catch (e: IOException) {
+        logcat(LogPriority.DEBUG) { "Cannot probe subtitle header of $name: ${e.message}" }
+        -1
+    }
+    return if (read > 0) String(buffer, 0, read, Charsets.ISO_8859_1) else ""
+}
+
+private fun hasSpaceForRemux(source: File, targetDir: File): Boolean {
+    val stats = StatFs(targetDir.absolutePath)
+    val available = stats.availableBlocksLong * stats.blockSizeLong
+    return available > (source.length() * REMUX_SPACE_FACTOR).toLong()
+}
+
+/**
+ * Builds a local-only remux: the video and audio streams are copied, every sidecar is mapped as
+ * its own subtitle track. Source subtitle streams are intentionally not mapped, so the output
+ * indices stay predictable; the sidecars are the authoritative subtitles at this point.
+ */
+private fun buildRemuxArguments(
+    source: File,
+    output: File,
+    subtitles: List<SidecarSubtitle>,
+    convertedCodec: String,
+): Array<String> = buildList {
+    add("-hide_banner")
+    add("-nostdin")
+    add("-y")
+    add("-i")
+    add(source.absolutePath)
+
+    subtitles.forEach { subtitle ->
+        add("-i")
+        add(subtitle.file.absolutePath)
+    }
+
+    add("-map")
+    add("0:v")
+    add("-map")
+    add("0:a?")
+    subtitles.indices.forEach { index ->
+        add("-map")
+        add("${index + 1}:0")
+    }
+
+    add("-c:v")
+    add("copy")
+    add("-c:a")
+    add("copy")
+    subtitles.forEachIndexed { index, subtitle ->
+        add("-c:s:$index")
+        add(if (subtitle.needsConversion) convertedCodec else "copy")
+    }
+    subtitles.forEachIndexed { index, subtitle ->
+        add("-metadata:s:s:$index")
+        add("language=${subtitle.languageTag}")
+        add("-metadata:s:s:$index")
+        add("title=${subtitle.displayTitle}")
+    }
+
+    add("-disposition:s:0")
+    add("default")
+    add("-f")
+    add("matroska")
+    add(output.absolutePath)
+}.toTypedArray()
+
+private const val SUBTITLE_SIGNATURE_PROBE_BYTES = 8 * 1024
+private const val FULL_PROGRESS = 100
+private const val REMUX_NOTIFY_INTERVAL_MS = 500L
+private const val MILLIS_PER_SECOND = 1000L
+private const val REMUX_SPACE_FACTOR = 1.1
+private const val MAX_SUBTITLE_TITLE_LENGTH = 40
+private const val SHORT_LANGUAGE_CODE_LENGTH = 3
+// ANZ <--
 
 /**
  * Schemes the download engines can actually fetch. `content://` and `file://` URIs point at a
