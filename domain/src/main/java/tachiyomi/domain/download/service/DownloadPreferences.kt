@@ -66,4 +66,8 @@ class DownloadPreferences(
     // KMK -->
     fun downloadCacheRenewInterval() = preferenceStore.getInt("download_cache_renew_interval", 1)
     // KMK <--
+
+    // ANZ -->
+    fun remuxSidecarSubtitles() = preferenceStore.getBoolean("pref_remux_sidecar_subtitles", false)
+    // ANZ <--
 }

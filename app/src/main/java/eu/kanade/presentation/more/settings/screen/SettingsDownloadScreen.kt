@@ -34,6 +34,7 @@ import kotlinx.collections.immutable.toPersistentMap
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
+import anikku.i18n.AMR
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.OutlinedNumericChooser
 import tachiyomi.presentation.core.components.material.padding
@@ -308,6 +309,13 @@ object SettingsDownloadScreen : SearchableSettings {
                     subtitle = "Number of connections per file (for supported sources)",
                     entries = (1..64).associateWith { it.toString() }.toImmutableMap(),
                 ),
+                // ANZ -->
+                Preference.PreferenceItem.SwitchPreference(
+                    pref = downloadPreferences.remuxSidecarSubtitles(),
+                    title = stringResource(AMR.strings.pref_remux_subtitles_title),
+                    subtitle = stringResource(AMR.strings.pref_remux_subtitles_summary),
+                ),
+                // ANZ <--
             ),
         )
     }

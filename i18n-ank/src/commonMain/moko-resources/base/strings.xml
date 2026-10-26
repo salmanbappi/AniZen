@@ -247,4 +247,8 @@
     <string name="pref_interpolation_profile">Profile</string>
     <string name="pref_interpolation_profile_summary">Optimized for content type</string>
     <string name="pref_interpolation_target_fps">Target FPS</string>
+
+    <!-- Download Remux -->
+    <string name="pref_remux_subtitles_title">Embed subtitles into video (MKV)</string>
+    <string name="pref_remux_subtitles_summary">Muxes downloaded soft subtitles directly into the video container. Requires extra temporary disk space.</string>
 </resources>
