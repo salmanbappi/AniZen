@@ -17,6 +17,7 @@ import kotlinx.collections.immutable.persistentListOf
 import mihon.domain.extensionrepo.interactor.GetExtensionRepoCount
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
@@ -57,7 +58,9 @@ object SettingsBrowseScreen : SearchableSettings {
                         subtitle = stringResource(MR.strings.pref_auto_search_summary),
                     ),
                     Preference.PreferenceItem.TextPreference(
-                        title = stringResource(MR.strings.label_anime_extension_repos),
+                        // ANZ -->
+                        title = stringResource(AMR.strings.label_extension_stores),
+                        // ANZ <--
                         subtitle = pluralStringResource(
                             MR.plurals.num_repos,
                             animeReposCount,

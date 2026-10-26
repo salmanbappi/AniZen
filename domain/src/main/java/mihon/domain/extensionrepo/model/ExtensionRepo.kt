@@ -10,6 +10,10 @@ data class ExtensionRepo(
     val author: String? = null,
     val discord: String? = null,
     val icon: String? = null,
+    // ANZ -->
+    val isLegacy: Boolean = true,
+    val extensionListUrl: String? = null,
+    // ANZ <--
 )
 
 // Well-known repo signing key fingerprints, used to select bundled repo icons

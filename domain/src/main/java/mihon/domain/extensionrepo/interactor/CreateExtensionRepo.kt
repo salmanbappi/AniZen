@@ -16,21 +16,17 @@ class CreateExtensionRepo(
     private val service: ExtensionRepoService,
 ) {
     suspend fun await(indexUrl: String): Result {
+        // ANZ -->
         val trimmed = indexUrl.trim().removeSuffix("/")
-        val baseUrl = when {
-            trimmed.endsWith("/index.min.json") -> trimmed.removeSuffix("/index.min.json")
-            trimmed.endsWith("/repo.json") -> trimmed.removeSuffix("/repo.json")
-            else -> trimmed
-        }
-
-        val httpUrl = baseUrl.toHttpUrlOrNull()
+        val httpUrl = trimmed.toHttpUrlOrNull()
             ?: return Result.InvalidUrl
 
         if (httpUrl.scheme != "https" && httpUrl.scheme != "http") {
             return Result.InvalidUrl
         }
 
-        return service.fetchRepoDetails(baseUrl)?.let { insert(it) } ?: Result.InvalidUrl
+        return service.fetchRepoDetails(trimmed)?.let { insert(it) } ?: Result.InvalidUrl
+        // ANZ <--
     }
 
     private suspend fun insert(repo: ExtensionRepo): Result {
@@ -45,6 +41,10 @@ class CreateExtensionRepo(
                 author = repo.author,
                 discord = repo.discord,
                 icon = repo.icon,
+                // ANZ -->
+                isLegacy = repo.isLegacy,
+                extensionListUrl = repo.extensionListUrl,
+                // ANZ <--
             )
             Result.Success
         } catch (e: SaveExtensionRepoException) {

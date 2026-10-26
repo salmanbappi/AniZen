@@ -35,6 +35,10 @@ class ExtensionRepoRestorer(
                     author = backupRepo.author,
                     discord = backupRepo.discord,
                     icon = backupRepo.icon,
+                    // ANZ -->
+                    is_legacy = backupRepo.isLegacy,
+                    extension_list_url = backupRepo.extensionListUrl,
+                    // ANZ <--
                 )
             }
         }

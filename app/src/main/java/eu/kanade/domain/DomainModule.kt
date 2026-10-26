@@ -229,7 +229,9 @@ class DomainModule : InjektModule {
         addFactory { TrustExtension(get(), get()) }
 
         addSingletonFactory<ExtensionRepoRepository> { ExtensionRepoRepositoryImpl(get()) }
-        addFactory { ExtensionRepoService(get(), get()) }
+        // ANZ -->
+        addFactory { ExtensionRepoService(get(), get(), get()) }
+        // ANZ <--
         addFactory { GetExtensionRepo(get()) }
         addFactory { GetExtensionRepoCount(get()) }
         addFactory { CreateExtensionRepo(get(), get()) }

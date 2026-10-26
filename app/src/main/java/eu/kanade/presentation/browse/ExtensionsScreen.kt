@@ -66,6 +66,7 @@ import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.launchRequestPackageInstallsPermission
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.components.material.PullRefresh
 import tachiyomi.presentation.core.components.material.padding
@@ -121,7 +122,9 @@ fun ExtensionScreen(
                     modifier = Modifier.padding(contentPadding),
                     actions = persistentListOf(
                         EmptyScreenAction(
-                            stringRes = MR.strings.label_extension_repos,
+                            // ANZ -->
+                            stringRes = AMR.strings.label_extension_stores,
+                            // ANZ <--
                             icon = Icons.Outlined.Settings,
                             onClick = { navigator.push(ExtensionReposScreen()) },
                         ),

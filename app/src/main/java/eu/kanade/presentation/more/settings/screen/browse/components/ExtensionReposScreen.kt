@@ -17,6 +17,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.settings.screen.browse.RepoScreenState
 import mihon.domain.extensionrepo.model.ExtensionRepo
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.components.material.topSmallPaddingValues
@@ -40,7 +41,9 @@ fun ExtensionReposScreen(
         topBar = { scrollBehavior ->
             AppBar(
                 navigateUp = navigateUp,
-                title = stringResource(MR.strings.label_extension_repos),
+                // ANZ -->
+                title = stringResource(AMR.strings.label_extension_stores),
+                // ANZ <--
                 scrollBehavior = scrollBehavior,
                 actions = {
                     IconButton(onClick = onClickRefresh) {

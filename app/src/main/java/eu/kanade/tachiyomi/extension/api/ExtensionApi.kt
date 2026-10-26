@@ -11,14 +11,17 @@ import eu.kanade.tachiyomi.network.awaitSuccess
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.protobuf.ProtoBuf
 import logcat.LogPriority
 import mihon.domain.extensionrepo.interactor.GetExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import mihon.domain.extensionrepo.service.NetworkExtensionStore
 import okio.BufferedSource
 import okio.buffer
 import okio.gzip
@@ -38,6 +41,9 @@ internal class ExtensionApi {
     private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
     private val extensionManager: ExtensionManager by injectLazy()
     private val json: Json by injectLazy()
+    // ANZ -->
+    private val protoBuf: ProtoBuf by injectLazy()
+    // ANZ <--
 
     private val lastExtCheck: Preference<Long> by lazy {
         preferenceStore.getLong("last_ext_check", 0)
@@ -52,31 +58,98 @@ internal class ExtensionApi {
         }
     }
 
+    // ANZ -->
     private suspend fun getExtensions(extRepo: ExtensionRepo): List<Extension.Available> {
         val repoBaseUrl = extRepo.baseUrl
         return try {
-            val response = networkService.client
-                .newCall(GET("$repoBaseUrl/index.min.json"))
-                .awaitSuccess()
-
-            val bodyString = response.body.source().decompressIfGzipped().use { it.readUtf8() }
-
-            val repoHostAuthorRegex = """^https://(?:raw\.githubusercontent\.com|codeberg\.org|gitlab\.com)/([^/]+)/.*""".toRegex()
-            val author = extRepo.author
-                ?: repoHostAuthorRegex.find(repoBaseUrl)?.let {
-                    val (user) = it.destructured
-                    "@$user"
-                } ?: extRepo.shortName ?: extRepo.name
-
-            with(json) {
-                decodeFromString<List<ExtensionJsonObject>>(bodyString)
-                    .toExtensions(repoBaseUrl, author)
+            if (!extRepo.isLegacy) {
+                getExtensionsFromStore(extRepo)
+            } else {
+                getExtensionsFromLegacyRepo(extRepo)
             }
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Failed to get extensions from $repoBaseUrl" }
             emptyList()
         }
     }
+
+    private suspend fun getExtensionsFromStore(store: ExtensionRepo): List<Extension.Available> {
+        val targetUrl = store.extensionListUrl ?: store.baseUrl
+        val response = networkService.client.newCall(GET(targetUrl)).awaitSuccess()
+        val author = store.shortName ?: store.author ?: store.name
+        return response.body.source().decompressIfGzipped().use { source ->
+            val firstByte = try {
+                source.peek().readByte()
+            } catch (_: Exception) {
+                0.toByte()
+            }
+            val extensionList = if (store.extensionListUrl != null) {
+                when (firstByte) {
+                    0x7B.toByte() -> json.decodeFromString<NetworkExtensionStore.ExtensionList>(source.readUtf8())
+                    else -> protoBuf.decodeFromByteArray<NetworkExtensionStore.ExtensionList>(source.readByteArray())
+                }
+            } else {
+                when (firstByte) {
+                    0x7B.toByte() -> json.decodeFromString<NetworkExtensionStore>(source.readUtf8()).extensionList
+                    else -> protoBuf.decodeFromByteArray<NetworkExtensionStore>(source.readByteArray()).extensionList
+                }
+            }
+            extensionList?.extensions?.map { ext ->
+                val lang = ext.sources.map { it.language }.toSet()
+                val contentWarning = when (ext.contentWarning) {
+                    NetworkExtensionStore.ContentWarning.SAFE -> eu.kanade.tachiyomi.extension.model.ContentWarning.SAFE
+                    NetworkExtensionStore.ContentWarning.MIXED -> eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED
+                    NetworkExtensionStore.ContentWarning.NSFW -> eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW
+                    else -> eu.kanade.tachiyomi.extension.model.ContentWarning.UNSPECIFIED
+                }
+                Extension.Available(
+                    name = ext.name.substringAfter("Aniyomi: ").substringAfter("AniZen: "),
+                    pkgName = ext.packageName,
+                    versionName = ext.versionName,
+                    versionCode = ext.versionCode,
+                    libVersion = ext.extensionLib.toDoubleOrNull() ?: 16.0,
+                    lang = if (lang.size == 1) lang.first() else "all",
+                    isNsfw = contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.NSFW || contentWarning == eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED,
+                    isTorrent = ext.isTorrent,
+                    sources = ext.sources.map { s ->
+                        Extension.Available.AnimeSource(
+                            id = s.id,
+                            lang = s.language,
+                            name = s.name,
+                            baseUrl = s.homeUrl,
+                        )
+                    },
+                    apkName = ext.resources.apkUrl,
+                    iconUrl = ext.resources.iconUrl,
+                    repoUrl = store.baseUrl,
+                    author = author,
+                    contentWarning = contentWarning,
+                )
+            }.orEmpty()
+        }
+    }
+
+    private suspend fun getExtensionsFromLegacyRepo(extRepo: ExtensionRepo): List<Extension.Available> {
+        val repoBaseUrl = extRepo.baseUrl
+        val response = networkService.client
+            .newCall(GET("$repoBaseUrl/index.min.json"))
+            .awaitSuccess()
+
+        val bodyString = response.body.source().decompressIfGzipped().use { it.readUtf8() }
+
+        val repoHostAuthorRegex = """^https://(?:raw\.githubusercontent\.com|codeberg\.org|gitlab\.com)/([^/]+)/.*""".toRegex()
+        val author = extRepo.author
+            ?: repoHostAuthorRegex.find(repoBaseUrl)?.let {
+                val (user) = it.destructured
+                "@$user"
+            } ?: extRepo.shortName ?: extRepo.name
+
+        return with(json) {
+            decodeFromString<List<ExtensionJsonObject>>(bodyString)
+                .toExtensions(repoBaseUrl, author)
+        }
+    }
+    // ANZ <--
 
     private fun BufferedSource.decompressIfGzipped(): BufferedSource {
         val isGzip = peek().use { peeked ->
