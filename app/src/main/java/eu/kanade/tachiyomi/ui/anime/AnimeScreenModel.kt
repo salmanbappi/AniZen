@@ -1289,9 +1289,10 @@ class AnimeScreenModel(
             } else if (downloadedEpisodeDirs.isNotEmpty()) {
                 downloadProvider.getValidEpisodeDirNames(episode.name, episode.scanlator).any { it in downloadedEpisodeDirs } ||
                     (
-                        episode.isRecognizedNumber && downloadedEpisodeDirs.any { dirName ->
-                            parseEpisodeNumberFromDir(anime.ogTitle, dirName, episode.scanlator) == episode.episodeNumber
-                        }
+                        episode.isRecognizedNumber &&
+                            downloadedEpisodeDirs.any { dirName ->
+                                parseEpisodeNumberFromDir(anime.ogTitle, dirName, episode.scanlator) == episode.episodeNumber
+                            }
                         )
             } else {
                 false

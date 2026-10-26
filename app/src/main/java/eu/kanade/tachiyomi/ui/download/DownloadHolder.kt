@@ -65,10 +65,11 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
         }
         // ANZ -->
         val isDash = download.engineType?.contains("DASH") == true // ANZ
-        val showGranular = !isDash && (
-            (download.engineType == "HLS" && download.totalSegments > 1) ||
-                (download.activeThreads > 1)
-            )
+        val showGranular = !isDash &&
+            (
+                (download.engineType == "HLS" && download.totalSegments > 1) ||
+                    (download.activeThreads > 1)
+                )
         binding.granularProgress.visibility = if (showGranular) View.VISIBLE else View.GONE
         if (showGranular) {
             binding.granularProgress.bind(download)
@@ -210,9 +211,11 @@ class DownloadHolder(private val view: View, val adapter: DownloadAdapter) :
                 findItem(R.id.move_to_bottom).isVisible =
                     bindingAdapterPosition != adapter.itemCount - 1
                 findItem(R.id.move_to_top_series).isVisible =
-                    header != null && adapter.headerItems.firstOrNull() != header
+                    header != null &&
+                    adapter.headerItems.firstOrNull() != header
                 findItem(R.id.move_to_bottom_series).isVisible =
-                    header != null && adapter.headerItems.lastOrNull() != header
+                    header != null &&
+                    adapter.headerItems.lastOrNull() != header
             },
             onMenuItemClick = {
                 adapter.downloadItemListener.onMenuItemClick(bindingAdapterPosition, this)

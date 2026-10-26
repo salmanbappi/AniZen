@@ -73,7 +73,9 @@ object DefaultStreamSelector {
                     bestScore = score
                     bestIndex = index
                 }
-                score == bestScore && score > 0 && bestIndex >= 0 &&
+                score == bestScore &&
+                    score > 0 &&
+                    bestIndex >= 0 &&
                     sizeBytes(video) > sizeBytes(candidates[bestIndex]) -> {
                     bestIndex = index
                 }
