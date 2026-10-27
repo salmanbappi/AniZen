@@ -243,7 +243,9 @@ class Anilist(id: Long) :
 
     suspend fun login(token: String) {
         try {
-            val oauth = api.createOAuth(token)
+            // ANZ -->
+            val oauth = ALOAuth(token)
+            // ANZ <--
             interceptor.setAuth(oauth)
             val (username, scoreType) = api.getCurrentUser()
             scorePreference.set(scoreType)

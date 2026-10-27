@@ -40,10 +40,12 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
 
     private val json: Json by injectLazy()
 
+    // ANZ -->
     private val authClient = client.newBuilder()
         .addInterceptor(interceptor)
-        .rateLimit(permits = 85, period = 1.minutes)
+        .rateLimit(permits = 30, period = 1.minutes)
         .build()
+    // ANZ <--
 
     suspend fun addLibAnime(track: Track): Track {
         return withIOContext {
