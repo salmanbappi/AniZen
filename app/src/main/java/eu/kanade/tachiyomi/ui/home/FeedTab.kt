@@ -15,22 +15,23 @@ import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.components.material.Scaffold
-import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-
-import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
-import eu.kanade.tachiyomi.ui.browse.BrowseTab
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
+import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.PanoramaMode
 import eu.kanade.presentation.components.PanoramaModeToggle
+import eu.kanade.tachiyomi.ui.browse.BrowseTab
+import kotlinx.coroutines.launch
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-import androidx.compose.runtime.getValue
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 fun feedTab(): Tab = FeedTab
 
@@ -43,7 +44,9 @@ data object FeedTab : Tab {
     override val options: TabOptions
         @Composable
         get() {
-            val title = SYMR.strings.feed
+            // ANZ -->
+            val title = AMR.strings.feed
+            // ANZ <--
             return TabOptions(
                 index = 1u,
                 title = stringResource(title),
@@ -54,6 +57,7 @@ data object FeedTab : Tab {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
         val globalPanorama by uiPreferences.panoramaCover().collectAsStatePref() as androidx.compose.runtime.State<Boolean>
         val feedMode by uiPreferences.feedPanoramaMode().collectAsStatePref() as androidx.compose.runtime.State<PanoramaMode>
@@ -62,8 +66,21 @@ data object FeedTab : Tab {
         Scaffold(
             topBar = {
                 eu.kanade.presentation.components.AppBar(
-                    title = stringResource(SYMR.strings.feed),
+                    // ANZ -->
+                    title = stringResource(AMR.strings.feed),
                     actions = {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    HomeScreen.openTab(HomeScreen.HomeTab.Browse())
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Search",
+                            )
+                        }
                         PanoramaModeToggle(
                             panoramaMode = feedMode,
                             globalPanorama = globalPanorama,

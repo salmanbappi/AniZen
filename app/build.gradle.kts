@@ -50,8 +50,8 @@ android {
     defaultConfig {
         applicationId = "app.anizen"
 
-        versionCode = 718
-        versionName = "0.5.218"
+        versionCode = 730
+        versionName = "0.5.230"
 
         manifestPlaceholders["author"] = "@salmanbappi"
 
@@ -111,7 +111,9 @@ android {
             applicationIdSuffix = ".beta"
 
             versionNameSuffix = debug.versionNameSuffix
-            signingConfig = release.signingConfig
+            // ANZ -->
+            signingConfig = debug.signingConfig
+            // ANZ <--
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 

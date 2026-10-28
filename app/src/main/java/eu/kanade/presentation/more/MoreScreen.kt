@@ -242,6 +242,9 @@ fun MoreScreen(
                                         NavItem.UPDATES -> HomeScreen.HomeTab.Updates
                                         NavItem.HISTORY -> HomeScreen.HomeTab.History
                                         NavItem.SCHEDULE -> HomeScreen.HomeTab.Schedule
+                                        // ANZ -->
+                                        NavItem.DOWNLOADS -> HomeScreen.HomeTab.Downloads
+                                        // ANZ <--
                                         NavItem.BROWSE -> HomeScreen.HomeTab.Browse()
                                         NavItem.MORE -> HomeScreen.HomeTab.More(false)
                                     }

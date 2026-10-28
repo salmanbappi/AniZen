@@ -1,19 +1,30 @@
+// ANZ -->
 package eu.kanade.tachiyomi.ui.download
 
 import android.view.LayoutInflater
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -21,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,6 +43,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +66,7 @@ import eu.kanade.tachiyomi.databinding.DownloadListBinding
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.Pill
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -64,16 +78,18 @@ data object DownloadQueueScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val context = LocalContext.current
         val screenModel = rememberScreenModel { DownloadQueueScreenModel() }
         val downloadList by screenModel.state.collectAsState()
+        val completedList by screenModel.completedDownloads.collectAsState()
         val downloadCount by remember {
             derivedStateOf { downloadList.sumOf { it.subItems.size } }
         }
 
+        var selectedTabIndex by remember { mutableIntStateOf(0) }
         val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
         var fabExpanded by remember { mutableStateOf(true) }
         val nestedScrollConnection = remember {
-            // All this lines just for fab state :/
             object : NestedScrollConnection {
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                     fabExpanded = available.y >= 0
@@ -96,118 +112,210 @@ data object DownloadQueueScreen : Screen {
 
         Scaffold(
             topBar = {
-                AppBar(
-                    titleContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = stringResource(MR.strings.label_download_queue),
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f, false),
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (downloadCount > 0) {
-                                val pillAlpha = if (isSystemInDarkTheme()) 0.12f else 0.08f
-                                Pill(
-                                    text = "$downloadCount",
-                                    modifier = Modifier.padding(start = 4.dp),
-                                    color = MaterialTheme.colorScheme.onBackground
-                                        .copy(alpha = pillAlpha),
-                                    fontSize = 14.sp,
+                Column {
+                    AppBar(
+                        titleContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = stringResource(MR.strings.label_download_queue),
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f, false),
+                                    overflow = TextOverflow.Ellipsis,
                                 )
+                                if (downloadCount > 0) {
+                                    val pillAlpha = if (isSystemInDarkTheme()) 0.12f else 0.08f
+                                    Pill(
+                                        text = "$downloadCount",
+                                        modifier = Modifier.padding(start = 4.dp),
+                                        color = MaterialTheme.colorScheme.onBackground
+                                            .copy(alpha = pillAlpha),
+                                        fontSize = 14.sp,
+                                    )
+                                }
                             }
-                        }
-                    },
-                    navigateUp = navigator::pop,
-                    actions = { AnimeActions(screenModel, downloadList) },
-                    scrollBehavior = scrollBehavior,
-                )
+                        },
+                        navigateUp = navigator::pop,
+                        actions = { AnimeActions(screenModel, downloadList) },
+                        scrollBehavior = scrollBehavior,
+                    )
+                    PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
+                        Tab(
+                            selected = selectedTabIndex == 0,
+                            onClick = { selectedTabIndex = 0 },
+                            text = { Text(stringResource(AMR.strings.downloads_tab_queue)) },
+                        )
+                        Tab(
+                            selected = selectedTabIndex == 1,
+                            onClick = {
+                                selectedTabIndex = 1
+                                screenModel.refreshCompletedDownloads()
+                            },
+                            text = { Text(stringResource(AMR.strings.downloads_tab_completed)) },
+                        )
+                    }
+                }
             },
             floatingActionButton = {
-                val animeIsRunning by screenModel.isDownloaderRunning.collectAsState()
-                ExtendedFloatingActionButton(
-                    text = {
-                        val id = if (animeIsRunning) {
-                            MR.strings.action_pause
-                        } else {
-                            MR.strings.action_resume
-                        }
-                        Text(text = stringResource(id))
-                    },
-                    icon = {
-                        val icon = if (animeIsRunning) {
-                            Icons.Outlined.Pause
-                        } else {
-                            Icons.Filled.PlayArrow
-                        }
-                        Icon(imageVector = icon, contentDescription = null)
-                    },
-                    onClick = {
-                        if (animeIsRunning) {
-                            screenModel.pauseDownloads()
-                        } else {
-                            screenModel.startDownloads()
-                        }
-                    },
-                    expanded = fabExpanded,
-                )
+                if (selectedTabIndex == 0) {
+                    val animeIsRunning by screenModel.isDownloaderRunning.collectAsState()
+                    ExtendedFloatingActionButton(
+                        text = {
+                            val id = if (animeIsRunning) {
+                                MR.strings.action_pause
+                            } else {
+                                MR.strings.action_resume
+                            }
+                            Text(text = stringResource(id))
+                        },
+                        icon = {
+                            val icon = if (animeIsRunning) {
+                                Icons.Outlined.Pause
+                            } else {
+                                Icons.Filled.PlayArrow
+                            }
+                            Icon(imageVector = icon, contentDescription = null)
+                        },
+                        onClick = {
+                            if (animeIsRunning) {
+                                screenModel.pauseDownloads()
+                            } else {
+                                screenModel.startDownloads()
+                            }
+                        },
+                        expanded = fabExpanded,
+                    )
+                }
             },
         ) { contentPadding ->
             val scope = rememberCoroutineScope()
 
-            if (downloadList.isEmpty()) {
-                EmptyScreen(
-                    stringRes = MR.strings.information_no_downloads,
-                    modifier = Modifier.padding(contentPadding),
-                )
-                return@Scaffold
-            }
+            if (selectedTabIndex == 0) {
+                if (downloadList.isEmpty()) {
+                    EmptyScreen(
+                        stringRes = MR.strings.information_no_downloads,
+                        modifier = Modifier.padding(contentPadding),
+                    )
+                    return@Scaffold
+                }
 
-            val density = LocalDensity.current
-            val layoutDirection = LocalLayoutDirection.current
-            val left = with(density) { contentPadding.calculateLeftPadding(layoutDirection).toPx().roundToInt() }
-            val top = with(density) { contentPadding.calculateTopPadding().toPx().roundToInt() }
-            val right = with(density) { contentPadding.calculateRightPadding(layoutDirection).toPx().roundToInt() }
-            val bottom = with(density) { contentPadding.calculateBottomPadding().toPx().roundToInt() }
+                val density = LocalDensity.current
+                val layoutDirection = LocalLayoutDirection.current
+                val left = with(density) { contentPadding.calculateLeftPadding(layoutDirection).toPx().roundToInt() }
+                val top = with(density) { contentPadding.calculateTopPadding().toPx().roundToInt() }
+                val right = with(density) { contentPadding.calculateRightPadding(layoutDirection).toPx().roundToInt() }
+                val bottom = with(density) { contentPadding.calculateBottomPadding().toPx().roundToInt() }
 
-            Box(modifier = Modifier.nestedScroll(nestedScrollConnection)) {
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth(),
-                    factory = { context ->
-                        screenModel.controllerBinding = DownloadListBinding.inflate(
-                            LayoutInflater.from(context),
-                        )
-                        screenModel.adapter = DownloadAdapter(screenModel.listener)
-                        screenModel.controllerBinding.root.adapter = screenModel.adapter
-                        screenModel.adapter?.isHandleDragEnabled = true
-                        screenModel.controllerBinding.root.layoutManager = LinearLayoutManager(
-                            context,
-                        )
-
-                        ViewCompat.setNestedScrollingEnabled(screenModel.controllerBinding.root, true)
-
-                        scope.launchUI {
-                            screenModel.getDownloadStatusFlow()
-                                .collect(screenModel::onStatusChange)
-                        }
-                        scope.launchUI {
-                            screenModel.getDownloadProgressFlow()
-                                .collect(screenModel::onUpdateDownloadedPages)
-                        }
-
-                        screenModel.controllerBinding.root
-                    },
-                    update = {
-                        screenModel.controllerBinding.root
-                            .updatePadding(
-                                left = left,
-                                top = top,
-                                right = right,
-                                bottom = bottom,
+                Box(modifier = Modifier.nestedScroll(nestedScrollConnection)) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxWidth(),
+                        factory = { ctx ->
+                            screenModel.controllerBinding = DownloadListBinding.inflate(
+                                LayoutInflater.from(ctx),
+                            )
+                            screenModel.adapter = DownloadAdapter(screenModel.listener)
+                            screenModel.controllerBinding.root.adapter = screenModel.adapter
+                            screenModel.adapter?.isHandleDragEnabled = true
+                            screenModel.controllerBinding.root.layoutManager = LinearLayoutManager(
+                                ctx,
                             )
 
-                        screenModel.adapter?.updateDataSet(downloadList)
-                    },
-                )
+                            ViewCompat.setNestedScrollingEnabled(screenModel.controllerBinding.root, true)
+
+                            scope.launchUI {
+                                screenModel.getDownloadStatusFlow()
+                                    .collect(screenModel::onStatusChange)
+                            }
+                            scope.launchUI {
+                                screenModel.getDownloadProgressFlow()
+                                    .collect(screenModel::onUpdateDownloadedPages)
+                            }
+
+                            screenModel.controllerBinding.root
+                        },
+                        update = {
+                            screenModel.controllerBinding.root
+                                .updatePadding(
+                                    left = left,
+                                    top = top,
+                                    right = right,
+                                    bottom = bottom,
+                                )
+
+                            screenModel.adapter?.updateDataSet(downloadList)
+                        },
+                    )
+                }
+            } else {
+                if (completedList.isEmpty()) {
+                    EmptyScreen(
+                        stringRes = AMR.strings.no_completed_downloads,
+                        modifier = Modifier.padding(contentPadding),
+                    )
+                    return@Scaffold
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(completedList, key = { "${it.anime.id}_${it.episode.id}" }) { item ->
+                        androidx.compose.material3.Card(
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.anime.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = item.episode.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { screenModel.playOffline(context, item) },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.PlayArrow,
+                                            contentDescription = stringResource(AMR.strings.action_play_offline),
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { screenModel.saveToDevice(context, item) },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Download,
+                                            contentDescription = stringResource(AMR.strings.action_save_to_device),
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { screenModel.deleteCompleted(item) },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Delete,
+                                            contentDescription = stringResource(MR.strings.action_delete),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -218,7 +326,7 @@ data object DownloadQueueScreen : Screen {
         animeDownloadList: List<DownloadHeaderItem>,
     ) {
         val alwaysUseInternal by animeScreenModel.alwaysUseInternalDownloader.collectAsState()
-        
+
         if (animeDownloadList.isNotEmpty()) {
             var sortExpanded by remember { mutableStateOf(false) }
             val onDismissRequest = { sortExpanded = false }
@@ -306,3 +414,4 @@ data object DownloadQueueScreen : Screen {
         }
     }
 }
+// ANZ <--

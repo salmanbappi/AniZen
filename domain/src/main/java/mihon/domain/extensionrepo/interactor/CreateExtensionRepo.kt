@@ -86,7 +86,11 @@ class CreateExtensionRepo(
 
     companion object {
         const val OFFICIAL_REPO_WEBSITE = "https://github.com/salmanbappi/AniZen"
-        const val OFFICIAL_REPO_BASE_URL = "https://raw.githubusercontent.com/anizen-app/extensions/repo"
+        // ANZ -->
+        const val OFFICIAL_REPO_BASE_URL = "https://raw.githubusercontent.com/yuzono/anime-repo/repo"
+        const val DEFAULT_REPO_URL_1 = "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json"
+        const val DEFAULT_REPO_URL_2 = "https://raw.githubusercontent.com/salmanbappi/extensions-repo/main/index.min.json"
+        // ANZ <--
 
         const val OFFICIAL_REPO_SIGNATURE = YUZONO_SIGNATURE
         const val KEIYOUSHI_REPO_SIGNATURE = KEIYOUSHI_SIGNATURE

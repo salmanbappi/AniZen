@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,8 +38,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -79,8 +82,63 @@ fun FeedScreen(
 
     val scope = rememberCoroutineScope()
 
+    // ANZ -->
+    val aniListRepository = remember { eu.kanade.tachiyomi.data.anilist.AniListRepository() }
+    var trendingMedia by remember { mutableStateOf<List<eu.kanade.tachiyomi.data.anilist.AniListMedia>>(emptyList()) }
+    var popularMedia by remember { mutableStateOf<List<eu.kanade.tachiyomi.data.anilist.AniListMedia>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        try {
+            trendingMedia = aniListRepository.getTrending()
+            popularMedia = aniListRepository.getPopular()
+        } catch (e: Exception) {
+            // Soft-fail: empty/offline, home screen never crashes
+        }
+    }
+    // ANZ <--
+
     if (state.categories.isEmpty()) {
-        LoadingScreen(Modifier.padding(contentPadding))
+        val listPadding = remember(contentPadding) {
+            PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 8.dp,
+                bottom = contentPadding.calculateBottomPadding() + 8.dp,
+            )
+        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = contentPadding.calculateTopPadding()),
+            contentPadding = listPadding,
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            // ANZ -->
+            if (trendingMedia.isNotEmpty()) {
+                item(key = "anilist-hero-categories-loading") {
+                    eu.kanade.presentation.anilist.HeroCarousel(mediaList = trendingMedia)
+                }
+            }
+            if (popularMedia.isNotEmpty()) {
+                item(key = "anilist-popular-categories-loading") {
+                    eu.kanade.presentation.anilist.AniListRail(
+                        title = "Popular on AniList",
+                        mediaList = popularMedia,
+                    )
+                }
+            }
+            item(key = "categories-loading-indicator") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            // ANZ <--
+        }
         return
     }
 
@@ -170,30 +228,70 @@ fun FeedScreen(
                     contentPadding = listPadding,
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
+                    // ANZ -->
+                    if (trendingMedia.isNotEmpty()) {
+                        item(key = "anilist-hero-loading") {
+                            eu.kanade.presentation.anilist.HeroCarousel(mediaList = trendingMedia)
+                        }
+                    }
+                    if (popularMedia.isNotEmpty()) {
+                        item(key = "anilist-popular-loading") {
+                            eu.kanade.presentation.anilist.AniListRail(
+                                title = "Popular on AniList",
+                                mediaList = popularMedia,
+                            )
+                        }
+                    }
+                    // ANZ <--
                     items(3, key = { "skeleton-$it" }) {
                         SkeletonFeedIsland()
                     }
                 }
             } else if (items.isEmpty()) {
-                // Category is loaded but has no feeds
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = contentPadding.calculateBottomPadding()),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // Category is loaded but has no feeds - show AniList Hero & Rails first, then empty state
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = listPadding,
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
-                    EmptyScreen(
-                        stringRes = SYMR.strings.feed_tab_empty,
-                    )
-                    Button(
-                        onClick = onAddSourceClick,
-                        modifier = Modifier.padding(top = 16.dp),
-                    ) {
-                        Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(text = "Add Sources")
+                    // ANZ -->
+                    if (trendingMedia.isNotEmpty()) {
+                        item(key = "anilist-hero-empty") {
+                            eu.kanade.presentation.anilist.HeroCarousel(mediaList = trendingMedia)
+                        }
                     }
+                    if (popularMedia.isNotEmpty()) {
+                        item(key = "anilist-popular-empty") {
+                            eu.kanade.presentation.anilist.AniListRail(
+                                title = "Popular on AniList",
+                                mediaList = popularMedia,
+                            )
+                        }
+                    }
+                    item(key = "feed-empty-state") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text = stringResource(SYMR.strings.feed_tab_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                            Button(
+                                onClick = onAddSourceClick,
+                            ) {
+                                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "Add Sources")
+                            }
+                        }
+                    }
+                    // ANZ <--
                 }
             } else {
                 // Show established containers
@@ -202,6 +300,22 @@ fun FeedScreen(
                     contentPadding = listPadding,
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
+                    // ANZ -->
+                    if (trendingMedia.isNotEmpty()) {
+                        item(key = "anilist-hero") {
+                            eu.kanade.presentation.anilist.HeroCarousel(mediaList = trendingMedia)
+                        }
+                    }
+                    if (popularMedia.isNotEmpty()) {
+                        item(key = "anilist-popular") {
+                            eu.kanade.presentation.anilist.AniListRail(
+                                title = "Popular on AniList",
+                                mediaList = popularMedia,
+                            )
+                        }
+                    }
+                    // ANZ <--
+
                     itemsIndexed(
                         items = items,
                         key = { _, it -> "feed-${it.feed.id}" },
