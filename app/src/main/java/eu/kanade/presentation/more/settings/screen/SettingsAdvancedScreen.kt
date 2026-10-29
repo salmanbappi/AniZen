@@ -67,7 +67,6 @@ import logcat.LogPriority
 import okhttp3.Headers
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withUIContext
-import tachiyomi.core.common.i18n.stringResource as stringResourceContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.UnsortedPreferences
 import tachiyomi.domain.anime.interactor.ResetViewerFlags
@@ -82,6 +81,7 @@ import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
+import tachiyomi.core.common.i18n.stringResource as stringResourceContext
 
 object SettingsAdvancedScreen : SearchableSettings {
 
