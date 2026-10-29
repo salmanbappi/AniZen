@@ -2,14 +2,14 @@
 aboutlib_version = "12.2.4"
 leakcanary = "2.14"
 moko = "0.25.0"
-okhttp_version = "5.3.2"
+okhttp_version = "5.5.0"
 shizuku_version = "13.1.5"
-sqldelight = "2.2.1"
+sqldelight = "2.3.2"
 sqlite = "2.5.2"
 voyager = "1.1.0-beta03"
 spotless = "7.2.1"
 detekt = "1.23.7"
-detekt-compose = "0.4.22"
+detekt-compose = "0.4.28"
 ktlint-core = "1.5.0"
 firebase-bom = "33.16.0"
 markdown = "0.35.0"
@@ -46,7 +46,7 @@ webkit = "androidx.webkit:webkit:1.14.0"
 
 injekt = "com.github.mihonapp:injekt:91edab2317"
 
-coil-bom = { module = "io.coil-kt.coil3:coil-bom", version = "3.4.0" }
+coil-bom = { module = "io.coil-kt.coil3:coil-bom", version = "3.6.3" }
 coil-core = { module = "io.coil-kt.coil3:coil" }
 coil-gif = { module = "io.coil-kt.coil3:coil-gif" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose" }
