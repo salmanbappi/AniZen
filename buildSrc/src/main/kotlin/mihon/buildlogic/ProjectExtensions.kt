@@ -61,7 +61,6 @@ internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, 
         compilerOptions {
             jvmTarget.set(AndroidConfig.JvmTarget)
             freeCompilerArgs.addAll(
-                "-Xwhen-guards",
                 "-Xcontext-parameters",
                 "-opt-in=kotlin.RequiresOptIn",
             )
