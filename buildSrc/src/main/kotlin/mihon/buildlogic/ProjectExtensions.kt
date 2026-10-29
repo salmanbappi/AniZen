@@ -61,9 +61,8 @@ internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, 
         compilerOptions {
             jvmTarget.set(AndroidConfig.JvmTarget)
             freeCompilerArgs.addAll(
-                "-Xcontext-parameters",
                 "-opt-in=kotlin.RequiresOptIn",
-                "-Xjvm-default=all-compatibility",
+                "-jvm-default=all-compatibility",
             )
 
             // Treat all Kotlin warnings as errors (disabled by default)

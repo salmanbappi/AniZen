@@ -35,8 +35,6 @@ import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
 import com.mikepenz.markdown.model.markdownAnnotator
-import com.mikepenz.markdown.model.markdownColor
-import com.mikepenz.markdown.model.markdownTypography
 import com.mikepenz.markdown.model.rememberMarkdownState
 import org.intellij.markdown.MarkdownTokenTypes.Companion.HTML_TAG
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
@@ -86,7 +84,7 @@ fun MarkdownRender(
 @ReadOnlyComposable
 private fun getMarkdownColors(): MarkdownColors {
     val codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-    return markdownColor(
+    return DefaultMarkdownColors(
         text = MaterialTheme.colorScheme.onSurface,
         codeBackground = codeBackground,
         inlineCodeBackground = codeBackground,
@@ -102,7 +100,7 @@ private fun getMarkdownTypography(): MarkdownTypography {
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.Bold,
     )
-    return markdownTypography(
+    return DefaultMarkdownTypography(
         h1 = MaterialTheme.typography.headlineMedium,
         h2 = MaterialTheme.typography.headlineSmall,
         h3 = MaterialTheme.typography.titleLarge,
