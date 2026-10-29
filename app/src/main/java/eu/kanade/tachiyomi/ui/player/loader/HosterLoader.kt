@@ -78,10 +78,11 @@ class HosterLoader {
 
                     if (!isValid) continue@videoFor
                     if (video.preferred) return hosterIdx to videoIdx
-                    if (preferredMatchHosterIdx == -1 && (
+                    if (preferredMatchHosterIdx == -1 &&
+                        (
                             (preferredQuality.isNotBlank() && video.quality.contains(preferredQuality, ignoreCase = true)) ||
                                 (preferredAudio.isNotBlank() && video.quality.contains(preferredAudio, ignoreCase = true))
-                        )
+                            )
                     ) {
                         preferredMatchHosterIdx = hosterIdx
                         preferredMatchVideoIdx = videoIdx
