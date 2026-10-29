@@ -102,12 +102,19 @@ open /* SY <-- */ class NetworkHelper(
             .addNetworkInterceptor(IgnoreGzipInterceptor())
             .addNetworkInterceptor(BrotliInterceptor)
 
-        if (isDebugBuild) {
+        // ANZ -->
+        if (isDebugBuild || preferences.verboseLogging().get()) {
             val httpLoggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
+                if (preferences.redactSensitiveHeaders().get()) {
+                    redactHeader("Authorization")
+                    redactHeader("Auth")
+                    redactHeader("Cookie")
+                }
             }
             builder.addNetworkInterceptor(httpLoggingInterceptor)
         }
+        // ANZ <--
 
         builder.addInterceptor(
             CloudflareInterceptor(context, cookieJar, ::defaultUserAgentProvider),

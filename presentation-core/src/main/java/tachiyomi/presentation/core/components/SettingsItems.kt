@@ -272,7 +272,9 @@ fun SelectItem(
         )
 
         ExposedDropdownMenu(
-            modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true),
+            // ANZ -->
+            modifier = Modifier.exposedDropdownSize(matchAnchorWidth = true),
+            // ANZ <--
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {

@@ -384,4 +384,8 @@ class LibraryPreferences(
         const val FILTER_LIBRARY_CATEGORIES_EXCLUDE_PREF_KEY = "pref_filter_library_categories_exclude"
         // ANZ <--
     }
+
+    // ANZ -->
+    fun updateAnimeTitles() = preferenceStore.getBoolean("pref_update_library_anime_titles", false)
+    // ANZ <--
 }
