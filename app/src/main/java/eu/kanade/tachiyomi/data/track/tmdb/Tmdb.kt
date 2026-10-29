@@ -32,6 +32,8 @@ class Tmdb(id: Long) : BaseTracker(id, "TMDB"), AnimeTracker {
         private val SCORE_LIST = IntRange(0, 10)
             .map(Int::toString)
             .toImmutableList()
+
+        private val TMDB_URL_PATTERN = Regex("""/(?:tv|movie)/(\d+)""")
     }
 
     override val client: OkHttpClient
@@ -311,16 +313,13 @@ class Tmdb(id: Long) : BaseTracker(id, "TMDB"), AnimeTracker {
         if (item.remote_id == 0L) {
             val url = item.tracking_url
             if (url.isNotBlank()) {
-                val tvRegex = ".*/tv/(\\d+).*".toRegex()
-                val movieRegex = ".*/movie/(\\d+).*".toRegex()
-                when {
-                    tvRegex.matches(url) -> item.remote_id = tvRegex.find(url)!!.groupValues[1].toLong()
-                    movieRegex.matches(url) -> item.remote_id = movieRegex.find(url)!!.groupValues[1].toLong()
-                    else -> {
-                        val seg = url.trimEnd('/').substringAfterLast('/')
-                        if (seg.all { it.isDigit() }) {
-                            item.remote_id = seg.toLong()
-                        }
+                val match = TMDB_URL_PATTERN.find(url)
+                if (match != null) {
+                    item.remote_id = match.groupValues[1].toLong()
+                } else {
+                    val seg = url.trimEnd('/').substringAfterLast('/')
+                    if (seg.all { it.isDigit() }) {
+                        item.remote_id = seg.toLong()
                     }
                 }
             }

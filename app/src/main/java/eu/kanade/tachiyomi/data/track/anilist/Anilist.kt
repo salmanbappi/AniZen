@@ -13,14 +13,17 @@ import eu.kanade.tachiyomi.data.track.ImportStatusFilter
 import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.ImportableTracker
 import eu.kanade.tachiyomi.data.track.anilist.dto.ALOAuth
+import eu.kanade.tachiyomi.data.track.anilist.dto.ALRelationEdge
+import eu.kanade.tachiyomi.data.track.anilist.dto.ALUserListItem
+import eu.kanade.tachiyomi.data.track.model.TrackAnimeMetadata
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.injectLazy
+import java.util.Collections.synchronizedMap
 import tachiyomi.domain.track.model.Track as DomainAnimeTrack
 
 class Anilist(id: Long) :
@@ -48,6 +51,8 @@ class Anilist(id: Long) :
         const val POINT_10_DECIMAL = "POINT_10_DECIMAL"
         const val POINT_5 = "POINT_5"
         const val POINT_3 = "POINT_3"
+
+        private const val MAX_RELATIONS_CACHE_SIZE = 500
     }
 
     private val json: Json by injectLazy()
@@ -225,9 +230,15 @@ class Anilist(id: Long) :
         return track
     }
 
-    private val relationsCache = java.util.concurrent.ConcurrentHashMap<Long, List<eu.kanade.tachiyomi.data.track.anilist.dto.ALRelationEdge>>()
+    private val relationsCache: MutableMap<Long, List<ALRelationEdge>> = synchronizedMap(
+        object : LinkedHashMap<Long, List<ALRelationEdge>>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, List<ALRelationEdge>>?): Boolean {
+                return size > MAX_RELATIONS_CACHE_SIZE
+            }
+        },
+    )
 
-    suspend fun getAnimeRelations(trackId: Long): List<eu.kanade.tachiyomi.data.track.anilist.dto.ALRelationEdge> {
+    suspend fun getAnimeRelations(trackId: Long): List<ALRelationEdge> {
         val cached = relationsCache[trackId]
         if (cached != null) return cached
         val fetched = api.getRelations(trackId.toInt())
@@ -235,7 +246,7 @@ class Anilist(id: Long) :
         return fetched
     }
 
-    suspend fun getUserAnimeList(): List<eu.kanade.tachiyomi.data.track.anilist.dto.ALUserListItem> {
+    suspend fun getUserAnimeList(): List<ALUserListItem> {
         return api.getUserAnimeList(getUsername().toInt())
     }
 
@@ -262,7 +273,7 @@ class Anilist(id: Long) :
         relationsCache.clear()
     }
 
-    override suspend fun getAnimeMetadata(track: DomainAnimeTrack): eu.kanade.tachiyomi.data.track.model.TrackAnimeMetadata? {
+    override suspend fun getAnimeMetadata(track: DomainAnimeTrack): TrackAnimeMetadata? {
         return api.getAnimeMetadata(track)
     }
 

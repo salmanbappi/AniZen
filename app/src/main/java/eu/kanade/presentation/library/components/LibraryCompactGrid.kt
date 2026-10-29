@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
 import kotlinx.collections.immutable.ImmutableList
-import tachiyomi.domain.anime.model.AnimeCover
+import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.domain.library.model.LibraryAnime
 
 @Composable
@@ -47,9 +47,9 @@ fun LibraryCompactGrid(
             items = items,
             key = { _, item ->
                 when (item) {
-                    is LibraryDisplayItem.Anime -> "library-grid-${item.libraryItem.libraryAnime.anime.id}"
-                    is LibraryDisplayItem.Folder -> "library-folder-${item.folder.id}"
-                    is LibraryDisplayItem.Header -> "library-header-${item.name}"
+                    is LibraryDisplayItem.Anime -> item.libraryItem.libraryAnime.anime.id
+                    is LibraryDisplayItem.Folder -> -item.folder.id
+                    is LibraryDisplayItem.Header -> "header_${item.name}"
                 }
             },
             contentType = { _, item ->
@@ -73,13 +73,7 @@ fun LibraryCompactGrid(
                     AnimeCompactGridItem(
                         isSelected = libraryItem.libraryAnime.id in selectedIds,
                         title = anime.title.takeIf { showTitle },
-                        coverData = AnimeCover(
-                            animeId = anime.id,
-                            sourceId = anime.source,
-                            isAnimeFavorite = anime.favorite,
-                            ogUrl = anime.thumbnailUrl,
-                            lastModified = anime.coverLastModified,
-                        ),
+                        coverData = anime.asAnimeCover(),
                         coverBadgeStart = {
                             DownloadsBadge(count = libraryItem.downloadCount)
                             UnviewedBadge(count = libraryItem.unseenCount)

@@ -28,7 +28,7 @@ class AnilistInterceptor(val anilist: Anilist, private var token: String?) : Int
             anilist.logout()
             throw IOException("Token expired. Reconnect AniList in Settings.")
         }
-    // ANZ <--
+        // ANZ <--
 
         // Add the authorization header to the original request.
         val authRequest = originalRequest.newBuilder()

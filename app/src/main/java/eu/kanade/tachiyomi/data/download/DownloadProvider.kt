@@ -154,23 +154,22 @@ class DownloadProvider(
      */
     fun findEpisodeDirs(episodes: List<Episode>, anime: Anime, source: Source): Pair<UniFile?, List<UniFile>> {
         val animeDir = findAnimeDir(if (source.isLocal()) anime.url else anime.ogTitle, source)
+            ?: return null to emptyList()
+        val allFiles = animeDir.listFiles().orEmpty()
+        val filesByName = allFiles.associateBy { it.name }
+
         if (source.isLocal()) {
-            val files = animeDir?.listFiles().orEmpty()
             return animeDir to episodes.mapNotNull { episode ->
                 // Try finding by URL filename first
                 val filenameFromUrl = episode.url.split('/', limit = 2).lastOrNull()
-                val fileByUrl = filenameFromUrl?.let { animeDir?.findFile(it) }
+                val fileByUrl = filenameFromUrl?.let { filesByName[it] }
 
                 // Fallback to finding by name without extension
-                fileByUrl ?: files.find { it.nameWithoutExtension == episode.name }
+                fileByUrl ?: allFiles.find { it.nameWithoutExtension == episode.name }
             }
         }
-        if (animeDir == null) return null to emptyList()
-        val allFiles = animeDir.listFiles().orEmpty()
         return animeDir to episodes.mapNotNull { episode ->
-            val exact = getValidEpisodeDirNames(episode.name, episode.scanlator).asSequence()
-                .mapNotNull { animeDir.findFile(it) }
-                .firstOrNull()
+            val exact = getValidEpisodeDirNames(episode.name, episode.scanlator).firstNotNullOfOrNull { filesByName[it] }
             if (exact != null) return@mapNotNull exact
 
             if (episode.isRecognizedNumber) {

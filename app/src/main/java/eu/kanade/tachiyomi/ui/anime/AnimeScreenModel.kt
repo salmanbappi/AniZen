@@ -56,10 +56,13 @@ import eu.kanade.tachiyomi.util.system.toast
 import exh.util.nullIfEmpty
 import exh.util.trimOrNull
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -261,8 +264,8 @@ class AnimeScreenModel(
         excludedScanlators: ImmutableSet<String> = this.excludedScanlators,
         nextAiringEpisode: Pair<Int, Long> = this.nextAiringEpisode,
         selectedSeason: String? = this.selectedSeason,
-        episodeToSeason: Map<Long, String> = this.episodeToSeason,
-        fillerEpisodes: Set<Float> = this.fillerEpisodes,
+        episodeToSeason: ImmutableMap<Long, String> = this.episodeToSeason,
+        fillerEpisodes: ImmutableSet<Float> = this.fillerEpisodes,
         showEpisodeSummary: Boolean = anime.showSummaries(),
         showEpisodeThumbnail: Boolean = anime.showPreviews(),
         hideMissingEpisodes: Boolean = libraryPreferences.hideMissingEpisodes().get(),
@@ -474,7 +477,7 @@ class AnimeScreenModel(
                     }
                 }
             }
-            Triple(items.toImmutableList(), seasonsList.sortedWith(EpisodeSeasonUtils.SeasonComparator).toImmutableList(), mapping)
+            Triple(items.toImmutableList(), seasonsList.sortedWith(EpisodeSeasonUtils.SeasonComparator).toImmutableList(), mapping.toImmutableMap())
         }
 
         val groupingMode = anime.seasonGroupingMode
@@ -1242,7 +1245,7 @@ class AnimeScreenModel(
             try {
                 val fillerList = eu.kanade.tachiyomi.data.filler.AnimeFillerListFetcher().getFillerEpisodes(anime.title)
                 if (fillerList.isNotEmpty()) {
-                    updateSuccessState { it.copySuccess(fillerEpisodes = fillerList) }
+                    updateSuccessState { it.copySuccess(fillerEpisodes = fillerList.toImmutableSet()) }
                 }
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
@@ -2210,8 +2213,8 @@ class AnimeScreenModel(
             val selectedSeason: String? = null,
             val discoveryExpanded: Boolean = false,
             val mergedSources: ImmutableList<Source> = persistentListOf(),
-            val episodeToSeason: Map<Long, String> = emptyMap(),
-            val fillerEpisodes: Set<Float> = emptySet(),
+            val episodeToSeason: ImmutableMap<Long, String> = persistentMapOf(),
+            val fillerEpisodes: ImmutableSet<Float> = persistentSetOf(),
             val showEpisodeSummary: Boolean = true,
             val showEpisodeThumbnail: Boolean = true,
             val hideMissingEpisodes: Boolean = false,
@@ -2440,7 +2443,7 @@ class AnimeScreenModel(
                         dialog = dialog,
                         availableSeasons = sortedSeasons.toImmutableList(),
                         selectedSeason = finalSelectedSeason,
-                        episodeToSeason = episodeToSeason,
+                        episodeToSeason = episodeToSeason.toImmutableMap(),
                         showEpisodeSummary = anime.showSummaries(),
                         showEpisodeThumbnail = anime.showPreviews(),
                         // AY -->

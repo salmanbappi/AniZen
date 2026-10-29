@@ -45,14 +45,15 @@ fun GlobalSearchCardRow(
 
     val uiPreferences = remember { Injekt.get<UiPreferences>() }
     val globalPanorama by uiPreferences.panoramaCover().collectAsStatePref() as State<Boolean>
+    val distinctTitles = remember(titles) { titles.distinctBy { it.id } }
 
     LazyRow(
         contentPadding = PaddingValues(MaterialTheme.padding.small),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
     ) {
         items(
-            items = titles,
-            key = { "gs-${it.id}" },
+            items = distinctTitles,
+            key = { it.id },
         ) { it: tachiyomi.domain.anime.model.Anime ->
             val animeState = getAnime(it)
             val title by animeState

@@ -39,7 +39,6 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,9 +90,7 @@ fun AppBar(
 
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
-    val isActionMode by remember(actionModeCounter) {
-        derivedStateOf { actionModeCounter > 0 }
-    }
+    val isActionMode = actionModeCounter > 0
 
     AppBar(
         modifier = modifier,

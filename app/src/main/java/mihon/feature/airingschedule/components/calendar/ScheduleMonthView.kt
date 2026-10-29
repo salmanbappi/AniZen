@@ -133,17 +133,13 @@ fun ScheduleMonthView(
                             entry.mediaId.toString() in onceMediaIds -> BellNotifyState.ONCE
                             else -> BellNotifyState.NONE
                         }
-                        val matchedAnimeId = remember(entry.scheduleId, libraryAnimeIdByTitle) {
+                        val (matchedAnimeId, isInLibrary) = remember(entry.scheduleId, libraryAnimeIdByTitle, libraryAnimeTitles) {
                             val candidates = ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
                             val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
-                            candidateKeys.firstNotNullOfOrNull { libraryAnimeIdByTitle[it] }
+                            val id = candidateKeys.firstNotNullOfOrNull { libraryAnimeIdByTitle[it] }
+                            val inLib = id != null || candidateKeys.any { it in libraryAnimeTitles }
+                            id to inLib
                         }
-                        val isInLibrary = matchedAnimeId != null ||
-                            remember(entry.scheduleId, libraryAnimeTitles) {
-                                val candidates = ScheduleTitleMatcher.candidateTitlesFromEntry(entry)
-                                val candidateKeys = candidates.flatMap { ScheduleTitleMatcher.normalizedKeys(it) }
-                                candidateKeys.any { it in libraryAnimeTitles }
-                            }
                         ScheduleAnimeCard(
                             entry = entry,
                             titleLanguage = titleLanguage,
