@@ -26,6 +26,43 @@ complexity:
 
 style:
   active: true
+  ForbiddenImport:
+    active: true
+    imports:
+      - value: 'androidx.compose.material.*'
+        reason: 'Use Material 3 (androidx.compose.material3.*) instead of legacy Material 2.'
+      - value: 'androidx.compose.material.Button'
+        reason: 'Use Material 3 Button (androidx.compose.material3.Button) instead of Material 2.'
+      - value: 'androidx.compose.material.Surface'
+        reason: 'Use Material 3 Surface (androidx.compose.material3.Surface) instead of Material 2.'
+      - value: 'androidx.compose.material.Text'
+        reason: 'Use Material 3 Text (androidx.compose.material3.Text) instead of Material 2.'
+      - value: 'androidx.compose.material.Scaffold'
+        reason: 'Use Material 3 Scaffold (androidx.compose.material3.Scaffold) instead of Material 2.'
+      - value: 'androidx.compose.material.Card'
+        reason: 'Use Material 3 Card (androidx.compose.material3.Card) instead of Material 2.'
+      - value: 'androidx.compose.material.TopAppBar'
+        reason: 'Use Material 3 TopAppBar (androidx.compose.material3.TopAppBar) instead of Material 2.'
+      - value: 'androidx.compose.material.Tab'
+        reason: 'Use Material 3 Tab (androidx.compose.material3.Tab) instead of Material 2.'
+      - value: 'androidx.compose.material.Switch'
+        reason: 'Use Material 3 Switch (androidx.compose.material3.Switch) instead of Material 2.'
+      - value: 'androidx.compose.material.Checkbox'
+        reason: 'Use Material 3 Checkbox (androidx.compose.material3.Checkbox) instead of Material 2.'
+      - value: 'androidx.compose.material.Slider'
+        reason: 'Use Material 3 Slider (androidx.compose.material3.Slider) instead of Material 2.'
+      - value: 'androidx.compose.material.Divider'
+        reason: 'Use Material 3 HorizontalDivider (androidx.compose.material3.HorizontalDivider) instead of Material 2.'
+      - value: 'androidx.compose.material.ModalBottomSheet'
+        reason: 'Use Material 3 ModalBottomSheet (androidx.compose.material3.ModalBottomSheet) instead of Material 2.'
+      - value: 'androidx.compose.material.AlertDialog'
+        reason: 'Use Material 3 AlertDialog (androidx.compose.material3.AlertDialog) instead of Material 2.'
+      - value: 'androidx.compose.material.ListItem'
+        reason: 'Use Material 3 ListItem (androidx.compose.material3.ListItem) instead of Material 2.'
+      - value: 'androidx.compose.material.DropdownMenu'
+        reason: 'Use Material 3 DropdownMenu (androidx.compose.material3.DropdownMenu) instead of Material 2.'
+      - value: 'androidx.compose.material.Snackbar'
+        reason: 'Use Material 3 Snackbar (androidx.compose.material3.Snackbar) instead of Material 2.'
   MagicNumber:
     active: true
     ignoreNumbers: [-1, 0, 1, 2]
@@ -102,6 +139,20 @@ Compose:
   active: true
   CompositionLocalAllowlist:
     active: true
+    allowedCompositionLocals:
+      - LocalContext
+      - LocalConfiguration
+      - LocalDensity
+      - LocalFocusManager
+      - LocalLayoutDirection
+      - LocalSoftwareKeyboardController
+      - LocalUriHandler
+      - LocalView
+      - LocalWindowInfo
+      - LocalBackPress
+      - LocalPlayerButtonsClickEvent
+      - LocalPreferenceHighlighted
+      - LocalPreferenceMinHeight
   ComposableNaming:
     active: true
   ComposableParamOrder:
