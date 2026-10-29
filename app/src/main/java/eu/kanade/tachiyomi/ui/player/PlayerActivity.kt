@@ -93,9 +93,7 @@ import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
-import eu.kanade.tachiyomi.util.system.enableHighRefreshRate
 import eu.kanade.tachiyomi.util.system.powerManager
-import eu.kanade.tachiyomi.util.system.resetRefreshRate
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPV
@@ -460,7 +458,6 @@ class PlayerActivity : BaseActivity() {
         // <-- AM (DISCORD)
 
         // ANZ -->
-        resetRefreshRate()
         pipReceiver?.let {
             runCatching { unregisterReceiver(it) }
             pipReceiver = null
@@ -587,11 +584,6 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        // ANZ -->
-        if (decoderPreferences.smoothMotion().get()) { // ANZ
-            enableHighRefreshRate()
-        }
-        // ANZ <--
         setPictureInPictureParams(createPipParams())
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(

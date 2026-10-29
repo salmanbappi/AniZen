@@ -20,10 +20,7 @@ package eu.kanade.tachiyomi.ui.player
 import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
-import eu.kanade.tachiyomi.util.system.enableHighRefreshRate
 import eu.kanade.tachiyomi.util.system.findActivity
-import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
-import eu.kanade.tachiyomi.util.system.resetRefreshRate
 import `is`.xyz.mpv.MPV
 import logcat.LogPriority
 import logcat.logcat
@@ -152,21 +149,12 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
 
 fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
     val enabled = prefs.smoothMotion().get()
-    val activity = context?.findActivity()
     if (enabled) {
         val fpsLimit = prefs.interpolationFPSLimit().get() // ANZ
-        activity?.enableHighRefreshRate()
 
         if (prefs.tryHWDecoding().get()) {
             val hwdecMode = if (fpsLimit > 0) "mediacodec-copy" else "mediacodec"
             mpv?.setPropertyString("hwdec", hwdecMode)
-        }
-
-        val detectedRefreshRate = context?.getDisplayRefreshRate()?.toDouble() ?: 60.0
-        if (fpsLimit == 0) {
-            mpv?.setPropertyDouble("override-display-fps", detectedRefreshRate)
-        } else {
-            mpv?.setPropertyDouble("override-display-fps", 0.0)
         }
 
         mpv?.setPropertyString("vf", buildVFChain(prefs))
@@ -179,11 +167,9 @@ fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) 
         mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
         mpv?.setPropertyString("gpu-dumb-mode", "no")
     } else {
-        activity?.resetRefreshRate()
         if (prefs.tryHWDecoding().get()) {
             mpv?.setPropertyString("hwdec", "mediacodec")
         }
-        mpv?.setPropertyDouble("override-display-fps", 0.0)
         mpv?.setPropertyString("vf", buildVFChain(prefs))
         mpv?.setPropertyString("video-sync", "audio")
         mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
