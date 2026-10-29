@@ -38,6 +38,8 @@ import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
 import com.mikepenz.markdown.model.markdownAnnotator
+import com.mikepenz.markdown.model.markdownColor
+import com.mikepenz.markdown.model.markdownTypography
 import com.mikepenz.markdown.model.rememberMarkdownState
 import org.intellij.markdown.MarkdownTokenTypes.Companion.HTML_TAG
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
@@ -82,19 +84,16 @@ fun MarkdownRender(
     )
 }
 
+// ANZ -->
 @Composable
 @ReadOnlyComposable
 private fun getMarkdownColors(): MarkdownColors {
     val codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-    return DefaultMarkdownColors(
+    return markdownColor(
         text = MaterialTheme.colorScheme.onSurface,
-        codeText = Color.Unspecified,
-        inlineCodeText = Color.Unspecified,
-        linkText = Color.Unspecified,
         codeBackground = codeBackground,
         inlineCodeBackground = codeBackground,
         dividerColor = MaterialTheme.colorScheme.outlineVariant,
-        tableText = Color.Unspecified,
         tableBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
     )
 }
@@ -106,7 +105,7 @@ private fun getMarkdownTypography(): MarkdownTypography {
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.Bold,
     )
-    return DefaultMarkdownTypography(
+    return markdownTypography(
         h1 = MaterialTheme.typography.headlineMedium,
         h2 = MaterialTheme.typography.headlineSmall,
         h3 = MaterialTheme.typography.titleLarge,
@@ -121,11 +120,11 @@ private fun getMarkdownTypography(): MarkdownTypography {
         ordered = MaterialTheme.typography.bodyMedium,
         bullet = MaterialTheme.typography.bodyMedium,
         list = MaterialTheme.typography.bodyMedium,
-        link = link,
         textLink = TextLinkStyles(style = link.toSpanStyle()),
         table = MaterialTheme.typography.bodyMedium,
     )
 }
+// ANZ <--
 
 private val markdownPadding = object : MarkdownPadding {
     override val block: Dp = 2.dp
