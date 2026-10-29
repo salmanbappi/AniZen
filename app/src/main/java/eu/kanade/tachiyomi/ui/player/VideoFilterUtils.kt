@@ -20,7 +20,6 @@ package eu.kanade.tachiyomi.ui.player
 import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
-import eu.kanade.tachiyomi.util.system.findActivity
 import `is`.xyz.mpv.MPV
 import logcat.LogPriority
 import logcat.logcat
