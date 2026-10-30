@@ -1,8 +1,11 @@
 package eu.kanade.presentation.anime.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -10,13 +13,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
-import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.components.material.padding
-import tachiyomi.presentation.core.i18n.pluralStringResource
-import tachiyomi.presentation.core.util.secondaryItemAlpha
 
+// ANZ -->
 @Composable
 fun MissingEpisodeCountListItem(
     count: Int,
@@ -24,22 +26,31 @@ fun MissingEpisodeCountListItem(
 ) {
     Row(
         modifier = modifier
-            .padding(
-                horizontal = MaterialTheme.padding.medium,
-                vertical = MaterialTheme.padding.small,
-            )
-            .secondaryItemAlpha(),
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        HorizontalDivider(modifier = Modifier.weight(1f))
-        Text(
-            text = pluralStringResource(MR.plurals.missing_items, count = count, count),
-            style = MaterialTheme.typography.labelMedium,
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
         )
-        HorizontalDivider(modifier = Modifier.weight(1f))
+        Text(
+            text = if (count == 1) "Falta 1 episodio" else "Faltan $count episodios",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f))
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        )
     }
 }
+// ANZ <--
 
 @PreviewLightDark
 @Composable

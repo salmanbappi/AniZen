@@ -75,6 +75,9 @@ import androidx.compose.material3.FabPosition
 import kotlin.math.roundToInt
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.Color
+import eu.kanade.presentation.anime.components.AnimeAmbientBackdrop
+import eu.kanade.presentation.anime.components.rememberAnimeAmbient
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -94,6 +97,8 @@ import eu.kanade.presentation.anime.components.AnimeEpisodeListItem
 import eu.kanade.presentation.anime.components.AnimeInfoBox
 import eu.kanade.presentation.anime.components.AnimeSeasonListItem
 import eu.kanade.presentation.anime.components.AnimeToolbar
+import eu.kanade.presentation.anime.components.rememberToolbarSlide
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
 import eu.kanade.presentation.anime.components.EpisodeHeader
 import eu.kanade.presentation.anime.components.CreditDetailsDialog
@@ -408,6 +413,9 @@ private fun AnimeScreenSmallImpl(
 ) {
     val navigator = LocalNavigator.currentOrThrow
     val episodeListState = rememberLazyListState()
+    // ANZ --> the transparent toolbar follows the scroll (hides going down, returns going up)
+    val barSlide = rememberToolbarSlide(episodeListState)
+    // ANZ <--
     val episodes = state.processedEpisodes
     val listItem = remember(state.episodeListItems, state.selectedSeason, state.anime.seasonGroupingMode, state.availableSeasons) {
         if (state.anime.seasonGroupingMode != LibraryPreferences.SeasonGrouping.Tabs || state.selectedSeason == null || state.availableSeasons.size <= 1) {
@@ -482,25 +490,33 @@ private fun AnimeScreenSmallImpl(
     val vibrantColor = deferredVibrantColor ?: state.anime.asAnimeCover().vibrantCoverColor
 
     DynamicTachiyomiTheme(colorSeed = vibrantColor) {
+        // ANZ --> coloured page atmosphere behind the transparent Scaffold (replaces the plain black)
+        val ambient = rememberAnimeAmbient(vibrantColor)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
         ) {
+            AnimeAmbientBackdrop(ambient = ambient, modifier = Modifier.matchParentSize())
+            // ANZ <--
             val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
             val isFABVisible = remember(state.anime.fetchType, state.hasUnseenEpisodes, isAnySelected) {
                 state.anime.fetchType != FetchType.Seasons && !isAnySelected && state.hasUnseenEpisodes
             }
             Scaffold(
                 hazeEnabled = false,
+                containerColor = Color.Transparent,
                 contentWindowInsets = scaffoldInsets,
                 floatingActionButtonPosition = FabPosition.Center,
                 floatingActionButton = {
+                    // ANZ --> the header already has a big play button; the FAB takes over once it scrolls away
+                    val isHeaderPassed by remember { derivedStateOf { episodeListState.firstVisibleItemIndex >= 2 } }
                     AnimatedVisibility(
-                        visible = isFABVisible,
+                        visible = isFABVisible && isHeaderPassed,
                         enter = fadeIn(),
                         exit = fadeOut(),
                     ) {
+                        // ANZ <--
                         DraggableAnimeFAB(
                             isWatching = state.isWatching,
                             onContinueWatching = { onContinueWatching(null) },
@@ -528,7 +544,9 @@ private fun AnimeScreenSmallImpl(
                     AnimeToolbar(
                         title = state.anime.title,
                         titleAlphaProvider = { animatedTitleAlphaState.value },
+                        slide = barSlide,
                         backgroundAlphaProvider = { animatedBgAlphaState.value },
+                        fadeTint = { ambient.top },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
                         onClickFilter = onFilterClicked,
@@ -589,12 +607,16 @@ private fun AnimeScreenSmallImpl(
                             endContentPadding = contentPadding.calculateEndPadding(layoutDirection),
                         ) {
                             LazyColumn(
-                                modifier = Modifier.fillMaxHeight(),
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .nestedScroll(barSlide.connection),
                                 state = episodeListState,
                                 contentPadding = PaddingValues(
                                     start = contentPadding.calculateStartPadding(layoutDirection),
                                     end = contentPadding.calculateEndPadding(layoutDirection),
-                                    bottom = contentPadding.calculateBottomPadding(),
+                                    // ANZ --> leave room so the floating button never covers the last rows
+                                    bottom = contentPadding.calculateBottomPadding() + if (isFABVisible) 88.dp else 0.dp,
+                                    // ANZ <--
                                 ),
                             ) {
                                 // item[0]: info-box only — drives isFirstItemVisible for the
@@ -635,6 +657,7 @@ private fun AnimeScreenSmallImpl(
                                         onContinueWatching = { onContinueWatching(null) },
                                         isWatching = isWatching,
                                         mainTrackItem = remember(state.trackItems) { state.trackItems.firstOrNull() },
+                                        showContinueButton = isFABVisible,
                                     )
                                 }
 
@@ -979,17 +1002,22 @@ fun AnimeScreenLargeImpl(
     val vibrantColor = vibrantColorState ?: state.anime.asAnimeCover().vibrantCoverColor
 
     DynamicTachiyomiTheme(colorSeed = vibrantColor) {
+        // ANZ --> coloured page atmosphere behind the transparent Scaffold (replaces the plain black)
+        val ambient = rememberAnimeAmbient(vibrantColor)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
         ) {
+            AnimeAmbientBackdrop(ambient = ambient, modifier = Modifier.matchParentSize())
+            // ANZ <--
             val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
             val isFABVisible = remember(state.anime.fetchType, state.hasUnseenEpisodes, isAnySelected) {
                 state.anime.fetchType != FetchType.Seasons && !isAnySelected && state.hasUnseenEpisodes
             }
             Scaffold(
                 hazeEnabled = false,
+                containerColor = Color.Transparent,
                 contentWindowInsets = scaffoldInsets,
                 floatingActionButtonPosition = FabPosition.Center,
                 floatingActionButton = {
@@ -1027,6 +1055,7 @@ fun AnimeScreenLargeImpl(
                         title = state.anime.title,
                         titleAlphaProvider = { if (isAnySelected) 1f else animatedTitleAlphaState.value },
                         backgroundAlphaProvider = { animatedBgAlphaState.value },
+                        fadeTint = { ambient.top },
                         hasFilters = state.filterActive,
                         onBackClicked = internalOnBackPressed,
                         onClickFilter = onFilterButtonClicked,

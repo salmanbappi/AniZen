@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -45,15 +46,23 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import eu.kanade.tachiyomi.animesource.model.Credit
 
+// ANZ -->
+/*
+ * "Personajes": clean circular avatars in a horizontal carousel. No heavy borders or card
+ * backgrounds, the name sits under the avatar and the voice actor in a quiet second line.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CastRow(
@@ -63,155 +72,114 @@ fun CastRow(
 ) {
     if (cast.isEmpty()) return
 
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier,
-    ) {
-        items(cast.size, key = { it }) { idx ->
-            val credit = cast[idx]
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val scale by animateFloatAsState(
-                targetValue = if (isPressed) 0.95f else 1f,
-                animationSpec = tween(durationMillis = 150),
-                label = "scale",
-            )
-            val elevation by animateDpAsState(
-                targetValue = if (isPressed) 8.dp else 4.dp,
-                animationSpec = tween(durationMillis = 150),
-                label = "elevation",
-            )
-
-            Card(
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = elevation,
-                ),
-                shape = RoundedCornerShape(
-                    topStart = 16.dp,
-                    topEnd = 8.dp,
-                    bottomStart = 8.dp,
-                    bottomEnd = 16.dp,
-                ),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.Transparent,
-                ),
-                modifier = Modifier
-                    .width(100.dp)
-                    .height(160.dp)
-                    .scale(scale)
-                    .animateItem()
-                    .border(
-                        width = 1.5.dp,
-                        brush = Brush.sweepGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
-                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f),
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                            ),
-                        ),
-                        shape = RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 8.dp,
-                            bottomStart = 8.dp,
-                            bottomEnd = 16.dp,
-                        ),
-                    )
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                    ) { onClick(credit) },
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.surface,
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                    MaterialTheme.colorScheme.surface,
-                                ),
-                                center = Offset(0.5f, 0.2f),
-                                radius = 150f,
-                            ),
-                        )
-                        .padding(8.dp),
-                ) {
-                    val imageModifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .border(
-                            width = 2.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                            shape = CircleShape,
-                        )
-
-                    val ctx = LocalContext.current
-                    if (!credit.image_url.isNullOrBlank()) {
-                        val request = ImageRequest.Builder(ctx)
-                            .data(credit.image_url)
-                            .crossfade(true)
-                            .build()
-
-                        SubcomposeAsyncImage(
-                            model = request,
-                            contentDescription = credit.name,
-                            modifier = imageModifier,
-                            loading = {
-                                ShimmerPlaceholder(modifier = imageModifier)
-                            },
-                            error = {
-                                PersonPlaceholder(modifier = imageModifier)
-                            },
-                        )
-                    } else {
-                        PersonPlaceholder(modifier = imageModifier)
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = credit.name,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        minLines = 1,
-                    )
-
-                    if (!credit.role.isNullOrBlank()) {
-                        Text(
-                            text = credit.role ?: "",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.primary,
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                        )
-                    } else if (!credit.character.isNullOrBlank()) {
-                        Text(
-                            text = credit.character ?: "",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.secondary,
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
+    Column(modifier = modifier) {
+        Text(
+            text = "Personajes",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.3).sp,
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            items(cast.size, key = { it }) { idx ->
+                CastItem(credit = cast[idx], onClick = onClick)
             }
         }
     }
 }
+
+@Composable
+private fun CastItem(
+    credit: Credit,
+    onClick: (Credit) -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "scale",
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(100.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+            ) { onClick(credit) }
+            .padding(vertical = 4.dp),
+    ) {
+        val imageModifier = Modifier
+            .size(84.dp)
+            .clip(CircleShape)
+            .border(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                shape = CircleShape,
+            )
+
+        val ctx = LocalContext.current
+        if (!credit.image_url.isNullOrBlank()) {
+            val request = ImageRequest.Builder(ctx)
+                .data(credit.image_url)
+                .crossfade(true)
+                .build()
+
+            SubcomposeAsyncImage(
+                model = request,
+                contentDescription = credit.name,
+                contentScale = ContentScale.Crop,
+                modifier = imageModifier,
+                loading = {
+                    ShimmerPlaceholder(modifier = imageModifier)
+                },
+                error = {
+                    PersonPlaceholder(modifier = imageModifier)
+                },
+            )
+        } else {
+            PersonPlaceholder(modifier = imageModifier)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = credit.name,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            minLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+
+        val subtitle = credit.role?.takeIf { it.isNotBlank() } ?: credit.character?.takeIf { it.isNotBlank() }
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+// ANZ <--
 
 @Composable
 private fun PersonPlaceholder(modifier: Modifier = Modifier) {

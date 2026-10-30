@@ -195,6 +195,11 @@ class MainActivity : BaseActivity() {
                     statusBarStyle = if (statusBarBackgroundColor.luminance() > 0.5) lightStyle else darkStyle,
                     navigationBarStyle = if (isSystemInDarkTheme) darkStyle else lightStyle,
                 )
+                // ANZ --> fully transparent system navigation bar (no grey scrim behind the 3 buttons)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.isNavigationBarContrastEnforced = false
+                }
+                // ANZ <--
             }
 
             Navigator(

@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalRippleConfiguration
@@ -83,6 +84,7 @@ import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessSlider
 import eu.kanade.tachiyomi.ui.player.controls.components.ControlsButton
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleSpeedPlayerUpdate
 import eu.kanade.tachiyomi.ui.player.controls.components.FilledControlsButton
+import eu.kanade.tachiyomi.ui.player.controls.components.GlassIconButton
 import eu.kanade.tachiyomi.ui.player.controls.components.SeekbarWithTimers
 import eu.kanade.tachiyomi.ui.player.controls.components.videoTimerWidth
 import eu.kanade.tachiyomi.ui.player.controls.components.ThumbnailPreview
@@ -208,7 +210,7 @@ fun PlayerControls(
     }
 
     val transparentOverlay by animateFloatAsState(
-        if (controlsShown && !areControlsLocked) .8f else 0f,
+        if (controlsShown && !areControlsLocked) 1f else 0f,
         animationSpec = playerControlsExitAnimationSpec(),
         label = "controls_transparent_overlay",
     )
@@ -236,12 +238,16 @@ fun PlayerControls(
                 modifier = modifier
                     .fillMaxSize()
                     .background(
+                        // ANZ --> soft scrims: controls float over the video, no hard blocks
                         Brush.verticalGradient(
-                            Pair(0f, Color.Black),
-                            Pair(.2f, Color.Transparent),
-                            Pair(.7f, Color.Transparent),
-                            Pair(1f, Color.Black),
+                            0f to Color.Black.copy(alpha = 0.70f),
+                            0.12f to Color.Black.copy(alpha = 0.38f),
+                            0.30f to Color.Black.copy(alpha = 0.10f),
+                            0.55f to Color.Black.copy(alpha = 0.10f),
+                            0.72f to Color.Black.copy(alpha = 0.36f),
+                            1f to Color.Black.copy(alpha = 0.86f),
                         ),
+                        // ANZ <--
                         alpha = transparentOverlay,
                     )
                     .padding(horizontal = MaterialTheme.padding.medium),
@@ -265,14 +271,16 @@ fun PlayerControls(
                 val swapVolumeAndBrightness by gesturePreferences.swapVolumeBrightness().collectAsState()
                 val reduceMotion by playerPreferences.reduceMotion().collectAsState()
 
+                // ANZ --> sliders leave a bit sooner (1.5 s after the last change instead of 2 s)
                 LaunchedEffect(volume, mpvVolume, isVolumeSliderShown) {
-                    delay(2000)
+                    delay(1500)
                     if (isVolumeSliderShown) viewModel.isVolumeSliderShown.update { false }
                 }
                 LaunchedEffect(brightness, isBrightnessSliderShown) {
-                    delay(2000)
+                    delay(1500)
                     if (isBrightnessSliderShown) viewModel.isBrightnessSliderShown.update { false }
                 }
+                // ANZ <--
                 AnimatedVisibility(
                     isBrightnessSliderShown,
                     enter =
@@ -496,11 +504,15 @@ fun PlayerControls(
                         ) {
                             val skipIntroLabel = skipIntroButton
                             if (skipIntroLabel != null) {
-                                FilledControlsButton(
-                                    text = skipIntroLabel,
+                                // ANZ --> icon only: the text (e.g. "+85 s") stays just as the accessibility label
+                                GlassIconButton(
+                                    icon = Icons.Filled.FastForward,
+                                    contentDescription = skipIntroLabel,
                                     onClick = viewModel::onSkipIntro,
                                     onLongClick = viewModel::onSkipIntro,
+                                    pulse = true,
                                 )
+                                // ANZ <--
                             } else if (actionButton != null && customButtonTitle.isNotEmpty()) {
                                 // ANZ -->
                                 FilledControlsButton(
@@ -610,11 +622,17 @@ fun PlayerControls(
                 ) {
                     val animeTitle by viewModel.animeTitle.collectAsState()
                     val mediaTitle by viewModel.mediaTitle.collectAsState()
+                    // ANZ -->
+                    val currentEpisodeForTitle by viewModel.currentEpisode.collectAsState()
+                    // ANZ <--
                     TopLeftPlayerControls(
                         animeTitle = animeTitle,
                         mediaTitle = mediaTitle,
                         onTitleClick = { viewModel.showEpisodeListDialog() },
                         onBackClick = onBackPress,
+                        // ANZ -->
+                        episodeNumber = currentEpisodeForTitle?.episode_number?.toFloat(),
+                        // ANZ <--
                     )
                 }
                 // Top right controls

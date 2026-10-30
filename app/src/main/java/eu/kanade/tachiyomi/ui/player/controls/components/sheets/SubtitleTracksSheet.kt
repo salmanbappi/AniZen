@@ -17,6 +17,10 @@
 
 package eu.kanade.tachiyomi.ui.player.controls.components.sheets
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -125,6 +129,11 @@ fun SubtitleTrackRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // ANZ --> selected row is highlighted with a soft rounded background
+            .padding(horizontal = 10.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected > -1) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
+            // ANZ <--
             .clickable(onClick = onClick)
             .padding(start = MaterialTheme.padding.small, end = MaterialTheme.padding.medium),
         verticalAlignment = Alignment.CenterVertically,
@@ -135,8 +144,10 @@ fun SubtitleTrackRow(
         )
         Text(
             text = getTrackTitle(track),
-            fontStyle = if (selected > -1) FontStyle.Italic else FontStyle.Normal,
-            fontWeight = if (selected > -1) FontWeight.ExtraBold else FontWeight.Normal,
+            // ANZ -->
+            fontWeight = if (selected > -1) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected > -1) MaterialTheme.colorScheme.primary else Color.Unspecified,
+            // ANZ <--
         )
         Spacer(modifier = Modifier.weight(1f))
         if (track is VideoTrack.External && track.state == TrackState.Loading) {
@@ -146,8 +157,8 @@ fun SubtitleTrackRow(
         } else if (selected != -1) {
             Text(
                 text = "#${selected + 1}",
-                fontStyle = if (selected > -1) FontStyle.Italic else FontStyle.Normal,
-                fontWeight = if (selected > -1) FontWeight.ExtraBold else FontWeight.Normal,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
     }

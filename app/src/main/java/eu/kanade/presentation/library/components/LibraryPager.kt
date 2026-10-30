@@ -80,6 +80,26 @@ fun LibraryPager(
 
             val displayMode by getDisplayMode(page)
 
+            // ANZ -->
+            // New home layout (hero + shelves + modern grid). Search results and the List
+            // display mode keep the classic layouts below.
+            if (shouldUseLibraryHome(searchQuery, displayMode)) {
+                LibraryHome(
+                    items = library,
+                    contentPadding = contentPadding,
+                    selection = selectedAnime,
+                    onClick = onClickAnime,
+                    onLongClick = { onLongClickAnime(it, category.id) },
+                    onClickContinueWatching = onClickContinueWatching,
+                    onFolderClick = onFolderClick,
+                    onFolderLongClick = onFolderLongClick,
+                    searchQuery = searchQuery,
+                    onGlobalSearchClicked = onGlobalSearchClicked,
+                )
+                return@HorizontalPager
+            }
+            // ANZ <--
+
             when (displayMode) {
                 LibraryDisplayMode.List -> {
                     LibraryList(

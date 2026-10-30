@@ -17,6 +17,10 @@
 
 package eu.kanade.tachiyomi.ui.player.controls.components.sheets
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -105,6 +109,11 @@ fun AudioTrackRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // ANZ --> selected row is highlighted with a soft rounded background
+            .padding(horizontal = 10.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
+            // ANZ <--
             .clickable(onClick = onClick)
             .padding(start = MaterialTheme.padding.small, end = MaterialTheme.padding.medium),
         verticalAlignment = Alignment.CenterVertically,
@@ -116,8 +125,10 @@ fun AudioTrackRow(
         )
         Text(
             text = getTrackTitle(track),
-            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
-            fontStyle = if (isSelected) FontStyle.Italic else FontStyle.Normal,
+            // ANZ -->
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified,
+            // ANZ <--
         )
         Spacer(modifier = Modifier.weight(1f))
         if (track is VideoTrack.External && track.state == TrackState.Loading) {
