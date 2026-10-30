@@ -125,10 +125,12 @@ fun OkHttpClient.newCachelessCallWithProgress(request: Request, listener: Progre
     return progressClient.newCall(request)
 }
 
-context(_: Json)
+// ANZ -->
+context(json: Json) // ANZ
 inline fun <reified T> Response.parseAs(): T {
     return decodeFromJsonResponse(serializer(), this)
 }
+// ANZ <--
 
 context(json: Json)
 fun <T> decodeFromJsonResponse(
