@@ -64,7 +64,6 @@ import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.WebViewUtil
-import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
@@ -291,8 +290,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(AnimeKeyer())
             }
 
-            // Scrolling Optimization: Smooth transitions and better memory handling
-            crossfade((300 * this@App.animatorDurationScale).toInt())
+            // ANZ -->
+            crossfade(false) // ANZ
+            // ANZ <--
             allowRgb565(DeviceUtil.isLowRamDevice(this@App))
             if (networkPreferences.verboseLogging().get()) logger(DebugLogger())
 
@@ -308,9 +308,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                     .build()
             }
 
-            val coreCount = Runtime.getRuntime().availableProcessors()
-            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(coreCount.coerceIn(4, 12)))
-            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(coreCount.coerceIn(3, 8))) // Balanced for performance and UI smoothness
+            // ANZ -->
+            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(4))
+            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(2))
+            // ANZ <--
         }.build()
     }
 

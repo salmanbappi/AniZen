@@ -106,11 +106,18 @@ fun ExtensionIcon(
                     contentDescription = null,
                     modifier = modifier,
                 )
-                is Result.Error -> Image(
-                    bitmap = ImageBitmap.imageResource(id = R.mipmap.ic_default_source),
-                    contentDescription = null,
-                    modifier = modifier,
-                )
+                // ANZ -->
+                is Result.Error -> {
+                    val defaultBitmap = defaultSourceBitmap ?: ImageBitmap.imageResource(id = R.mipmap.ic_default_source).also {
+                        defaultSourceBitmap = it
+                    }
+                    Image(
+                        bitmap = defaultBitmap,
+                        contentDescription = null,
+                        modifier = modifier,
+                    )
+                }
+                // ANZ <--
             }
         }
         is Extension.Untrusted -> Image(
@@ -122,20 +129,23 @@ fun ExtensionIcon(
     }
 }
 
-private val iconCache = androidx.collection.LruCache<String, ImageBitmap>(250)
+// ANZ -->
+private val iconCache = androidx.collection.LruCache<String, Result<ImageBitmap>>(250) // ANZ
+@Volatile
+private var defaultSourceBitmap: ImageBitmap? = null
 
 @Composable
 private fun Extension.getIcon(density: Int = DisplayMetrics.DENSITY_DEFAULT): State<Result<ImageBitmap>> {
     val cached = iconCache[pkgName]
     if (cached != null) {
-        return remember(pkgName) { androidx.compose.runtime.mutableStateOf(Result.Success(cached)) }
+        return remember(pkgName) { androidx.compose.runtime.mutableStateOf(cached) }
     }
     val context = LocalContext.current
     return produceState<Result<ImageBitmap>>(initialValue = Result.Loading, this) {
         withIOContext {
             val fromCache = iconCache[pkgName]
             if (fromCache != null) {
-                value = Result.Success(fromCache)
+                value = fromCache
                 return@withIOContext
             }
             value = try {
@@ -144,14 +154,17 @@ private fun Extension.getIcon(density: Int = DisplayMetrics.DENSITY_DEFAULT): St
                 val bitmap = appResources.getDrawableForDensity(appInfo.icon, density, null)!!
                     .toBitmap()
                     .asImageBitmap()
-                iconCache.put(pkgName, bitmap)
-                Result.Success(bitmap)
+                val result = Result.Success(bitmap)
+                iconCache.put(pkgName, result)
+                result
             } catch (e: Exception) {
+                iconCache.put(pkgName, Result.Error)
                 Result.Error
             }
         }
     }
 }
+// ANZ <--
 
 sealed class Result<out T> {
     data object Loading : Result<Nothing>()

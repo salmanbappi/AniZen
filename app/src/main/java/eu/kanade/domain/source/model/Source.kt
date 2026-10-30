@@ -9,15 +9,17 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 // ANZ -->
-private val iconBitmapCache = java.util.concurrent.ConcurrentHashMap<Long, ImageBitmap>() // ANZ
+private val NULL_ICON_SENTINEL = Any()
+private val iconBitmapCache = java.util.concurrent.ConcurrentHashMap<Long, Any>() // ANZ
 
 val Source.icon: ImageBitmap?
     get() {
-        return iconBitmapCache.getOrPut(id) {
+        val cached = iconBitmapCache.getOrPut(id) {
             Injekt.get<ExtensionManager>().getAppIconForSource(id)
                 ?.toBitmap()
                 ?.asImageBitmap()
-                ?: return null
+                ?: NULL_ICON_SENTINEL
         }
+        return if (cached === NULL_ICON_SENTINEL) null else cached as ImageBitmap
     }
 // ANZ <--

@@ -247,7 +247,9 @@ private fun ListFastScrollThumb(
                 orientation = Orientation.Vertical,
                 state = draggableState,
             )
-            .systemGestureExclusion()
+            // ANZ -->
+            .then(if (isThumbDragged) Modifier.systemGestureExclusion() else Modifier) // ANZ
+            // ANZ <--
             .height(ThumbLength)
             .padding(end = endContentPadding)
             .width(ThumbThickness)
@@ -456,7 +458,9 @@ private fun GridFastScrollThumb(
                 orientation = Orientation.Vertical,
                 state = draggableState,
             )
-            .systemGestureExclusion()
+            // ANZ -->
+            .then(if (isThumbDragged) Modifier.systemGestureExclusion() else Modifier) // ANZ
+            // ANZ <--
             .height(ThumbLength)
             .padding(end = endContentPadding)
             .width(ThumbThickness)

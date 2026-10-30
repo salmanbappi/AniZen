@@ -144,13 +144,15 @@ enum class AnimeCover(val ratio: Float) {
                 ),
         ) {
             AsyncImage(
-                model = remember(data, animatedTransitions) {
+                // ANZ -->
+                model = remember(data) { // ANZ
                     ImageRequest.Builder(context)
                         .data(data)
                         .precision(coil3.size.Precision.INEXACT)
-                        .crossfade(animatedTransitions)
+                        .crossfade(false)
                         .build()
                 },
+                // ANZ <--
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxSize()

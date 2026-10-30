@@ -37,7 +37,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
@@ -113,10 +112,11 @@ fun AnimeCompactGridItem(
                     entry(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // ANZ -->
                             .graphicsLayer {
-                                this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
-                                this.compositingStrategy = CompositingStrategy.ModulateAlpha
+                                this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha // ANZ
                             },
+                            // ANZ <--
                         data = coverData,
                         ratio = ratio,
                         shape = RectangleShape, // Optimization: Parent clips
@@ -249,10 +249,11 @@ fun AnimeComfortableGridItem(
                     entry(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // ANZ -->
                             .graphicsLayer {
                                 this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
-                                this.compositingStrategy = CompositingStrategy.ModulateAlpha
                             },
+                            // ANZ <--
                         data = coverData,
                         ratio = ratio,
                         shape = RectangleShape, // Optimization: Parent clips
@@ -485,10 +486,11 @@ fun AnimeListItem(
         entry(
             modifier = Modifier
                 .fillMaxHeight()
+                // ANZ -->
                 .graphicsLayer {
                     alpha = coverAlpha
-                    this.compositingStrategy = CompositingStrategy.ModulateAlpha
                 },
+                // ANZ <--
             data = coverData,
             ratio = ratio,
             measureRatio = panorama,
