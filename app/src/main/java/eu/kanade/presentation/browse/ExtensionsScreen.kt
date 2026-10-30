@@ -83,6 +83,13 @@ import tachiyomi.presentation.core.util.secondaryItemAlpha
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+// ANZ -->
+private val topContainerShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+private val bottomContainerShape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+private val fullContainerShape = RoundedCornerShape(16.dp)
+private val middleContainerShape = androidx.compose.ui.graphics.RectangleShape // ANZ
+// ANZ <--
+
 @Composable
 fun ExtensionScreen(
     state: ExtensionsScreenModel.State,
@@ -272,16 +279,18 @@ private fun ExtensionContent(
                 if (useContainer) {
                     val isFirst = index == 0
                     val isLast = index == items.lastIndex
+                    // ANZ -->
+                    val containerShape = when { // ANZ
+                        isFirst && isLast -> fullContainerShape
+                        isFirst -> topContainerShape
+                        isLast -> bottomContainerShape
+                        else -> middleContainerShape
+                    }
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp),
-                        shape = RoundedCornerShape(
-                            topStart = if (isFirst) 16.dp else 0.dp,
-                            topEnd = if (isFirst) 16.dp else 0.dp,
-                            bottomStart = if (isLast) 16.dp else 0.dp,
-                            bottomEnd = if (isLast) 16.dp else 0.dp,
-                        ),
+                        shape = containerShape,
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         tonalElevation = 2.dp,
                     ) {
@@ -295,6 +304,7 @@ private fun ExtensionContent(
                             onClickItemAction = handleItemAction,
                         )
                     }
+                    // ANZ <--
                 } else {
                     ExtensionItem(
                         modifier = Modifier,
@@ -338,7 +348,6 @@ private fun ExtensionItem(
     onClickItemSecondaryAction: (Extension) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    eu.kanade.tachiyomi.util.system.PerformanceBenchmarkHelper.countRecomposition("ExtensionItem")
     val (extension, installStep) = item
     val onItemClick = remember(onClickItem, extension.pkgName) { { onClickItem(extension) } }
     val onItemLongClick = remember(onLongClickItem, extension.pkgName) { { onLongClickItem(extension) } }
@@ -436,25 +445,32 @@ private fun ExtensionItemContent(
             horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
         ) {
             ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
-                if (extension is Extension.Installed && extension.lang.isNotEmpty()) {
-                    Text(
-                        text = LocaleHelper.getSourceDisplayName(
-                            extension.lang,
-                            LocalContext.current,
-                        ),
+                // ANZ -->
+                val langText = if (extension is Extension.Installed && extension.lang.isNotEmpty()) {
+                    LocaleHelper.getSourceDisplayName(
+                        extension.lang,
+                        LocalContext.current,
                     )
+                } else {
+                    null
                 }
-
-                if (extension.versionName.isNotEmpty()) {
+                val versionText = extension.versionName.takeIf { it.isNotEmpty() }
+                val facts = listOfNotNull(langText, versionText).joinToString(" • ") // ANZ
+                if (facts.isNotEmpty()) {
                     Text(
-                        text = extension.versionName,
+                        text = facts,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
                 Text(
                     text = repoName ?: "@?",
                     color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                // ANZ <--
 
                 val warning = when {
                     extension is Extension.Untrusted -> MR.strings.ext_untrusted

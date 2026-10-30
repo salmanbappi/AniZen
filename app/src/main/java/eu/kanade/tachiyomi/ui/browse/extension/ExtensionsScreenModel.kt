@@ -164,7 +164,9 @@ class ExtensionsScreenModel(
                     }
                 }
         }
-        screenModelScope.launchIO { findAvailableExtensions() }
+        // ANZ -->
+        screenModelScope.launchIO { findAvailableExtensions(isManual = false) } // ANZ
+        // ANZ <--
 
         preferences.animeExtensionUpdatesCount().changes()
             .onEach { mutableState.update { state -> state.copy(updates = it) } }
@@ -229,17 +231,22 @@ class ExtensionsScreenModel(
         extensionManager.uninstallExtension(extension)
     }
 
-    fun findAvailableExtensions() {
+    // ANZ -->
+    fun findAvailableExtensions(isManual: Boolean = false) { // ANZ
         screenModelScope.launchIO {
-            mutableState.update { it.copy(isRefreshing = true) }
-            extensionManager.findAvailableExtensions()
-
-            // Fake slower refresh so it doesn't seem like it's not doing anything
-            delay(1.seconds)
-
-            mutableState.update { it.copy(isRefreshing = false) }
+            if (isManual) {
+                mutableState.update { it.copy(isRefreshing = true) }
+            }
+            try {
+                extensionManager.findAvailableExtensions()
+            } finally {
+                if (isManual) {
+                    mutableState.update { it.copy(isRefreshing = false) }
+                }
+            }
         }
     }
+    // ANZ <--
 
     fun trustExtension(extension: Extension.Untrusted) {
         screenModelScope.launch {

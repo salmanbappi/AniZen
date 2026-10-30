@@ -129,7 +129,9 @@ fun extensionsTab(
                     onTrustExtension = onTrustExtension,
                     onUninstallExtension = onUninstallExtension,
                     onUpdateExtension = extensionsScreenModel::updateExtension,
-                    onRefresh = extensionsScreenModel::findAvailableExtensions,
+                    // ANZ -->
+                    onRefresh = { extensionsScreenModel.findAvailableExtensions(isManual = true) }, // ANZ
+                    // ANZ <--
                 )
 
                 privateExtensionToUninstall?.let { extension ->
