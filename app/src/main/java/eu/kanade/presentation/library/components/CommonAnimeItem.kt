@@ -116,7 +116,7 @@ fun AnimeCompactGridItem(
                             .graphicsLayer {
                                 this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha // ANZ
                             },
-                            // ANZ <--
+                        // ANZ <--
                         data = coverData,
                         ratio = ratio,
                         shape = RectangleShape, // Optimization: Parent clips
@@ -253,7 +253,7 @@ fun AnimeComfortableGridItem(
                             .graphicsLayer {
                                 this.alpha = if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha
                             },
-                            // ANZ <--
+                        // ANZ <--
                         data = coverData,
                         ratio = ratio,
                         shape = RectangleShape, // Optimization: Parent clips
@@ -490,7 +490,7 @@ fun AnimeListItem(
                 .graphicsLayer {
                     alpha = coverAlpha
                 },
-                // ANZ <--
+            // ANZ <--
             data = coverData,
             ratio = ratio,
             measureRatio = panorama,

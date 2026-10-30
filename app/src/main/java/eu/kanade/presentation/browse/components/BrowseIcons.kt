@@ -130,7 +130,9 @@ fun ExtensionIcon(
 }
 
 // ANZ -->
-private val iconCache = androidx.collection.LruCache<String, Result<ImageBitmap>>(250) // ANZ
+private val iconCache = androidx.collection.LruCache<String, Result<ImageBitmap>>(250)
+
+// ANZ
 @Volatile
 private var defaultSourceBitmap: ImageBitmap? = null
 
