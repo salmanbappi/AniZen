@@ -89,14 +89,17 @@ fun ExtensionIcon(
 ) {
     when (extension) {
         is Extension.Available -> {
+            // ANZ -->
+            val context = LocalContext.current
             AsyncImage(
                 model = extension.iconUrl,
                 contentDescription = null,
                 placeholder = ColorPainter(Color(0x1F888888)),
-                error = rememberResourceBitmapPainter(id = R.drawable.cover_error),
+                error = eu.kanade.presentation.anime.components.CoverErrorPainter.get(context),
                 modifier = modifier
                     .clip(MaterialTheme.shapes.extraSmall),
             )
+            // ANZ <--
         }
         is Extension.Installed -> {
             val icon by extension.getIcon(density)

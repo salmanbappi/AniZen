@@ -177,13 +177,29 @@ object CoverColorObserver {
     /** Hands a stored ratio to the state a composition may already be observing. */
     private fun publishRatio(animeId: Long, ratio: Float) {
         synchronized(ratioStates) {
-            ratioStates[animeId]?.value = ratio
+            val state = ratioStates[animeId] // ANZ
+            if (state != null) {
+                val current = state.value
+                if (current == null || Math.abs(current - ratio) >= 0.01f) {
+                    state.value = ratio
+                }
+            }
         }
     }
 
     /** Hands every hydrated ratio to its state, if one was created before hydration finished. */
     private fun publishRatios(ratios: Map<Long, Float>) {
-        ratios.forEach { (animeId, ratio) -> publishRatio(animeId, ratio) }
+        synchronized(ratioStates) {
+            ratios.forEach { (animeId, ratio) ->
+                val state = ratioStates[animeId]
+                if (state != null) {
+                    val current = state.value
+                    if (current == null || Math.abs(current - ratio) >= 0.01f) {
+                        state.value = ratio
+                    }
+                }
+            }
+        }
     }
     // ANZ <--
 

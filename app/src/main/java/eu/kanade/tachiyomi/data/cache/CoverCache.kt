@@ -30,6 +30,11 @@ class CoverCache(private val context: Context) {
     private val customCoverCacheDir = getCacheDir(CUSTOM_COVERS_DIR)
 
     // ANZ -->
+    private val coverFiles = java.util.concurrent.ConcurrentHashMap.newKeySet<String>().apply {
+        cacheDir.mkdirs()
+        cacheDir.list()?.let { addAll(it) }
+    }
+
     private val customCoverFiles = java.util.concurrent.ConcurrentHashMap.newKeySet<String>().apply {
         customCoverCacheDir.mkdirs() // ANZ
         customCoverCacheDir.list()?.let { addAll(it) }
@@ -38,6 +43,23 @@ class CoverCache(private val context: Context) {
     fun hasCustomCover(animeId: Long?): Boolean { // ANZ
         if (animeId == null) return false
         return customCoverFiles.contains(DiskUtil.hashKeyForDisk(animeId.toString()))
+    }
+
+    fun hasCustomCoverFile(file: File): Boolean { // ANZ
+        return customCoverFiles.contains(file.name)
+    }
+
+    fun hasCover(animeThumbnailUrl: String?): Boolean { // ANZ
+        if (animeThumbnailUrl == null) return false
+        return coverFiles.contains(DiskUtil.hashKeyForDisk(animeThumbnailUrl))
+    }
+
+    fun hasCoverFile(file: File): Boolean { // ANZ
+        return coverFiles.contains(file.name)
+    }
+
+    fun recordCover(file: File) { // ANZ
+        coverFiles.add(file.name)
     }
     // ANZ <--
 
@@ -91,7 +113,12 @@ class CoverCache(private val context: Context) {
         var deleted = 0
 
         getCoverFile(anime.thumbnailUrl)?.let {
-            if (it.exists() && it.delete()) ++deleted
+            if (it.exists() && it.delete()) {
+                // ANZ -->
+                coverFiles.remove(it.name)
+                // ANZ <--
+                ++deleted
+            }
         }
 
         if (deleteCustomCover) {

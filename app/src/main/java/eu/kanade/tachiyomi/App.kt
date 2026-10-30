@@ -163,6 +163,16 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             Injekt.get<eu.kanade.tachiyomi.data.cache.CoverCache>()
             Injekt.get<CustomAnimeRepository>()
 
+            // ANZ -->
+            // Eagerly warm Coil ImageLoader & diskCache so the first scroll frame never
+            // freezes on Okio journal initialization or component registry creation.
+            try { // ANZ
+                val imageLoader = coil3.SingletonImageLoader.get(this@App)
+                imageLoader.diskCache
+            } catch (_: Throwable) {
+            }
+            // ANZ <--
+
             // Warm the cover color/ratio cache so the first library scroll is already
             // smooth instead of extracting + measuring on the fly (KMK).
             CoverColorObserver.load()
