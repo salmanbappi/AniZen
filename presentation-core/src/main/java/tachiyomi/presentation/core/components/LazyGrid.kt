@@ -62,3 +62,48 @@ fun FastScrollLazyVerticalGrid(
         )
     }
 }
+
+// AM -->
+@Composable
+fun FastScrollIrregularLazyVerticalGrid( // ANK
+    columns: GridCells,
+    modifier: Modifier = Modifier,
+    state: LazyGridState = rememberLazyGridState(),
+    thumbAllowed: () -> Boolean = { true },
+    thumbColor: Color = MaterialTheme.colorScheme.primary,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    topContentPadding: Dp = Dp.Hairline,
+    bottomContentPadding: Dp = Dp.Hairline,
+    endContentPadding: Dp = Dp.Hairline,
+    reverseLayout: Boolean = false,
+    verticalArrangement: Arrangement.Vertical =
+        if (!reverseLayout) Arrangement.Top else Arrangement.Bottom,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    userScrollEnabled: Boolean = true,
+    content: LazyGridScope.() -> Unit,
+) {
+    IrregularVerticalGridFastScroller(
+        state = state,
+        columns = columns,
+        arrangement = horizontalArrangement,
+        contentPadding = contentPadding,
+        modifier = modifier,
+        thumbAllowed = thumbAllowed,
+        thumbColor = thumbColor,
+        topContentPadding = if (topContentPadding == Dp.Hairline) contentPadding.calculateTopPadding() else topContentPadding,
+        bottomContentPadding = if (bottomContentPadding == Dp.Hairline) contentPadding.calculateBottomPadding() else bottomContentPadding,
+        endContentPadding = if (endContentPadding == Dp.Hairline) contentPadding.calculateEndPadding(LocalLayoutDirection.current) else endContentPadding,
+    ) {
+        LazyVerticalGrid(
+            columns = columns,
+            state = state,
+            contentPadding = contentPadding,
+            reverseLayout = reverseLayout,
+            verticalArrangement = verticalArrangement,
+            horizontalArrangement = horizontalArrangement,
+            userScrollEnabled = userScrollEnabled,
+            content = content,
+        )
+    }
+}
+// <-- AM

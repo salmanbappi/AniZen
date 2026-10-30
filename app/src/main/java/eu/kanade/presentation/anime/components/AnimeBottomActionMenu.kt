@@ -253,19 +253,21 @@ fun LibraryBottomActionMenu(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             val haptic = LocalHapticFeedback.current
-            val confirm =
+            // ANZ -->
+            val confirm = // ANZ
                 remember {
-                    mutableStateListOf(false, false, false, false, false, false)
+                    mutableStateListOf(false, false, false, false, false)
                 }
             var resetJob: Job? = remember { null }
             val onLongClickItem: (Int) -> Unit = { toConfirmIndex ->
-                (0..5).forEach { i -> confirm[i] = i == toConfirmIndex }
+                confirm.indices.forEach { i -> confirm[i] = i == toConfirmIndex }
                 resetJob?.cancel()
                 resetJob = scope.launch {
                     delay(1.seconds)
                     if (isActive) confirm[toConfirmIndex] = false
                 }
             }
+            // ANZ <--
             Row(
                 modifier = Modifier
                     .windowInsetsPadding(
@@ -298,25 +300,19 @@ fun LibraryBottomActionMenu(
                         )
                     }
                 }
-                BottomMenuButton(
-                    title = stringResource(MR.strings.action_delete),
-                    icon = Icons.Outlined.Delete,
-                    toConfirm = confirm[2],
-                    onLongClick = { onLongClickItem(2) },
-                    onClick = onDeleteClicked,
-                )
+                // ANZ -->
                 BottomMenuButton(
                     title = stringResource(MR.strings.action_mark_as_seen),
                     icon = Icons.Outlined.DoneAll,
-                    toConfirm = confirm[3],
-                    onLongClick = { onLongClickItem(3) },
+                    toConfirm = confirm[2],
+                    onLongClick = { onLongClickItem(2) },
                     onClick = onMarkAsSeenClicked,
                 )
                 BottomMenuButton(
                     title = stringResource(MR.strings.action_mark_as_unseen),
                     icon = Icons.Outlined.RemoveDone,
-                    toConfirm = confirm[4],
-                    onLongClick = { onLongClickItem(4) },
+                    toConfirm = confirm[3],
+                    onLongClick = { onLongClickItem(3) },
                     onClick = onMarkAsUnseenClicked,
                 )
 
@@ -324,8 +320,8 @@ fun LibraryBottomActionMenu(
                 BottomMenuButton(
                     title = stringResource(MR.strings.label_more),
                     icon = Icons.Outlined.MoreVert,
-                    toConfirm = confirm[5],
-                    onLongClick = { onLongClickItem(5) },
+                    toConfirm = confirm[4],
+                    onLongClick = { onLongClickItem(4) },
                     onClick = { overflowMenuOpen = true },
                 ) {
                     DropdownMenu(
@@ -356,6 +352,13 @@ fun LibraryBottomActionMenu(
                             },
                         )
                         DropdownMenuItem(
+                            text = { Text(text = stringResource(MR.strings.action_delete)) },
+                            onClick = {
+                                overflowMenuOpen = false
+                                onDeleteClicked()
+                            },
+                        )
+                        DropdownMenuItem(
                             text = { Text(text = stringResource(MR.strings.action_merge)) },
                             onClick = {
                                 overflowMenuOpen = false
@@ -382,6 +385,7 @@ fun LibraryBottomActionMenu(
                         }
                     }
                 }
+                // ANZ <--
             }
         }
     }
