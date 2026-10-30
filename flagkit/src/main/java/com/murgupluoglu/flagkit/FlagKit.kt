@@ -13,19 +13,26 @@ import java.util.Locale
 
 object FlagKit {
 
+    // ANZ -->
+    private val resIdCache = java.util.concurrent.ConcurrentHashMap<String, Int>() // ANZ
+
     fun getResId(context: Context, flagName: String): Int {
-        return context.resources.getIdentifier(fixResId(flagName), "drawable", context.packageName)
+        val fixed = fixResId(flagName)
+        return resIdCache.getOrPut(fixed) {
+            context.resources.getIdentifier(fixed, "drawable", context.packageName)
+        }
     }
 
     fun getDrawable(context: Context, flagName: String): Drawable? {
-        val resourceId =
-            context.resources.getIdentifier(fixResId(flagName), "drawable", context.packageName)
+        val resourceId = getResId(context, flagName)
+        if (resourceId == 0) return null
         return try {
-            ContextCompat.getDrawable(context, resourceId)!!
+            ContextCompat.getDrawable(context, resourceId)
         } catch (e: Resources.NotFoundException) {
             null
         }
     }
+    // ANZ <--
 
     private fun fixResId(resId: String): String {
         var resourceId = resId.lowercase(Locale.ENGLISH)

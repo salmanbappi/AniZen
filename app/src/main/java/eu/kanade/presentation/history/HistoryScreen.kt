@@ -141,7 +141,14 @@ private fun HistoryScreenContent(
         if (useContainer) {
             items(
                 items = history,
-                key = { "history-${it.hashCode()}" },
+                // ANZ -->
+                key = { // ANZ
+                    when (it) {
+                        is HistoryUiModel.Header -> "history-header-${it.date}"
+                        is HistoryUiModel.Item -> "history-item-${it.item.id}"
+                    }
+                },
+                // ANZ <--
                 contentType = {
                     when (it) {
                         is HistoryUiModel.Header -> "history_header"
@@ -182,8 +189,20 @@ private fun HistoryScreenContent(
         } else {
             items(
                 items = history,
-                key = { "history-${it.hashCode()}" },
-                contentType = { "history" },
+                // ANZ -->
+                key = { // ANZ
+                    when (it) {
+                        is HistoryUiModel.Header -> "history-header-${it.date}"
+                        is HistoryUiModel.Item -> "history-item-${it.item.id}"
+                    }
+                },
+                contentType = {
+                    when (it) {
+                        is HistoryUiModel.Header -> "history_header"
+                        is HistoryUiModel.Item -> "history_item"
+                    }
+                },
+                // ANZ <--
             ) { model ->
                 when (model) {
                     is HistoryUiModel.Header -> {

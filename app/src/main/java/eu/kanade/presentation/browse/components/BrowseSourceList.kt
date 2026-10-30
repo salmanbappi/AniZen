@@ -13,6 +13,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemContentType
+import androidx.paging.compose.itemKey
 import eu.kanade.presentation.library.components.AnimeListItem
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
 import kotlinx.collections.immutable.ImmutableList
@@ -47,11 +49,13 @@ fun BrowseSourceList(
             }
         }
 
+        // ANZ -->
         items(
             count = animeList.itemCount,
-            key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
-            contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
+            key = animeList.itemKey { it.value.id },
+            contentType = animeList.itemContentType { "anime" },
         ) { index ->
+        // ANZ <--
             val animeFlow = animeList[index] ?: return@items
             val anime = animeFlow.value
             onBatchIncrement(index)

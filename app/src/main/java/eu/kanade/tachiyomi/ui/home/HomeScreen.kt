@@ -187,29 +187,34 @@ object HomeScreen : Screen() {
                             }
                         }
                     },
+                    // ANZ -->
                     bottomBar = {
                         if (!isTabletUi()) {
                             LaunchedEffect(Unit) {
                                 showBottomNavEvent.receiveAsFlow().collectLatest { bottomNavVisible = it }
                             }
 
-                            AnimatedVisibility(
-                                visible = bottomNavVisible && isCurrentTabVisible,
-                                enter = slideInVertically { it } + expandVertically(),
-                                exit = slideOutVertically { it } + shrinkVertically(),
+                            val enterExitFraction by animateFloatAsState( // ANZ
+                                targetValue = if (bottomNavVisible && isCurrentTabVisible) 1f else 0f,
+                                animationSpec = tween(durationMillis = 200),
+                                label = "bottomNavAnim",
+                            )
+
+                            NavigationBar(
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = size.height * (1f - enterExitFraction)
+                                },
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             ) {
-                                NavigationBar(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                ) {
-                                    for (navItem in visibleNavItems) {
-                                        key(navItem.id) {
-                                            HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
-                                        }
+                                for (navItem in visibleNavItems) {
+                                    key(navItem.id) {
+                                        HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
                                     }
                                 }
                             }
                         }
                     },
+                    // ANZ <--
                     contentWindowInsets = WindowInsets(0),
                 ) { contentPadding ->
                     Box(

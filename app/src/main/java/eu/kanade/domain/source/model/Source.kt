@@ -8,9 +8,16 @@ import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+// ANZ -->
+private val iconBitmapCache = java.util.concurrent.ConcurrentHashMap<Long, ImageBitmap>() // ANZ
+
 val Source.icon: ImageBitmap?
     get() {
-        return Injekt.get<ExtensionManager>().getAppIconForSource(id)
-            ?.toBitmap()
-            ?.asImageBitmap()
+        return iconBitmapCache.getOrPut(id) {
+            Injekt.get<ExtensionManager>().getAppIconForSource(id)
+                ?.toBitmap()
+                ?.asImageBitmap()
+                ?: return null
+        }
     }
+// ANZ <--

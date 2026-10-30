@@ -326,24 +326,30 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         DiscordRPCService.stop(applicationContext)
     }
 
-    override fun getPackageName(): String {
+    // ANZ -->
+    @Volatile
+    private var chromiumInitialized = false
+    private val spoofedPackageName by lazy { WebViewUtil.spoofedPackageName(this) }
+
+    override fun getPackageName(): String { // ANZ
+        if (chromiumInitialized || Looper.myLooper() != Looper.getMainLooper()) {
+            return super.getPackageName()
+        }
         try {
-            val stackTrace = Looper.getMainLooper().thread.stackTrace
-            val chromiumElement = stackTrace.find {
-                it.className.equals(
-                    "org.chromium.base.BuildInfo",
-                    ignoreCase = true,
-                )
+            val stackTrace = Throwable().stackTrace
+            val checkLimit = minOf(stackTrace.size, 6)
+            for (i in 0 until checkLimit) {
+                val element = stackTrace[i]
+                if (element.className.contains("chromium", ignoreCase = true)) {
+                    chromiumInitialized = true
+                    return spoofedPackageName ?: super.getPackageName()
+                }
             }
-            if (chromiumElement?.methodName.equals("getAll", ignoreCase = true)) {
-                // ANZ -->
-                return WebViewUtil.spoofedPackageName(applicationContext) ?: super.getPackageName()
-                // ANZ <--
-            }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         return super.getPackageName()
     }
+    // ANZ <--
 
     private fun setupNotificationChannels() {
         try {

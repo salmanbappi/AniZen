@@ -184,13 +184,16 @@ class BrowseSourceScreenModel(
     val animePagerFlowFlow = state.map { it.listing }
         .distinctUntilChanged()
         .map { listing ->
+            // ANZ -->
             Pager(
                 PagingConfig(
                     pageSize = 20,
                     prefetchDistance = 5,
                     initialLoadSize = 40,
+                    enablePlaceholders = false,
                 ),
             ) {
+            // ANZ <--
                 getRemoteAnime.subscribe(sourceId, listing.query ?: "", listing.filters)
             }.flow.map { pagingData ->
                 pagingData.map {
