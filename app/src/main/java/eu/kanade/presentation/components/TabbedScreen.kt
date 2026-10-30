@@ -108,8 +108,9 @@ fun TabbedScreen(
                 modifier = Modifier.fillMaxSize(),
                 state = state,
                 verticalAlignment = Alignment.Top,
-            ) { page -> // ANZ
-            // ANZ <--
+            ) { page ->
+                // ANZ
+                // ANZ <--
                 tabs[page].content(
                     PaddingValues(bottom = contentPadding.calculateBottomPadding()),
                     snackbarHostState,
