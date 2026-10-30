@@ -563,11 +563,7 @@ private fun getSwipeAction(
         // AM (FILLERMARK) -->
         LibraryPreferences.EpisodeSwipeAction.ToggleFillermark -> {
             // ANZ -->
-            val icon = if (!fillermark) {
-                fillermarkIcon ?: Icons.Outlined.Bookmark
-            } else {
-                fillermarkBorderIcon ?: Icons.Outlined.Bookmark
-            } // ANZ
+            val icon = (if (!fillermark) fillermarkIcon else fillermarkBorderIcon) ?: Icons.Filled.Bookmark // ANZ
             // ANZ <--
             swipeAction(
                 icon = icon,
