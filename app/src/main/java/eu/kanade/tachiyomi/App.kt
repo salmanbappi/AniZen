@@ -62,7 +62,6 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
-import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
@@ -291,9 +290,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             }
 
             // ANZ -->
-            crossfade(false) // ANZ
+            crossfade(false)
+            allowRgb565(true)
             // ANZ <--
-            allowRgb565(DeviceUtil.isLowRamDevice(this@App))
             if (networkPreferences.verboseLogging().get()) logger(DebugLogger())
 
             memoryCache {

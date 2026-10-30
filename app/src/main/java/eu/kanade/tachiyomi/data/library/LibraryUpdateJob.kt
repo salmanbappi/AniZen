@@ -444,10 +444,11 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             coroutineScope {
                 val imageLoader = coil3.SingletonImageLoader.get(context)
                 newUpdates.forEach { (anime, _) ->
+                    // ANZ -->
                     val request = coil3.request.ImageRequest.Builder(context)
                         .data(anime)
-                        .precision(coil3.size.Precision.INEXACT)
                         .build()
+                    // ANZ <--
                     imageLoader.enqueue(request)
                 }
             }

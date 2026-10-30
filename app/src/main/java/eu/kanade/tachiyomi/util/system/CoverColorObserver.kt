@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.util.system
 
+import androidx.collection.LruCache
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -50,9 +51,9 @@ object CoverColorObserver {
      * had arrived: it kept the book aspect until the cell was recycled and composed again
      * (scroll away, scroll back). One state per id — rather than a single snapshot map —
      * keeps a measurement from invalidating every cover on screen: only the cell whose ratio
-     * changed recomposes.
+     * changed recomposes. Bounded to 500 entries to prevent memory bloat over long sessions.
      */
-    private val ratioStates = ConcurrentHashMap<Long, MutableState<Float?>>()
+    private val ratioStates = LruCache<Long, MutableState<Float?>>(500) // ANZ
     // ANZ <--
 
     /** Version of the cover each cached color/ratio was extracted from. */
@@ -160,26 +161,24 @@ object CoverColorObserver {
      *
      * Composables must read this instead of [ratios] so that a cover measured *after* it was
      * composed — the image has to load first — updates the composable that asked for it.
-     *
-     * Deliberately lock-free: the writer's monitor is also held across a prefs flush, and the
-     * composition thread must never wait behind that.
      */
     fun ratioState(animeId: Long): State<Float?> {
-        ratioStates[animeId]?.let { return it }
+        synchronized(ratioStates) {
+            val existing = ratioStates[animeId]
+            if (existing != null) return existing
 
-        val created = mutableStateOf(_ratios.value[animeId])
-        ratioStates.putIfAbsent(animeId, created)?.let { return it }
-
-        // A measurement can land between the read above and the put: its publish found no state
-        // to write, so pick the value up here. Re-reading after the state is visible closes that
-        // window.
-        _ratios.value[animeId]?.let { created.value = it }
-        return created
+            val created = mutableStateOf(_ratios.value[animeId])
+            ratioStates.put(animeId, created)
+            _ratios.value[animeId]?.let { created.value = it }
+            return created
+        }
     }
 
     /** Hands a stored ratio to the state a composition may already be observing. */
     private fun publishRatio(animeId: Long, ratio: Float) {
-        ratioStates[animeId]?.value = ratio
+        synchronized(ratioStates) {
+            ratioStates[animeId]?.value = ratio
+        }
     }
 
     /** Hands every hydrated ratio to its state, if one was created before hydration finished. */

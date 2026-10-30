@@ -158,6 +158,7 @@ fun AnimeInfoBox(
             anime.backgroundLastModified,
             animatedTransitions,
         ) {
+            // ANZ -->
             ImageRequest.Builder(context)
                 // Prefer the source-provided background image; fall back to the cover.
                 .data(
@@ -167,9 +168,9 @@ fun AnimeInfoBox(
                         anime.asAnimeCover()
                     },
                 )
-                .precision(coil3.size.Precision.INEXACT)
                 .crossfade(animatedTransitions)
                 .build()
+            // ANZ <--
         }
         AsyncImage(
             model = backdropImageRequest,
