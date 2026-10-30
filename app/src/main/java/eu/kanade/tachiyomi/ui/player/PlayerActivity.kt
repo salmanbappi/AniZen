@@ -22,18 +22,6 @@
 
 package eu.kanade.tachiyomi.ui.player
 
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.presentation.theme.DynamicTachiyomiTheme
-import eu.kanade.tachiyomi.animesource.model.HttpServer
-import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
-import eu.kanade.tachiyomi.util.system.CoverColorObserver
-import tachiyomi.domain.anime.model.asAnimeCover
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
-
-
 import android.annotation.SuppressLint
 import android.app.PictureInPictureParams
 import android.content.BroadcastReceiver
@@ -62,6 +50,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -82,8 +71,10 @@ import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.serialize
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.PlayerData
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
@@ -97,6 +88,7 @@ import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.controls.PlayerControls
 import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
+import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
@@ -109,7 +101,6 @@ import `is`.xyz.mpv.MPVNode
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -121,7 +112,6 @@ import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
-
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.Calendar
@@ -134,6 +124,7 @@ class PlayerActivity : BaseActivity() {
     private var httpServer: HttpServer? = null
     internal val viewModel by viewModels<PlayerViewModel>()
     internal val player by lazy { AniyomiMPVView(this, null) }
+
     // ANZ <--
     private val mpv by lazy { viewModel.mpv }
     private val playerObserver by lazy { PlayerObserver(this) }
@@ -147,6 +138,10 @@ class PlayerActivity : BaseActivity() {
     private val audioPreferences: AudioPreferences = Injekt.get()
     private val advancedPlayerPreferences: AdvancedPlayerPreferences = Injekt.get()
     private val subtitlePreferences: SubtitlePreferences = Injekt.get()
+
+    // ANZ -->
+    private val decoderPreferences: DecoderPreferences = Injekt.get()
+    // ANZ <--
 
     // ANK -->
     private val mpvConfig: MpvConfig = Injekt.get()
@@ -294,8 +289,6 @@ class PlayerActivity : BaseActivity() {
         setupPlayerAudio()
         setupMediaSession()
         setupPlayerOrientation()
-
-
 
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             runOnUiThread {
@@ -832,8 +825,10 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Double) {
         if (player.isExiting) return
         when (property) {
-            "display-fps", "override-display-fps" -> PlayerStats.displayFps.value = value
+            // ANZ -->
+            "display-fps" -> if (value > 0.0) PlayerStats.displayFps.value = value
             "estimated-display-fps" -> PlayerStats.estimatedDisplayFps.value = value
+            // ANZ <--
             "mistime" -> PlayerStats.mistime.value = value
             "video-params/aspect" -> {
                 if (isPipSupportedAndEnabled) createPipParams()
@@ -891,7 +886,7 @@ class PlayerActivity : BaseActivity() {
 
     // ANZ -->
     fun createPipParams(isPaused: Boolean? = null): PictureInPictureParams {
-    // ANZ <--
+        // ANZ <--
         val builder = PictureInPictureParams.Builder()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val anime = viewModel.currentAnime.value
@@ -1499,7 +1494,7 @@ class PlayerActivity : BaseActivity() {
 
     // ANZ -->
     private fun changeVideoAspect(aspect: VideoAspect, showUpdate: Boolean = true) {
-    // ANZ <--
+        // ANZ <--
         var ratio = -1.0
         val pan: Double
         when (aspect) {
@@ -1573,7 +1568,8 @@ class PlayerActivity : BaseActivity() {
 
         // aniSkip stuff
         viewModel.viewModelScope.launchIO {
-            if (viewModel.introSkipEnabled && playerPreferences.aniSkipEnabled().get() &&
+            if (viewModel.introSkipEnabled &&
+                playerPreferences.aniSkipEnabled().get() &&
                 !(playerPreferences.disableAniSkipOnChapters().get() && viewModel.getChapterCount() > 0)
             ) {
                 viewModel.aniSkipResponse(viewModel.duration.value)?.let {

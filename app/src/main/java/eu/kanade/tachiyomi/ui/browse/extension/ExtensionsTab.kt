@@ -26,6 +26,7 @@ import eu.kanade.tachiyomi.util.system.isPackageInstalled
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.map
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
@@ -37,7 +38,9 @@ fun extensionsTab(
 
     val updates by extensionsScreenModel.state.map { it.updates }.collectAsStateWithLifecycle(0)
     val actionFilter = stringResource(MR.strings.action_filter)
-    val labelExtensionRepos = stringResource(MR.strings.label_extension_repos)
+    // ANZ -->
+    val labelExtensionRepos = stringResource(AMR.strings.label_extension_stores)
+    // ANZ <--
 
     return remember(updates, actionFilter, labelExtensionRepos) {
         TabContent(
@@ -51,9 +54,9 @@ fun extensionsTab(
                     iconContent = {
                         val nsfwOnly by extensionsScreenModel.state.map { it.nsfwOnly }.collectAsStateWithLifecycle(false)
                         NsfwIcon(
-                            color = if (nsfwOnly) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            color = if (nsfwOnly) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                         )
-                    }
+                    },
                 ),
                 AppBar.OverflowAction(
                     title = actionFilter,
@@ -126,7 +129,9 @@ fun extensionsTab(
                     onTrustExtension = onTrustExtension,
                     onUninstallExtension = onUninstallExtension,
                     onUpdateExtension = extensionsScreenModel::updateExtension,
-                    onRefresh = extensionsScreenModel::findAvailableExtensions,
+                    // ANZ -->
+                    onRefresh = { extensionsScreenModel.findAvailableExtensions(isManual = true) }, // ANZ
+                    // ANZ <--
                 )
 
                 privateExtensionToUninstall?.let { extension ->

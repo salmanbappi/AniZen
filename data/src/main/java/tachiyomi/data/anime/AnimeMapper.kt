@@ -1,9 +1,9 @@
 package tachiyomi.data.anime
 
-import tachiyomi.domain.anime.model.SeasonAnime
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.SeasonAnime
 import tachiyomi.domain.library.model.LibraryAnime
 
 object AnimeMapper {

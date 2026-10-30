@@ -101,9 +101,15 @@ fun Activity.enableHighRefreshRate() {
         if (supportedModes.isEmpty()) return
 
         val currentMode = display.mode
-        val highestRefreshRateMode = supportedModes
-            .filter { it.physicalWidth == currentMode.physicalWidth && it.physicalHeight == currentMode.physicalHeight }
-            .maxByOrNull { it.refreshRate }
+        val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
+        val sameResModes = supportedModes.filter {
+            val modeMax = maxOf(it.physicalWidth, it.physicalHeight)
+            val modeMin = minOf(it.physicalWidth, it.physicalHeight)
+            modeMax == maxDim && modeMin == minDim
+        }.ifEmpty { supportedModes.toList() }
+
+        val highestRefreshRateMode = sameResModes.maxByOrNull { it.refreshRate }
             ?: supportedModes.maxByOrNull { it.refreshRate }
 
         highestRefreshRateMode?.let { mode ->
@@ -131,10 +137,13 @@ fun Activity.enableHighRefreshRate() {
  */
 fun Context.getDisplayRefreshRate(): Float {
     return try {
+        val activity = findActivity()
         val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            display ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+            activity?.display
+                ?: display
+                ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
         } else {
-            val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            val windowManager = activity?.windowManager ?: getSystemService(Context.WINDOW_SERVICE) as? WindowManager
             @Suppress("DEPRECATION")
             windowManager?.defaultDisplay
         }
@@ -144,4 +153,27 @@ fun Context.getDisplayRefreshRate(): Float {
     }
 }
 
-
+// ANZ -->
+/**
+ * Resets the window's preferred refresh rate and display mode back to system default.
+ */
+fun Activity.resetRefreshRate() {
+    try {
+        val window = window ?: return
+        val params = window.attributes
+        var updated = false
+        if (params.preferredDisplayModeId != 0) {
+            params.preferredDisplayModeId = 0
+            updated = true
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != 0f) {
+            params.preferredRefreshRate = 0f
+            updated = true
+        }
+        if (updated) {
+            window.attributes = params
+        }
+    } catch (_: Exception) {
+    }
+}
+// ANZ <--

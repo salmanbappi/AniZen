@@ -3,7 +3,6 @@ package tachiyomi.domain.anime.interactor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.anime.model.CustomAnimeInfo
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.episode.repository.EpisodeRepository

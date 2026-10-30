@@ -32,7 +32,6 @@ import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitleAssOverride
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
-import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPV
@@ -96,7 +95,14 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setVo(if (decoderPreferences.gpuNext().get()) "gpu-next" else "gpu")
         mpv?.setPropertyBoolean("pause", true)
         setSafeOptionString("profile", "fast")
-        mpv?.setOptionString("hwdec", if (decoderPreferences.tryHWDecoding().get()) "auto" else "no")
+        val isSmoothMotion = decoderPreferences.smoothMotion().get()
+        val defaultHwdec = if (decoderPreferences.tryHWDecoding().get()) {
+            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+            if (isSmoothMotion && fpsLimit > 0) "mediacodec-copy" else "mediacodec" // ANZ
+        } else {
+            "no"
+        }
+        mpv?.setOptionString("hwdec", defaultHwdec)
 
         val isHighQuality = decoderPreferences.highQualityScaling().get()
         val scaler = if (isHighQuality) "spline36" else "bilinear"
@@ -106,28 +112,27 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setSafeOptionString("dither", if (isHighQuality) "fruit" else "no")
 
         // ANZ -->
-        val isSmoothMotion = decoderPreferences.smoothMotion().get()
         if (isSmoothMotion) {
-            val detectedRefreshRate = context.getDisplayRefreshRate()
-            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
-
             mpv?.setOptionString("video-sync", "display-resample")
+            mpv?.setOptionString("video-sync-max-audio-change", "0.125")
+            mpv?.setOptionString("video-sync-max-video-change", "1")
             mpv?.setOptionString("interpolation", "yes")
+            mpv?.setOptionString("interpolation-threshold", "-1")
             mpv?.setOptionString("correct-pts", "yes")
             mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
-            mpv?.setOptionString("display-fps", targetFps.toString())
-            mpv?.setOptionString("override-display-fps", targetFps.toString())
             mpv?.setOptionString("gpu-dumb-mode", "no")
         } else {
             mpv?.setOptionString("video-sync", "audio")
+            mpv?.setOptionString("video-sync-max-audio-change", "0.125")
+            mpv?.setOptionString("video-sync-max-video-change", "1")
             mpv?.setOptionString("interpolation", "no")
             mpv?.setOptionString("gpu-dumb-mode", "auto")
         }
         // ANZ <--
 
-        if (decoderPreferences.useYUV420P().get()) {
-            mpv?.setOptionString("vf", "format=yuv420p")
+        val vfChain = buildVFChain(decoderPreferences)
+        if (vfChain.isNotEmpty()) {
+            mpv?.setOptionString("vf", vfChain)
         }
         mpv?.setOptionString("msg-level", "all=" + if (networkPreferences.verboseLogging().get()) "v" else "warn")
 
@@ -190,13 +195,15 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
         // ANZ -->
         if (decoderPreferences.smoothMotion().get()) {
-            val detectedRefreshRate = context.getDisplayRefreshRate()
             val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            val targetFps = if (fpsLimit > 0) fpsLimit.toDouble() else detectedRefreshRate.toDouble()
-
-            mpv?.setPropertyDouble("display-fps", targetFps)
-            mpv?.setPropertyDouble("override-display-fps", targetFps)
+            if (decoderPreferences.tryHWDecoding().get()) {
+                val hwdecMode = if (fpsLimit > 0) "mediacodec-copy" else "mediacodec"
+                mpv?.setPropertyString("hwdec", hwdecMode)
+            }
+            mpv?.setPropertyString("interpolation-threshold", "-1")
             mpv?.setPropertyString("gpu-dumb-mode", "no")
+            val vfChain = buildVFChain(decoderPreferences)
+            mpv?.setPropertyString("vf", vfChain)
         }
         // ANZ <--
     }

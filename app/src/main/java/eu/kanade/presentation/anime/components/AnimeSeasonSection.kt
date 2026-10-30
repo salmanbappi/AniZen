@@ -18,25 +18,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import eu.kanade.presentation.library.components.AnimeComfortableGridItem
+import eu.kanade.domain.ui.UiPreferences
 import kotlinx.collections.immutable.ImmutableList
 import tachiyomi.domain.anime.model.Season
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.Badge
 import tachiyomi.presentation.core.i18n.stringResource
-
-import androidx.compose.runtime.getValue
-import eu.kanade.domain.ui.ContainerStyle
-import eu.kanade.domain.ui.UiPreferences
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.roundToInt
 
 @Composable
 fun AnimeSeasonSection(
@@ -53,7 +50,7 @@ fun AnimeSeasonSection(
     // Intuitive Sorting: Seasons/Movies first (positive/0/-2), then OVAs/ONAs/Specials
     val sortedSeasons = remember(seasons) {
         seasons.sortedWith(
-            compareBy<Season> { 
+            compareBy<Season> {
                 when {
                     it.seasonNumber >= 0 -> 0 // Normal seasons
                     it.seasonNumber == -2.0 -> 1 // Movies
@@ -61,7 +58,7 @@ fun AnimeSeasonSection(
                     it.seasonNumber == -4.0 -> 3 // ONA
                     else -> 4 // Specials
                 }
-            }.thenBy { it.seasonNumber }
+            }.thenBy { it.seasonNumber },
         )
     }
 
@@ -72,43 +69,43 @@ fun AnimeSeasonSection(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.LibraryBooks,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                     Text(
                         text = "Series Seasons",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
                     )
                 }
                 Text(
                     text = "Quickly switch between seasons of this series",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = MaterialTheme.colorScheme.secondary,
                 )
             }
 
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 itemsIndexed(
                     items = sortedSeasons,
-                    key = { _, it -> "anime-season-${it.anime.id}" }
+                    key = { _, it -> "anime-season-${it.anime.id}" },
                 ) { _, season ->
                     SeasonItem(
                         season = season,
-                        onClick = { onSeasonClick(season.anime.id) }
+                        onClick = { onSeasonClick(season.anime.id) },
                     )
                 }
             }
@@ -130,7 +127,7 @@ fun AnimeSeasonSection(
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp)
+                .padding(vertical = 8.dp),
         ) {
             content()
         }
@@ -166,7 +163,7 @@ private fun SeasonItem(
         } else {
             fullTitle
         }
-        
+
         when (seasonNum) {
             -2.0 -> if (subtitle.contains("Movie", ignoreCase = true)) subtitle else "Movie: $subtitle"
             -3.0 -> if (subtitle.contains("OVA", ignoreCase = true)) subtitle else "OVA: $subtitle"
@@ -183,7 +180,7 @@ private fun SeasonItem(
         modifier = Modifier
             .width(width)
             .clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         androidx.compose.foundation.layout.Box {
             entry(
@@ -192,7 +189,7 @@ private fun SeasonItem(
                 modifier = Modifier.fillMaxWidth(),
                 ratio = ratio,
             )
-            
+
             if (season.isPrimary) {
                 tachiyomi.presentation.core.components.BadgeGroup(
                     modifier = Modifier
@@ -202,7 +199,7 @@ private fun SeasonItem(
                     Badge(
                         text = stringResource(MR.strings.selected),
                         color = MaterialTheme.colorScheme.primary,
-                        textColor = MaterialTheme.colorScheme.onPrimary
+                        textColor = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
             }

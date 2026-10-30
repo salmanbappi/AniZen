@@ -1,15 +1,10 @@
 package eu.kanade.presentation.more.settings.screen.about
 
 import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
@@ -25,7 +21,8 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.LogoHeader
-import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
+import eu.kanade.presentation.more.components.MoreItem
+import eu.kanade.presentation.more.components.MoreSection
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.BuildConfig
@@ -40,7 +37,6 @@ import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.toast
-import eu.kanade.tachiyomi.util.system.updaterEnabled
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.withIOContext
@@ -49,7 +45,6 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
-import tachiyomi.presentation.core.components.LinkIcon
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -61,14 +56,6 @@ import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-
-import androidx.compose.material3.MaterialTheme
-import eu.kanade.presentation.more.components.MoreItem
-import eu.kanade.presentation.more.components.MoreSection
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.ui.graphics.Color
 
 object AboutScreen : Screen() {
     private fun readResolve(): Any = AboutScreen
@@ -99,12 +86,12 @@ object AboutScreen : Screen() {
                     scrollBehavior = scrollBehavior,
                 )
             },
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = MaterialTheme.colorScheme.background,
         ) { contentPadding ->
             ScrollbarLazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
                     LogoHeader()
@@ -243,14 +230,14 @@ object AboutScreen : Screen() {
                             subtitle = "Join our community",
                             icon = CustomIcons.Discord,
                             iconTint = Color(0xFF5865F2),
-                            onClick = { uriHandler.openUri("https://discord.gg/J2wmZqEJnS") }
+                            onClick = { uriHandler.openUri("https://discord.gg/J2wmZqEJnS") },
                         )
                         MoreItem(
                             title = "GitHub",
                             subtitle = "Source code",
                             icon = CustomIcons.Github,
                             iconTint = MaterialTheme.colorScheme.onSurface,
-                            onClick = { uriHandler.openUri("https://github.com/salmanbappi/AniZen") }
+                            onClick = { uriHandler.openUri("https://github.com/salmanbappi/AniZen") },
                         )
                     }
                 }

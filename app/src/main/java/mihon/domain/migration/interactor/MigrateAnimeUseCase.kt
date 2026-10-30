@@ -1,9 +1,8 @@
 package mihon.domain.migration.interactor
 
-import eu.kanade.domain.episode.interactor.SyncEpisodesWithSource
 import eu.kanade.domain.anime.interactor.UpdateAnime
 import eu.kanade.domain.anime.model.hasCustomCover
-import tachiyomi.domain.anime.model.toSAnime
+import eu.kanade.domain.episode.interactor.SyncEpisodesWithSource
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -11,6 +10,9 @@ import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import kotlinx.coroutines.CancellationException
 import mihon.domain.migration.models.MigrationFlag
+import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.AnimeUpdate
+import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
@@ -19,14 +21,10 @@ import tachiyomi.domain.episode.model.toEpisodeUpdate
 import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.history.interactor.UpsertHistory
 import tachiyomi.domain.history.model.HistoryUpdate
-import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.anime.model.AnimeUpdate
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.InsertTrack
 import java.time.Instant
-import java.util.Date
-import kotlin.reflect.KProperty
 
 class MigrateAnimeUseCase(
     private val sourcePreferences: SourcePreferences,
@@ -89,10 +87,6 @@ class MigrateAnimeUseCase(
                     else -> null
                 }
 
-
-
-
-
                 val historyUpdates = mutableListOf<HistoryUpdate>()
                 val prevHistoryList = getHistory.await(current.id)
                     .associateBy { it.episodeId }
@@ -116,8 +110,7 @@ class MigrateAnimeUseCase(
                                     prevHistory.watchDuration,
                                 )
                             }
-                        }
-                        else if (maxEpisodeSeen != null && updatedEpisode.episodeNumber <= maxEpisodeSeen) {
+                        } else if (maxEpisodeSeen != null && updatedEpisode.episodeNumber <= maxEpisodeSeen) {
                             updatedEpisode = updatedEpisode.copy(seen = true)
                         }
                     }

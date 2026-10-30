@@ -1,7 +1,7 @@
 package mihon.feature.airingschedule.util
 
 import mihon.feature.airingschedule.AiringScheduleEntry
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections.synchronizedMap
 
 /**
  * Utility for robust title matching between library anime and schedule entries.
@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 object ScheduleTitleMatcher {
 
     /** Safety valve for the normalized-key memo cache; far above any realistic title count. */
-    private const val MAX_CACHED_TITLES = 10_000
+    private const val MAX_CACHED_TITLES = 2_000
 
     private val SMART_SINGLE_QUOTES = Regex("[’‘`´]")
     private val SMART_DOUBLE_QUOTES = Regex("[“”„«»]")
@@ -79,26 +79,32 @@ object ScheduleTitleMatcher {
     )
 
     /**
-     * Memoized normalized keys for a title, keyed by the raw title string.
+     * Bounded LRU cache of normalized title keys, keyed by raw title strings.
      *
-     * Normalization runs ~15 regex passes and allocates a set of derived variants per call,
-     * and the schedule's merge / filter / grouping pipelines call it repeatedly for the same
-     * recurring titles — every weekly entry of a show contributes identical title strings,
-     * and each streamed AniList page re-merges the full accumulated set. Distinct titles are
-     * bounded by the library size plus the airing-window catalog, so the cache stays small;
-     * the size guard is only a safety valve against pathological inputs.
+     * Title normalization executes ~15 regex passes per invocation. This cache
+     * memoizes computed sets for recurring schedule and library entries while
+     * automatically evicting least-recently-used titles once [MAX_CACHED_TITLES]
+     * is reached, preventing both memory leaks and abrupt total-purge performance cliffs.
      */
-    private val normalizedKeyCache = ConcurrentHashMap<String, Set<String>>(512)
+    private val normalizedKeyCache: MutableMap<String, Set<String>> = synchronizedMap(
+        object : LinkedHashMap<String, Set<String>>(256, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Set<String>>?): Boolean {
+                return size > MAX_CACHED_TITLES
+            }
+        },
+    )
 
     /**
-     * Produces normalized variants of a title for robust matching.
-     * All returned keys are lowercase, stripped of noise tags, and normalized for whitespace/punctuation.
+     * Retrieves or computes the normalized matching variants for a given [title].
+     *
+     * Returns a set of lowercase keys stripped of parenthetical media tags and
+     * standardized for whitespace, punctuation, and season notation.
+     * Results are served from the bounded LRU cache whenever available.
      */
     fun normalizedKeys(title: String?): Set<String> {
         if (title.isNullOrBlank()) return emptySet()
         normalizedKeyCache[title]?.let { return it }
         val computed = computeNormalizedKeys(title)
-        if (normalizedKeyCache.size >= MAX_CACHED_TITLES) normalizedKeyCache.clear()
         normalizedKeyCache[title] = computed
         return computed
     }
@@ -221,8 +227,11 @@ object ScheduleTitleMatcher {
         return entries.firstOrNull { entry ->
             val candidates = candidateTitlesFromEntry(entry)
             candidates.any { candidate ->
-                if (animeTitle.equals(candidate, ignoreCase = true)) true
-                else normalizedKeys(candidate).any { it in targetKeys }
+                if (animeTitle.equals(candidate, ignoreCase = true)) {
+                    true
+                } else {
+                    normalizedKeys(candidate).any { it in targetKeys }
+                }
             }
         }
     }

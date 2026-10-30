@@ -35,17 +35,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.presentation.core.components.SkeletonItem
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import tachiyomi.domain.anime.model.AnimeCover as DomainMangaCover
 
 enum class AnimeCover(val ratio: Float) {
@@ -147,13 +142,9 @@ enum class AnimeCover(val ratio: Float) {
                 ),
         ) {
             AsyncImage(
-                model = remember(data, animatedTransitions) {
-                    ImageRequest.Builder(context)
-                        .data(data)
-                        .precision(coil3.size.Precision.INEXACT)
-                        .crossfade(animatedTransitions)
-                        .build()
-                },
+                // ANZ -->
+                model = data, // ANZ
+                // ANZ <--
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxSize()
@@ -271,13 +262,9 @@ enum class AnimeCover(val ratio: Float) {
             }
 
             AsyncImage(
-                model = remember(data, animatedTransitions) {
-                    ImageRequest.Builder(context)
-                        .data(data)
-                        .precision(coil3.size.Precision.INEXACT)
-                        .crossfade(animatedTransitions)
-                        .build()
-                },
+                // ANZ -->
+                model = data, // ANZ
+                // ANZ <--
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxSize()

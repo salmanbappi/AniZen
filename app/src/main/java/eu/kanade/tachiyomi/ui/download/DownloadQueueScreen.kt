@@ -218,7 +218,7 @@ data object DownloadQueueScreen : Screen {
         animeDownloadList: List<DownloadHeaderItem>,
     ) {
         val alwaysUseInternal by animeScreenModel.alwaysUseInternalDownloader.collectAsState()
-        
+
         if (animeDownloadList.isNotEmpty()) {
             var sortExpanded by remember { mutableStateOf(false) }
             val onDismissRequest = { sortExpanded = false }

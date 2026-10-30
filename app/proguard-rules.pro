@@ -1,9 +1,10 @@
-# R8 Optimization Flags
--optimizationpasses 5
--allowaccessmodification
--repackageclasses ''
+-dontobfuscate
 
 # ANZ -->
+# Jetpack Compose and Material 3 (prevent R8 wide-register allocator clobber b/573664753)
+-keep class androidx.compose.material3.** { *; }
+-dontwarn androidx.compose.material3.**
+
 # Extension ABI: keep Hoster/Video constructors + copy() overloads.
 # -keep on eu.kanade.** keeps classes, not members; R8 may strip the
 # HIDDEN lib-compat secondary constructors (only called by extension APKs
@@ -20,8 +21,6 @@
 
 # Protect extension compatibility classes
 -keep class **$DefaultImpls { *; }
-
-#-dontobfuscate
 
 -keep,allowoptimization class eu.kanade.**
 -keep,allowoptimization class tachiyomi.**

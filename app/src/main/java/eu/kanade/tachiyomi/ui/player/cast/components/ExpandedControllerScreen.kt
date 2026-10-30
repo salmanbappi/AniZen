@@ -767,7 +767,7 @@ private fun QueueDialog(
 
                     itemsIndexed(
                         items = queueItems.filter { it.itemId != client?.currentItem?.itemId },
-                        key = { index, item -> "queue-$index-${item.itemId}" }
+                        key = { index, item -> "queue-$index-${item.itemId}" },
                     ) { index, item ->
                         ExpandedControllerQueueItem(
                             item = item,
@@ -968,7 +968,7 @@ private fun TracksSelectionDialog(
 
                     itemsIndexed(
                         items = subtitleTracks,
-                        key = { index, it -> "sub-${it.id}-$index" }
+                        key = { index, it -> "sub-${it.id}-$index" },
                     ) { _, track ->
                         TrackItem(
                             track = track,
@@ -1001,7 +1001,7 @@ private fun TracksSelectionDialog(
 
                     itemsIndexed(
                         items = audioTracks,
-                        key = { index, it -> "audio-${it.id}-$index" }
+                        key = { index, it -> "audio-${it.id}-$index" },
                     ) { _, track ->
                         TrackItem(
                             track = track,

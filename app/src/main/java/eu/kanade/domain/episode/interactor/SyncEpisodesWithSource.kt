@@ -1,7 +1,6 @@
 package eu.kanade.domain.episode.interactor
 
 import eu.kanade.domain.anime.interactor.UpdateAnime
-import tachiyomi.domain.anime.model.toSAnime
 import eu.kanade.domain.episode.model.copyFromSEpisode
 import eu.kanade.domain.episode.model.toSEpisode
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -12,6 +11,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import tachiyomi.data.episode.EpisodeSanitizer
 import tachiyomi.data.source.NoResultsException
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
 import tachiyomi.domain.episode.interactor.ShouldUpdateDbEpisode
 import tachiyomi.domain.episode.interactor.UpdateEpisode

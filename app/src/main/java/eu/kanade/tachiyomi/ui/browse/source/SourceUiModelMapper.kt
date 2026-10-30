@@ -23,12 +23,12 @@ class SourceUiModelMapper(
         val sourceLangString = LocaleHelper.getSourceDisplayName(source.lang, context)
         val nameLower = source.name.lowercase()
         val isBdix = false
-        
+
         val sourceClass = source.javaClass.simpleName
-        val isApi = nameLower.contains("api") || 
-                    nameLower.contains("json") || 
-                    sourceClass.contains("Api") || 
-                    sourceClass.contains("Json")
+        val isApi = nameLower.contains("api") ||
+            nameLower.contains("json") ||
+            sourceClass.contains("Api") ||
+            sourceClass.contains("Json")
 
         val secondaryText = buildString {
             append(sourceLangString)

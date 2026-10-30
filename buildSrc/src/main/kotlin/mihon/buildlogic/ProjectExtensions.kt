@@ -61,9 +61,8 @@ internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, 
         compilerOptions {
             jvmTarget.set(AndroidConfig.JvmTarget)
             freeCompilerArgs.addAll(
-                "-Xcontext-receivers",
+                "-Xcontext-parameters",
                 "-opt-in=kotlin.RequiresOptIn",
-                "-Xjvm-default=all-compatibility",
             )
 
             // Treat all Kotlin warnings as errors (disabled by default)
@@ -93,7 +92,9 @@ internal fun Project.configureCompose(commonExtension: CommonExtension<*, *, *, 
     }
 
     extensions.configure<ComposeCompilerGradlePluginExtension> {
-        featureFlags.set(setOf(ComposeFeatureFlag.OptimizeNonSkippingGroups))
+        // ANZ -->
+        featureFlags.add(ComposeFeatureFlag.OptimizeNonSkippingGroups)
+        // ANZ <--
 
         val enableMetrics = project.providers.gradleProperty("enableComposeCompilerMetrics").orNull.toBoolean()
         val enableReports = project.providers.gradleProperty("enableComposeCompilerReports").orNull.toBoolean()

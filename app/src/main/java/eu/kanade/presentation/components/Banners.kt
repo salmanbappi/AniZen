@@ -146,7 +146,7 @@ fun AppStateBanners(
 @Composable
 private fun LibraryUpdateBanner(
     progress: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
     Row(
@@ -156,7 +156,7 @@ private fun LibraryUpdateBanner(
             .padding(8.dp)
             .then(modifier),
         horizontalArrangement = Arrangement.Center,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         var textHeight by remember { mutableStateOf(0.dp) }
         CircularProgressIndicator(

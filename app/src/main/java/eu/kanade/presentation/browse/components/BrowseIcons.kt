@@ -1,6 +1,8 @@
 package eu.kanade.presentation.browse.components
 
+import android.content.Context
 import android.util.DisplayMetrics
+import androidx.collection.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -22,13 +24,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import coil3.compose.AsyncImage
 import eu.kanade.domain.source.model.icon
-import eu.kanade.presentation.util.rememberResourceBitmapPainter
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
@@ -40,12 +41,13 @@ private val defaultModifier = Modifier
     .height(40.dp)
     .aspectRatio(1f)
 
+// ANZ -->
 @Composable
 fun SourceIcon(
     source: Source,
     modifier: Modifier = Modifier,
 ) {
-    val icon = source.icon
+    val icon = source.icon // ANZ
 
     when {
         source.isStub && icon == null -> {
@@ -79,6 +81,7 @@ fun SourceIcon(
         }
     }
 }
+// ANZ <--
 
 @Composable
 fun ExtensionIcon(
@@ -88,16 +91,20 @@ fun ExtensionIcon(
 ) {
     when (extension) {
         is Extension.Available -> {
+            // ANZ -->
+            val context = LocalContext.current
             AsyncImage(
                 model = extension.iconUrl,
                 contentDescription = null,
                 placeholder = ColorPainter(Color(0x1F888888)),
-                error = rememberResourceBitmapPainter(id = R.drawable.cover_error),
+                error = eu.kanade.presentation.anime.components.CoverErrorPainter.get(context),
                 modifier = modifier
                     .clip(MaterialTheme.shapes.extraSmall),
             )
+            // ANZ <--
         }
         is Extension.Installed -> {
+            // ANZ -->
             val icon by extension.getIcon(density)
             when (icon) {
                 is Result.Loading -> Box(modifier = modifier)
@@ -106,12 +113,17 @@ fun ExtensionIcon(
                     contentDescription = null,
                     modifier = modifier,
                 )
-                is Result.Error -> Image(
-                    bitmap = ImageBitmap.imageResource(id = R.mipmap.ic_default_source),
-                    contentDescription = null,
-                    modifier = modifier,
-                )
+                is Result.Error -> {
+                    val context = LocalContext.current
+                    val defaultBitmap = remember(context) { getDefaultSourceBitmap(context) }
+                    Image(
+                        bitmap = defaultBitmap,
+                        contentDescription = null,
+                        modifier = modifier,
+                    )
+                }
             }
+            // ANZ <--
         }
         is Extension.Untrusted -> Image(
             imageVector = Icons.Filled.Dangerous,
@@ -122,20 +134,30 @@ fun ExtensionIcon(
     }
 }
 
-private val iconCache = androidx.collection.LruCache<String, ImageBitmap>(250)
+// ANZ -->
+private val iconCache = LruCache<String, Result<ImageBitmap>>(250)
+
+@Volatile
+private var defaultSourceBitmap: ImageBitmap? = null
+
+private fun getDefaultSourceBitmap(context: Context): ImageBitmap {
+    return defaultSourceBitmap ?: synchronized(iconCache) {
+        defaultSourceBitmap ?: ContextCompat.getDrawable(context, R.mipmap.ic_default_source)!!
+            .toBitmap()
+            .asImageBitmap()
+            .also { defaultSourceBitmap = it }
+    }
+}
 
 @Composable
 private fun Extension.getIcon(density: Int = DisplayMetrics.DENSITY_DEFAULT): State<Result<ImageBitmap>> {
-    val cached = iconCache[pkgName]
-    if (cached != null) {
-        return remember(pkgName) { androidx.compose.runtime.mutableStateOf(Result.Success(cached)) }
-    }
     val context = LocalContext.current
-    return produceState<Result<ImageBitmap>>(initialValue = Result.Loading, this) {
+    return produceState<Result<ImageBitmap>>(initialValue = iconCache[pkgName] ?: Result.Loading, pkgName) {
+        if (value !is Result.Loading) return@produceState
         withIOContext {
             val fromCache = iconCache[pkgName]
             if (fromCache != null) {
-                value = Result.Success(fromCache)
+                value = fromCache
                 return@withIOContext
             }
             value = try {
@@ -144,17 +166,22 @@ private fun Extension.getIcon(density: Int = DisplayMetrics.DENSITY_DEFAULT): St
                 val bitmap = appResources.getDrawableForDensity(appInfo.icon, density, null)!!
                     .toBitmap()
                     .asImageBitmap()
-                iconCache.put(pkgName, bitmap)
-                Result.Success(bitmap)
+                val result = Result.Success(bitmap)
+                iconCache.put(pkgName, result)
+                result
             } catch (e: Exception) {
+                iconCache.put(pkgName, Result.Error)
                 Result.Error
             }
         }
     }
 }
+// ANZ <--
 
-sealed class Result<out T> {
-    data object Loading : Result<Nothing>()
-    data object Error : Result<Nothing>()
-    data class Success<out T>(val value: T) : Result<T>()
+// ANZ -->
+sealed class Result<out T> { // ANZ
+    data object Loading : Result<Nothing>() // ANZ
+    data object Error : Result<Nothing>() // ANZ
+    data class Success<out T>(val value: T) : Result<T>() // ANZ
 }
+// ANZ <--

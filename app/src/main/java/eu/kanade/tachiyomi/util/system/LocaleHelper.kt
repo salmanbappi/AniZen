@@ -47,6 +47,9 @@ object LocaleHelper {
         return Locale.forLanguageTag(normalizedLang).displayName
     }
 
+    // ANZ -->
+    private val displayNameCache = java.util.concurrent.ConcurrentHashMap<String, String>() // ANZ
+
     /**
      * Returns display name of a string language code.
      *
@@ -56,15 +59,17 @@ object LocaleHelper {
         if (lang == null) {
             return ""
         }
-
-        val locale = when (lang) {
-            "" -> LocaleListCompat.getAdjustedDefault()[0]
-            "zh-CN" -> Locale.forLanguageTag("zh-Hans")
-            "zh-TW" -> Locale.forLanguageTag("zh-Hant")
-            else -> Locale.forLanguageTag(lang)
+        return displayNameCache.getOrPut(lang) {
+            val locale = when (lang) {
+                "" -> LocaleListCompat.getAdjustedDefault()[0]
+                "zh-CN" -> Locale.forLanguageTag("zh-Hans")
+                "zh-TW" -> Locale.forLanguageTag("zh-Hant")
+                else -> Locale.forLanguageTag(lang)
+            }
+            locale?.getDisplayName(locale)?.replaceFirstChar { it.uppercase(locale) } ?: ""
         }
-        return locale!!.getDisplayName(locale).replaceFirstChar { it.uppercase(locale) }
     }
+    // ANZ <--
 
     /**
      * Return the default languages enabled for the sources.

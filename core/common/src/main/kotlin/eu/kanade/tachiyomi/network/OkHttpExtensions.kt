@@ -69,7 +69,7 @@ fun Call.asObservableSuccess(): Observable<Response> {
 
 // Based on https://github.com/gildor/kotlin-coroutines-okhttp
 @OptIn(ExperimentalCoroutinesApi::class)
-private suspend fun Call.await(callStack: Array<StackTraceElement>): Response {
+suspend fun Call.await(): Response {
     return suspendCancellableCoroutine { continuation ->
         val callback =
             object : Callback {
@@ -82,8 +82,7 @@ private suspend fun Call.await(callStack: Array<StackTraceElement>): Response {
                 override fun onFailure(call: Call, e: IOException) {
                     // Don't bother with resuming the continuation if it is already cancelled.
                     if (continuation.isCancelled) return
-                    val exception = IOException(e.message, e).apply { stackTrace = callStack }
-                    continuation.resumeWithException(exception)
+                    continuation.resumeWithException(e)
                 }
             }
 
@@ -99,20 +98,14 @@ private suspend fun Call.await(callStack: Array<StackTraceElement>): Response {
     }
 }
 
-suspend fun Call.await(): Response {
-    val callStack = Exception().stackTrace.run { copyOfRange(1, size) }
-    return await(callStack)
-}
-
 /**
  * @since extensions-lib 1.5
  */
 suspend fun Call.awaitSuccess(): Response {
-    val callStack = Exception().stackTrace.run { copyOfRange(1, size) }
-    val response = await(callStack)
+    val response = await()
     if (!response.isSuccessful) {
         response.close()
-        throw HttpException(response.code).apply { stackTrace = callStack }
+        throw HttpException(response.code)
     }
     return response
 }
@@ -132,18 +125,20 @@ fun OkHttpClient.newCachelessCallWithProgress(request: Request, listener: Progre
     return progressClient.newCall(request)
 }
 
-context(Json)
+// ANZ -->
+context(json: Json) // ANZ
 inline fun <reified T> Response.parseAs(): T {
     return decodeFromJsonResponse(serializer(), this)
 }
+// ANZ <--
 
-context(Json)
+context(json: Json)
 fun <T> decodeFromJsonResponse(
     deserializer: DeserializationStrategy<T>,
     response: Response,
 ): T {
     return response.body.source().use {
-        decodeFromBufferedSource(deserializer, it)
+        json.decodeFromBufferedSource(deserializer, it)
     }
 }
 

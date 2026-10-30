@@ -6,21 +6,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.Panorama
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.PreviewLightDark
-import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import eu.kanade.domain.ui.ContainerStyle
 import eu.kanade.domain.ui.UiPreferences
@@ -32,7 +26,6 @@ import eu.kanade.presentation.components.PanoramaModeToggle
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.history.components.HistoryItem
-import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.tachiyomi.ui.history.HistoryScreenModel
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.domain.history.model.HistoryWithRelations
@@ -44,10 +37,9 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.time.LocalDate
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 @Composable
 fun HistoryScreen(
@@ -149,7 +141,15 @@ private fun HistoryScreenContent(
         if (useContainer) {
             items(
                 items = history,
-                key = { "history-${it.hashCode()}" },
+                // ANZ -->
+                key = {
+                    // ANZ
+                    when (it) {
+                        is HistoryUiModel.Header -> "history-header-${it.date}"
+                        is HistoryUiModel.Item -> "history-item-${it.item.id}"
+                    }
+                },
+                // ANZ <--
                 contentType = {
                     when (it) {
                         is HistoryUiModel.Header -> "history_header"
@@ -190,8 +190,21 @@ private fun HistoryScreenContent(
         } else {
             items(
                 items = history,
-                key = { "history-${it.hashCode()}" },
-                contentType = { "history" },
+                // ANZ -->
+                key = {
+                    // ANZ
+                    when (it) {
+                        is HistoryUiModel.Header -> "history-header-${it.date}"
+                        is HistoryUiModel.Item -> "history-item-${it.item.id}"
+                    }
+                },
+                contentType = {
+                    when (it) {
+                        is HistoryUiModel.Header -> "history_header"
+                        is HistoryUiModel.Item -> "history_item"
+                    }
+                },
+                // ANZ <--
             ) { model ->
                 when (model) {
                     is HistoryUiModel.Header -> {

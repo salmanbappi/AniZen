@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -16,6 +15,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemContentType
+import androidx.paging.compose.itemKey
 import eu.kanade.presentation.library.components.AnimeComfortableGridItem
 import eu.kanade.presentation.library.components.CommonAnimeItemDefaults
 import kotlinx.collections.immutable.ImmutableList
@@ -53,20 +54,22 @@ fun BrowseSourceComfortableGrid(
             }
         }
 
+        // ANZ -->
         items(
             count = animeList.itemCount,
-            key = { index -> animeList.peek(index)?.value?.id ?: "placeholder-$index" },
-            contentType = { index -> if (animeList.peek(index) != null) "anime" else "placeholder" },
+            key = animeList.itemKey { it.value.id },
+            contentType = animeList.itemContentType { "anime" },
         ) { index ->
+            // ANZ <--
             val animeFlow = animeList[index] ?: return@items
             val anime = animeFlow.value
             onBatchIncrement(index)
-            
-            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) { 
-                { onAnimeClick(anime, index) } 
+
+            val currentOnAnimeClick = remember(onAnimeClick, anime.id, index) {
+                { onAnimeClick(anime, index) }
             }
-            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) { 
-                { onAnimeLongClick(anime, index) } 
+            val currentOnAnimeLongClick = remember(onAnimeLongClick, anime.id, index) {
+                { onAnimeLongClick(anime, index) }
             }
 
             val topRowThreshold = if (columnsCount > 0) columnsCount else 6
@@ -78,9 +81,9 @@ fun BrowseSourceComfortableGrid(
                         }
                     } else {
                         Modifier
-                    }
+                    },
                 )
-            
+
             BrowseSourceComfortableGridItem(
                 anime = anime,
                 isFavorite = anime.id in favoriteIds,

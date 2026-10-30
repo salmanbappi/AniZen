@@ -62,5 +62,4 @@ class TrackEpisode(
                 .forEach { logcat(LogPriority.INFO, it) }
         }
     }
-
 }

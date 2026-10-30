@@ -394,7 +394,7 @@ fun PlayerButton.getIcon(): ImageVector = when (this) {
     PlayerButton.CustomButton -> Icons.Outlined.TouchApp
 }
 
-val allPlayerButtons = PlayerButton.entries.filter { 
+val allPlayerButtons = PlayerButton.entries.filter {
     it != PlayerButton.BackArrow && it != PlayerButton.VideoTitle
 }
 

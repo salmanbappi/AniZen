@@ -22,4 +22,10 @@ class NetworkPreferences(
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
         )
     }
+
+    // ANZ -->
+    fun redactSensitiveHeaders(): Preference<Boolean> {
+        return preferenceStore.getBoolean("pref_redact_sensitive_headers", true)
+    }
+    // ANZ <--
 }

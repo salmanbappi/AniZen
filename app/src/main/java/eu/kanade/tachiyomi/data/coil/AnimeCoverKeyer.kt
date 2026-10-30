@@ -23,13 +23,15 @@ class AnimeKeyer : Keyer<DomainAnime> {
 class AnimeCoverKeyer(
     private val coverCache: CoverCache = Injekt.get(),
 ) : Keyer<AnimeCover> {
+    // ANZ -->
     override fun key(data: AnimeCover, options: Options): String {
-        return if (coverCache.getCustomCoverFile(data.animeId).exists()) {
+        return if (coverCache.hasCustomCover(data.animeId)) {
             "${data.animeId};${data.lastModified}"
         } else {
             "${data.url};${data.lastModified}"
         }
     }
+    // ANZ <--
 }
 
 class AnimeBackgroundKeyer : Keyer<AnimeBackground> {

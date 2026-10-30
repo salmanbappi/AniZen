@@ -25,6 +25,10 @@ interface ExtensionRepoRepository {
         author: String? = null,
         discord: String? = null,
         icon: String? = null,
+        // ANZ -->
+        isLegacy: Boolean = true,
+        extensionListUrl: String? = null,
+        // ANZ <--
     )
 
     suspend fun upsertRepo(
@@ -37,6 +41,10 @@ interface ExtensionRepoRepository {
         author: String? = null,
         discord: String? = null,
         icon: String? = null,
+        // ANZ -->
+        isLegacy: Boolean = true,
+        extensionListUrl: String? = null,
+        // ANZ <--
     )
 
     suspend fun upsertRepo(repo: ExtensionRepo) {
@@ -50,6 +58,10 @@ interface ExtensionRepoRepository {
             author = repo.author,
             discord = repo.discord,
             icon = repo.icon,
+            // ANZ -->
+            isLegacy = repo.isLegacy,
+            extensionListUrl = repo.extensionListUrl,
+            // ANZ <--
         )
     }
 

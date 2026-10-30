@@ -26,7 +26,6 @@ import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
-import tachiyomi.source.localanime.LocalAnimeSource
 import tachiyomi.source.localanime.io.Archive
 import tachiyomi.source.localanime.io.LocalAnimeSourceFileSystem
 import tachiyomi.source.localanime.isLocal
@@ -201,7 +200,8 @@ class DownloadManager(
                 }
         }
 
-        if (files.isEmpty()) {            throw Exception(context.stringResource(MR.strings.video_list_empty_error))
+        if (files.isEmpty()) {
+            throw Exception(context.stringResource(MR.strings.video_list_empty_error))
         }
 
         val file = files[0]
@@ -539,7 +539,7 @@ class DownloadManager(
                             } else {
                                 kotlinx.coroutines.flow.emptyFlow()
                             }
-                        }
+                        },
                     )
                 }
                 .merge()

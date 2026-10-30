@@ -12,8 +12,6 @@ import androidx.core.app.NotificationManagerCompat
 import coil3.asDrawable
 import coil3.imageLoader
 import coil3.request.ImageRequest
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
 import eu.kanade.presentation.util.formatEpisodeNumber
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
@@ -357,7 +355,7 @@ class LibraryUpdateNotifier(
             .toSet()
 
         val count = episodes.size
-        
+
         return if (displayableEpisodeNumbers.isEmpty()) {
             context.resources.getQuantityString(R.plurals.notification_episodes_generic, count, count)
         } else {

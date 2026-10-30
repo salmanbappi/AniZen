@@ -2,13 +2,16 @@ package eu.kanade.tachiyomi.ui.trackerimport
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -16,14 +19,9 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.ZeroCornerSize
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Switch
 import androidx.compose.material.icons.outlined.FindReplace
 import androidx.compose.material.icons.outlined.FlipToBack
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -33,9 +31,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.surfaceColorAtElevation
@@ -90,12 +90,12 @@ class TrackerImportScreen(val trackerId: Long) : Screen() {
                 text = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         CircularProgressIndicator()
                         Text(text = "Preparing migration...")
                     }
-                }
+                },
             )
         }
 
@@ -127,7 +127,7 @@ class TrackerImportScreen(val trackerId: Long) : Screen() {
                     onFailure = { error ->
                         isImporting = false
                         context.toast(error.message ?: "Failed to import")
-                    }
+                    },
                 )
             },
             onToggleStatusFilter = screenModel::toggleStatusFilter,
@@ -184,7 +184,7 @@ fun TrackerImportScreen(
                             )
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                             .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.Center,
                     ) {
                         Button(
                             onClick = onImportClicked,
@@ -193,7 +193,7 @@ fun TrackerImportScreen(
                             Icon(
                                 imageVector = Icons.Outlined.FindReplace,
                                 contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp)
+                                modifier = Modifier.padding(end = 8.dp),
                             )
                             Text(text = stringResource(MR.strings.migrate))
                         }
@@ -208,7 +208,7 @@ fun TrackerImportScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(contentPadding)
+                    .padding(contentPadding),
             ) {
                 // Filter chips row
                 Row(
@@ -263,23 +263,23 @@ fun TrackerImportScreen(
                                     .fillMaxWidth()
                                     .padding(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
-                                )
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
+                                ),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.HelpOutline,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(end = 12.dp)
+                                        modifier = Modifier.padding(end = 12.dp),
                                     )
                                     Text(
                                         text = stringResource(noticeRes),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     )
                                 }
                             }
@@ -298,7 +298,7 @@ fun TrackerImportScreen(
                                 },
                                 onLongClick = {
                                     onItemClicked(uiModel)
-                                }
+                                },
                             )
                         }
                     }
@@ -327,30 +327,30 @@ fun TrackerImportItemRow(
                 onLongClick = {
                     onLongClick()
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                }
+                },
             )
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         AnimeCover.Square(
             modifier = Modifier.height(48.dp),
-            data = item.item.coverUrl
+            data = item.item.coverUrl,
         )
         Column(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
-                .weight(1f)
+                .weight(1f),
         ) {
             Text(
                 text = item.item.title,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = "Progress: ${item.item.episodesSeen} episodes",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

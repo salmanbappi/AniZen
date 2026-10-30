@@ -13,7 +13,7 @@ object LibraryUpdateProgress {
         val workQuery = WorkQuery.Builder.fromTags(listOf("AnimeLibraryUpdate"))
             .addStates(listOf(WorkInfo.State.RUNNING))
             .build()
-            
+
         return context.workManager.getWorkInfosFlow(workQuery)
             .map { workInfos ->
                 val workInfo = workInfos.firstOrNull() ?: return@map null

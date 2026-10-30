@@ -35,6 +35,7 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.OutlinedNumericChooser
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.pluralStringResource
@@ -76,8 +77,9 @@ object SettingsDownloadScreen : SearchableSettings {
                 pref = downloadPreferences.downloadOnlyOverWifi(),
                 title = stringResource(MR.strings.connected_to_wifi),
             ),
+            // ANZ -->
             Preference.PreferenceItem.TextPreference(
-                title = stringResource(MR.strings.download_speed_limit),
+                title = "${stringResource(MR.strings.download_speed_limit)} (Experimental)",
                 subtitle = if (speedLimit == 0) {
                     stringResource(MR.strings.off)
                 } else {
@@ -85,6 +87,7 @@ object SettingsDownloadScreen : SearchableSettings {
                 },
                 onClick = { showDownloadLimitDialog = true },
             ),
+            // ANZ <--
             Preference.PreferenceItem.ListPreference(
                 pref = downloadPreferences.numberOfDownloads(),
                 title = stringResource(MR.strings.pref_download_slots),
@@ -308,6 +311,13 @@ object SettingsDownloadScreen : SearchableSettings {
                     subtitle = "Number of connections per file (for supported sources)",
                     entries = (1..64).associateWith { it.toString() }.toImmutableMap(),
                 ),
+                // ANZ -->
+                Preference.PreferenceItem.SwitchPreference(
+                    pref = downloadPreferences.remuxSidecarSubtitles(),
+                    title = stringResource(AMR.strings.pref_remux_subtitles_title),
+                    subtitle = stringResource(AMR.strings.pref_remux_subtitles_summary),
+                ),
+                // ANZ <--
             ),
         )
     }

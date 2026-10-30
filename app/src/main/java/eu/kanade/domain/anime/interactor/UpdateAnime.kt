@@ -38,14 +38,14 @@ class UpdateAnime(
             ""
         }
 
-        // if the anime isn't a favorite, set its title from source and update in db
-        // SY -->
-        val title = if (remoteTitle.isNotBlank() && localAnime.ogTitle != remoteTitle) {
+        // ANZ -->
+        val libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences = Injekt.get()
+        val title = if (remoteTitle.isNotBlank() && (!localAnime.favorite || libraryPreferences.updateAnimeTitles().get())) {
             remoteTitle
         } else {
             null
         }
-        // SY <--
+        // ANZ <--
 
         val coverLastModified =
             when {

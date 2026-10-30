@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.anime.merged
 
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
@@ -145,7 +144,7 @@ class EditMergedAnimeSettingsHeaderAdapter(
                 binding.dedupeModeSpinner.isEnabled = isChecked
                 binding.dedupeModeSpinner.alpha = if (isChecked) 1F else 0.5F
                 state.mergeReference = state.mergeReference?.copy(
-                    episodeSortMode = if (isChecked) MergedAnimeReference.EPISODE_SORT_PRIORITY else MergedAnimeReference.EPISODE_SORT_NONE
+                    episodeSortMode = if (isChecked) MergedAnimeReference.EPISODE_SORT_PRIORITY else MergedAnimeReference.EPISODE_SORT_NONE,
                 )
 
                 if (isChecked) binding.dedupeModeSpinner.setSelection(0)

@@ -9,8 +9,8 @@ import org.junit.Test
 
 /**
  * Generates Baseline Profiles to optimize the entire app's critical paths.
- * 
- * Rationale: Pre-compiling these paths significantly reduces Frame Drops (Jank) 
+ *
+ * Rationale: Pre-compiling these paths significantly reduces Frame Drops (Jank)
  * and Startup Time, proving high-level engineering effort.
  */
 class BaselineProfileGenerator {
@@ -43,12 +43,12 @@ class BaselineProfileGenerator {
             // 3. Optimize More Screen & Settings
             device.findObject(By.text("More")).click()
             device.waitForIdle()
-            
+
             // Navigate to Statistics
             device.findObject(By.text("Statistics"))?.click()
             device.wait(Until.hasObject(By.res("radar_chart")), 5_000)
             device.pressBack()
-            
+
             // Navigate to Settings to pre-compile AI and Download screens
             device.findObject(By.text("Settings"))?.click()
             device.waitForIdle()
@@ -71,15 +71,15 @@ class BaselineProfileGenerator {
             // Click the first anime item to open details and player
             device.findObject(By.res("library_grid"))?.children?.firstOrNull()?.click()
             device.waitForIdle()
-            
+
             // Open the player (assuming a 'Watch' button exists)
             device.findObject(By.text("Watch"))?.click()
             device.wait(Until.hasObject(By.res("player_controls")), 10_000)
-            
+
             // Interaction: Long press for speed, seek gestures
             device.findObject(By.res("player_view"))?.longClick()
             device.findObject(By.res("player_view"))?.fling(Direction.RIGHT)
-            
+
             device.pressBack()
         },
     )

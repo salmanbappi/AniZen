@@ -12,6 +12,7 @@ class ChapterUtils {
     companion object {
         // ANZ -->
         const val ANIYOMI_CHAPTER_IDENTIFIER = ";aniyomi="
+
         // ANZ <--
         fun ChapterType.getStringRes(): StringResource? = when (this) {
             ChapterType.Opening -> MR.strings.player_chapter_type_opening

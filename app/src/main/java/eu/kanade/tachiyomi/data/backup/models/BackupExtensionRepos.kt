@@ -15,6 +15,10 @@ class BackupExtensionRepos(
     @ProtoNumber(101) var author: String? = null,
     @ProtoNumber(102) var discord: String? = null,
     @ProtoNumber(103) var icon: String? = null,
+    // ANZ -->
+    @ProtoNumber(104) var isLegacy: Boolean = true,
+    @ProtoNumber(105) var extensionListUrl: String? = null,
+    // ANZ <--
 )
 
 val backupExtensionReposMapper = { repo: ExtensionRepo ->
@@ -28,5 +32,9 @@ val backupExtensionReposMapper = { repo: ExtensionRepo ->
         author = repo.author,
         discord = repo.discord,
         icon = repo.icon,
+        // ANZ -->
+        isLegacy = repo.isLegacy,
+        extensionListUrl = repo.extensionListUrl,
+        // ANZ <--
     )
 }

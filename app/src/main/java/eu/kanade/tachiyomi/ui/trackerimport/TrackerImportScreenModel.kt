@@ -4,14 +4,12 @@ import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.track.model.toDomainTrack
-import eu.kanade.tachiyomi.data.database.models.Track as DbTrack
-import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.data.track.ImportableTracker
-import eu.kanade.tachiyomi.data.track.ImportableEntry
 import eu.kanade.tachiyomi.data.track.ImportStatusFilter
+import eu.kanade.tachiyomi.data.track.ImportableEntry
+import eu.kanade.tachiyomi.data.track.ImportableTracker
+import eu.kanade.tachiyomi.data.track.TrackerManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.anime.interactor.GetLibraryAnime
 import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
@@ -21,6 +19,7 @@ import tachiyomi.domain.track.interactor.InsertTrack
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.Locale
+import eu.kanade.tachiyomi.data.database.models.Track as DbTrack
 
 @Immutable
 data class TrackerImportScreenState(
@@ -75,9 +74,13 @@ class TrackerImportScreenModel(
                     mutableState.update { it.copy(isLoading = false, rawItems = emptyList()) }
                     return@launchIO
                 }
-                val currentUserId = try { currentTracker.getUsername() } catch (e: Exception) { "" }
+                val currentUserId = try {
+                    currentTracker.getUsername()
+                } catch (e: Exception) {
+                    ""
+                }
                 val now = System.currentTimeMillis()
-                val cacheKey = "${trackerId}_${currentUserId}"
+                val cacheKey = "${trackerId}_$currentUserId"
                 val remoteItems = if (cachedRemoteItems[cacheKey] != null &&
                     now - lastCacheTime.getOrDefault(cacheKey, 0L) < CACHE_DURATION
                 ) {
@@ -107,7 +110,7 @@ class TrackerImportScreenModel(
                     val isLibraryMatch = isAlreadyTracked || hasTitleMatch
                     TrackerImportItem(
                         item = item,
-                        isLibraryMatch = isLibraryMatch
+                        isLibraryMatch = isLibraryMatch,
                     )
                 }
 
@@ -189,12 +192,12 @@ class TrackerImportScreenModel(
                     val item = selected.item
                     val pathPrefix = if (trackerId == 1L) "mal" else "anilist"
                     val anime = Anime.create().copy(
-                        url = "/anime/${pathPrefix}-import/${item.remoteId}",
+                        url = "/anime/$pathPrefix-import/${item.remoteId}",
                         ogTitle = item.title,
                         ogThumbnailUrl = item.coverUrl,
                         source = trackerId,
                         favorite = false,
-                        dateAdded = System.currentTimeMillis()
+                        dateAdded = System.currentTimeMillis(),
                     )
                     val savedAnime = networkToLocalAnime.await(anime)
                     createdAnimeIds.add(savedAnime.id)
@@ -244,7 +247,7 @@ class TrackerImportScreenModel(
                         val isLibraryMatch = isAlreadyTracked || hasTitleMatch
                         item.copy(
                             isLibraryMatch = isLibraryMatch,
-                            selected = if (isLibraryMatch) false else item.selected
+                            selected = if (isLibraryMatch) false else item.selected,
                         )
                     }
                     state.copy(rawItems = updatedItems)

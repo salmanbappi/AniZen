@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.extension
 
 import android.content.Context
-import androidx.core.app.NotificationCompat
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.notificationBuilder

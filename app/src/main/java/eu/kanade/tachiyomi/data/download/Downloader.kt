@@ -4,23 +4,13 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.StatFs
-import androidx.annotation.RequiresApi
-import com.hippo.unifile.UniFile
 import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.FFmpegKitConfig
-import com.arthenica.ffmpegkit.FFmpegSession
 import com.arthenica.ffmpegkit.Level
 import com.arthenica.ffmpegkit.LogCallback
-import com.arthenica.ffmpegkit.ReturnCode
 import com.arthenica.ffmpegkit.StatisticsCallback
-import eu.kanade.tachiyomi.animesource.model.Track
-import eu.kanade.tachiyomi.util.storage.toFFmpegString
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
+import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.HttpServer
 import eu.kanade.tachiyomi.animesource.model.Video
@@ -33,13 +23,11 @@ import eu.kanade.tachiyomi.torrentServer.TorrentServerApi
 import eu.kanade.tachiyomi.torrentServer.TorrentServerUtils
 import eu.kanade.tachiyomi.ui.player.loader.EpisodeLoader
 import eu.kanade.tachiyomi.ui.player.loader.HosterLoader
-import tachiyomi.core.common.util.system.logcat
 import eu.kanade.tachiyomi.util.storage.DiskUtil
+import eu.kanade.tachiyomi.util.storage.toFFmpegString
 import eu.kanade.tachiyomi.util.subtitles.StremioSubtitleResolver
-import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.activeNetworkState
-import okhttp3.Headers
-import okhttp3.Request
+import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,13 +44,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
 import logcat.LogPriority
+import okhttp3.Headers
+import okhttp3.Request
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.episode.model.Episode
@@ -74,12 +64,11 @@ import uy.kohesive.injekt.injectLazy
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
-import java.nio.channels.Channels
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.LongAdder
 import kotlin.coroutines.coroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.random.Random
 
 /**
@@ -105,7 +94,7 @@ class Downloader(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var downloaderJob: Job? = null
     private val activeDownloads = java.util.concurrent.ConcurrentHashMap<Long, Job>()
-    
+
     private val _isRunningFlow = MutableStateFlow(false)
     val isRunningFlow = _isRunningFlow.asStateFlow()
 
@@ -113,12 +102,13 @@ class Downloader(
         get() = _isRunningFlow.value
 
     val isLocalPhase: Boolean
-        get() = activeDownloads.keys.isNotEmpty() && activeDownloads.keys.all { id ->
-            val download = queueState.value.find { it.episode.id == id }
-            download?.status == Download.State.MERGING || 
-            download?.status == Download.State.DECRYPTING || 
-            download?.status == Download.State.FINALIZING
-        }
+        get() = activeDownloads.keys.isNotEmpty() &&
+            activeDownloads.keys.all { id ->
+                val download = queueState.value.find { it.episode.id == id }
+                download?.status == Download.State.MERGING ||
+                    download?.status == Download.State.DECRYPTING ||
+                    download?.status == Download.State.FINALIZING
+            }
 
     init {
         launchIO {
@@ -143,7 +133,7 @@ class Downloader(
 
     private fun calculateDynamicConcurrency(host: String): Int {
         if (host.contains("animepahe") || host.contains("sibnet") || host.contains("video.sibnet")) return 1 // Adaptive: Hosters failing with multi-threading
-        
+
         val userThreads = preferences.downloadThreads().get().coerceAtLeast(1)
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
         return if (activityManager?.isLowRamDevice == true) userThreads.coerceIn(1, 4) else userThreads.coerceIn(1, 64)
@@ -151,15 +141,16 @@ class Downloader(
 
     fun start(): Boolean {
         if (isRunning || queueState.value.isEmpty()) return false
-        
+
         // Resume paused or interrupted downloads by marking them as QUEUE
-        _queueState.update { 
+        _queueState.update {
             it.forEach { download ->
                 if (download.status == Download.State.PAUSED ||
                     download.status == Download.State.DOWNLOADING ||
                     download.status == Download.State.MERGING ||
                     download.status == Download.State.DECRYPTING ||
-                    download.status == Download.State.FINALIZING) {
+                    download.status == Download.State.FINALIZING
+                ) {
                     download.status = Download.State.QUEUE
                 }
             }
@@ -174,7 +165,7 @@ class Downloader(
                 // ANZ -->
                 val maxConcurrencyPerSource = preferences.concurrentDownloads().get().coerceAtLeast(1) // ANZ
                 val maxGlobalConcurrency = (maxConcurrencyPerSource * 4).coerceIn(4, 16)
-                
+
                 // Clean up completed jobs
                 activeDownloads.entries.removeIf { !it.value.isActive }
 
@@ -194,8 +185,8 @@ class Downloader(
                         activeForSource < maxConcurrencyPerSource
                     }
                 }
-                // ANZ <-- 
-                
+                // ANZ <--
+
                 if (download == null) {
                     if (activeDownloads.isEmpty()) break
                     delay(500)
@@ -209,7 +200,7 @@ class Downloader(
 
                 download.status = Download.State.DOWNLOADING
                 notifyProgress(download)
-                
+
                 val job = launch {
                     try {
                         downloadEpisode(download)
@@ -227,7 +218,7 @@ class Downloader(
                     }
                 }
                 activeDownloads[download.episode.id] = job
-                
+
                 delay(100) // Cooling period to prevent CPU spikes on rapid failures
             }
 
@@ -251,22 +242,23 @@ class Downloader(
         downloaderJob?.cancel()
         downloaderJob = null
         activeDownloads.clear()
-        
-        val hasMoreToDownload = queueState.value.any { 
-            it.status == Download.State.QUEUE || 
-            it.status == Download.State.DOWNLOADING ||
-            it.status == Download.State.MERGING ||
-            it.status == Download.State.DECRYPTING ||
-            it.status == Download.State.FINALIZING
+
+        val hasMoreToDownload = queueState.value.any {
+            it.status == Download.State.QUEUE ||
+                it.status == Download.State.DOWNLOADING ||
+                it.status == Download.State.MERGING ||
+                it.status == Download.State.DECRYPTING ||
+                it.status == Download.State.FINALIZING
         }
 
         _queueState.update {
             it.forEach { download ->
-                if (download.status == Download.State.DOWNLOADING || 
+                if (download.status == Download.State.DOWNLOADING ||
                     download.status == Download.State.QUEUE ||
                     download.status == Download.State.MERGING ||
                     download.status == Download.State.DECRYPTING ||
-                    download.status == Download.State.FINALIZING) {
+                    download.status == Download.State.FINALIZING
+                ) {
                     download.interruptedState = download.status
                     download.status = Download.State.PAUSED
                     notifier.dismissProgress(download)
@@ -275,9 +267,11 @@ class Downloader(
             it
         }
 
-        if (reason != null) notifier.onWarning(reason)
-        else if (hasMoreToDownload) notifier.onPaused()
-        else {
+        if (reason != null) {
+            notifier.onWarning(reason)
+        } else if (hasMoreToDownload) {
+            notifier.onPaused()
+        } else {
             notifier.onComplete()
             notifier.dismissAll()
         }
@@ -291,11 +285,12 @@ class Downloader(
         activeDownloads.clear()
         _queueState.update {
             it.forEach { download ->
-                if (download.status == Download.State.DOWNLOADING || 
+                if (download.status == Download.State.DOWNLOADING ||
                     download.status == Download.State.QUEUE ||
                     download.status == Download.State.MERGING ||
                     download.status == Download.State.DECRYPTING ||
-                    download.status == Download.State.FINALIZING) {
+                    download.status == Download.State.FINALIZING
+                ) {
                     download.interruptedState = download.status
                     download.status = Download.State.PAUSED
                     notifier.dismissProgress(download)
@@ -428,31 +423,31 @@ class Downloader(
         initialDelay: Long = 1000,
         maxDelay: Long = 15000,
         factor: Double = 2.0,
-        block: suspend () -> T
+        block: suspend () -> T,
     ): T {
         var currentDelay = initialDelay
         repeat(times - 1) { attempt ->
             try {
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                
+
                 // Fast-Fail: Check internet before each retry
                 if (!isNetworkConnected()) {
                     throw IOException("No internet connection")
                 }
-                
+
                 return block()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                
+
                 // FATAL ERROR CHECK: Do not retry dead/forbidden links
                 if (e is HttpException) {
                     val code = e.code
                     if (code == 401 || code == 403 || code == 404 || code == 410) {
                         logcat(LogPriority.ERROR) { "Fatal HTTP $code. Aborting retry." }
-                        throw e 
+                        throw e
                     }
                 }
-                
+
                 // Exponential Backoff with Jitter
                 val jitter = Random.nextLong(0, 500)
                 val backoff = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
@@ -469,10 +464,10 @@ class Downloader(
             try {
                 val sandboxRoot = context.getExternalFilesDir("downloads") ?: return@launchIO
                 if (!sandboxRoot.exists()) return@launchIO
-                
+
                 // Map the valid, active download directory names
-                val expectedDirs = activeDownloads.map { 
-                    provider.getEpisodeDirName(it.episode.name, it.episode.scanlator) 
+                val expectedDirs = activeDownloads.map {
+                    provider.getEpisodeDirName(it.episode.name, it.episode.scanlator)
                 }.toSet()
 
                 // Sweep the sandbox directory
@@ -495,13 +490,13 @@ class Downloader(
             // Multi-track streams (separate video and audio tracks) must use DASH/FFmpeg muxing
             video.audioTracks.isNotEmpty() -> "DASH"
             // ANZ <--
-            video.videoUrl.contains(".m3u8", ignoreCase = true) ||
-            // Hanime's signed HLS endpoint is extensionless: /hls/{id}/{token}
-            video.videoUrl.contains("/hls/", ignoreCase = true) ||
-            video.videoUrl.contains("/oppai/") ||
-            video.videoUrl.contains("/proxy/oppai/") -> "HLS"
-            video.videoUrl.contains(".mpd") || 
-            (video.videoUrl.contains("/playback/") && !video.videoUrl.contains(".mp4")) -> "DASH"
+            video.videoUrl.contains("m3u8", ignoreCase = true) ||
+                // Hanime's signed HLS endpoint is extensionless: /hls/{id}/{token}
+                video.videoUrl.contains("/hls/", ignoreCase = true) ||
+                video.videoUrl.contains("/oppai/") ||
+                video.videoUrl.contains("/proxy/oppai/") -> "HLS"
+            video.videoUrl.contains(".mpd") ||
+                (video.videoUrl.contains("/playback/") && !video.videoUrl.contains(".mp4")) -> "DASH"
             else -> "Normal"
         }
     }
@@ -512,7 +507,7 @@ class Downloader(
 
         val animeDir = provider.getAnimeDir(download.anime.ogTitle, download.source)
         val episodeDirname = provider.getEpisodeDirName(download.episode.name, download.episode.scanlator)
-        
+
         // Sandbox Storage: Protected from OS Cache cleanup
         val sandboxDir = File(context.getExternalFilesDir("downloads"), episodeDirname)
         if (!sandboxDir.exists() && !sandboxDir.mkdirs()) {
@@ -530,7 +525,7 @@ class Downloader(
         notifier.onProgressChange(download)
         try {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            
+
             // ANZ -->
             val finalExt = if (download.video?.videoUrl?.contains(".mp4") == true && download.engineType != "DASH") "mp4" else "mkv"
             // ANZ <--
@@ -543,7 +538,7 @@ class Downloader(
                 finalizeDownload(download, recoveredFile, animeDir, episodeDirname)
                 return
             }
-            
+
             // RECOVERY: Handle interrupted MERGING state
             // If .part files exist in sandbox, the destination file is likely corrupted/incomplete
             val hasSandboxParts = sandboxDir.listFiles()?.any { it.name.contains(".part") } == true
@@ -564,7 +559,7 @@ class Downloader(
                         allowDownloaded = false,
                     )
                     val defaultSelector = eu.kanade.tachiyomi.ui.player.utils.DefaultStreamPreferenceStore(
-                        Injekt.get<eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences>()
+                        Injekt.get<eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences>(),
                     ).getEffectiveSelector(download.anime.id)
                     if (defaultSelector.isNotBlank()) {
                         HosterLoader.resolveDefaultStream(download.source as AnimeSource, hosters, defaultSelector)
@@ -622,11 +617,30 @@ class Downloader(
                     throw IOException("Downloaded video is empty")
                 }
 
-                finalizeDownload(download, videoFile, animeDir, episodeDirname)
+                // ANZ -->
+                // Mux the subtitle sidecars into the finished file so an episode stays a single
+                // self-contained video. Best effort by design: when there is nothing to mux, or
+                // when FFmpeg refuses the remux, the plain file is finalized with its sidecars.
+                val remuxed = try {
+                    remuxSidecars(download, videoFile, sandboxDir, videoFilename)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN, e) { "Sidecar remux skipped: ${e.message}" }
+                    null
+                }
+
+                finalizeDownload(
+                    download = download,
+                    videoFile = remuxed?.file ?: videoFile,
+                    publicDir = animeDir,
+                    filename = episodeDirname,
+                    overrideExt = remuxed?.extension,
+                )
+                // ANZ <--
             } finally {
                 downloadHttpServer?.stop()
             }
-            
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Download failed" }
             if (e !is CancellationException) {
@@ -661,7 +675,7 @@ class Downloader(
                             cleanUrl.endsWith(".ass", ignoreCase = true) -> "ass"
                             else -> "srt"
                         }
-                        val filename = "${videoFilename}.${track.lang}.$subExt"
+                        val filename = "$videoFilename.${track.lang}.$subExt"
                         val subFile = File(sandboxDir, filename)
                         if (subFile.exists() && subFile.length() > 0) return@forEach
 
@@ -700,14 +714,170 @@ class Downloader(
         }
     }
 
-    private suspend fun finalizeDownload(download: Download, videoFile: UniFile, publicDir: UniFile, filename: String) {
+    // ANZ -->
+    /**
+     * Muxes the subtitle sidecars of [download] into the finished video, so the episode stays a
+     * single self-contained file.
+     *
+     * Sidecars are deliberately kept separate until this point: a subtitle that is unreachable,
+     * malformed or blocked by the hoster must never fail an episode whose video is already on
+     * disk. The remux only reads and writes local files, and returns `null` on any problem so the
+     * caller finalizes the plain video file with its sidecars, exactly like before.
+     */
+    private suspend fun remuxSidecars(
+        download: Download,
+        videoFile: UniFile,
+        sandboxDir: File,
+        videoFilename: String,
+    ): RemuxResult? {
+        if (!preferences.remuxSidecarSubtitles().get()) return null
+        val source = getLocalFile(videoFile)?.takeIf { it.length() > 0L }
+        val subtitles = collectSidecarSubtitles(sandboxDir, videoFilename)
+        return if (source != null && subtitles.isNotEmpty() && hasSpaceForRemux(source, sandboxDir)) {
+            performRemux(download, source, sandboxDir, videoFilename, subtitles)
+        } else {
+            null
+        }
+    }
+
+    private suspend fun performRemux(
+        download: Download,
+        source: File,
+        sandboxDir: File,
+        videoFilename: String,
+        subtitles: List<SidecarSubtitle>,
+    ): RemuxResult? {
+        val output = File(sandboxDir, "$videoFilename.remux.tmp")
+        download.status = Download.State.MERGING
+        download.progress = 0
+        download.activeThreads = 0
+        notifyProgress(download)
+
+        // Matroska can technically store WebVTT (S_TEXT/WEBVTT), but Android players routinely
+        // ignore that codec, so VTT is always converted: ASS keeps the styling, SubRip is the
+        // fallback used when a cue cannot be converted.
+        val codecs = if (subtitles.any { it.needsConversion }) listOf("ass", "srt") else listOf("copy")
+        var result: RemuxResult? = null
+        for (codec in codecs) {
+            output.delete()
+            if (runFFmpegRemux(download, source, output, subtitles, codec)) {
+                result = publishRemuxedFile(download, source, output, sandboxDir, videoFilename, subtitles)
+                break
+            }
+            logcat(LogPriority.WARN) { "Sidecar remux with '$codec' failed" }
+        }
+
+        if (result == null) {
+            output.delete()
+            logcat(LogPriority.WARN) { "Keeping plain video file and subtitle sidecars" }
+        }
+        return result
+    }
+
+    private fun publishRemuxedFile(
+        download: Download,
+        source: File,
+        output: File,
+        sandboxDir: File,
+        videoFilename: String,
+        subtitles: List<SidecarSubtitle>,
+    ): RemuxResult? {
+        val muxed = File(sandboxDir, "$videoFilename.mkv")
+        // The DASH engine already produces that exact path; renaming onto it is atomic, so the
+        // file is only deleted first when it is a different artifact.
+        if (muxed.absolutePath != source.absolutePath) muxed.delete()
+        if (!output.renameTo(muxed)) {
+            output.copyTo(muxed, overwrite = true)
+            output.delete()
+        }
+        // ANZ -->
+        // Delete original un-muxed source video if it was a different file to prevent storage leakage
+        if (source.absolutePath != muxed.absolutePath) {
+            source.delete()
+        }
+        // Clean up all subtitle sidecars in the sandbox so none linger as duplicates
+        sandboxDir.listFiles()?.forEach { file ->
+            val ext = file.extension.lowercase()
+            if (file.name.startsWith("$videoFilename.") && ext in SIDECAR_SUBTITLE_EXTENSIONS) {
+                file.delete()
+            }
+        }
+        // ANZ <--
+        download.progress = FULL_PROGRESS
+        notifyProgress(download)
+        return UniFile.fromFile(muxed)?.let { RemuxResult(it, "mkv") }
+    }
+
+    private suspend fun runFFmpegRemux(
+        download: Download,
+        source: File,
+        output: File,
+        subtitles: List<SidecarSubtitle>,
+        convertedCodec: String,
+    ): Boolean {
+        val arguments = buildRemuxArguments(source, output, subtitles, convertedCodec)
+        val duration = download.totalDuration
+        var lastNotified = System.currentTimeMillis()
+
+        val logCallback = LogCallback { log ->
+            if (log.level <= Level.AV_LOG_WARNING) {
+                logcat(LogPriority.WARN) { "FFmpeg remux: ${log.message}" }
+            }
+        }
+        val statCallback = StatisticsCallback { stats ->
+            if (duration > 0L) {
+                val seconds = stats.time / MILLIS_PER_SECOND
+                download.progress = (FULL_PROGRESS * seconds / duration).toInt().coerceIn(0, FULL_PROGRESS - 1)
+            }
+            val now = System.currentTimeMillis()
+            if (now - lastNotified > REMUX_NOTIFY_INTERVAL_MS) {
+                lastNotified = now
+                notifier.onProgressChange(download)
+            }
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            val session = FFmpegKit.executeWithArgumentsAsync(
+                arguments,
+                { continuation.resume(it.returnCode.isValueSuccess) },
+                logCallback,
+                statCallback,
+            )
+            continuation.invokeOnCancellation {
+                session.cancel()
+                // ANZ -->
+                output.delete()
+                // ANZ <--
+            }
+        }
+    }
+    // ANZ <--
+
+    private suspend fun finalizeDownload(
+        download: Download,
+        videoFile: UniFile,
+        publicDir: UniFile,
+        filename: String,
+        // ANZ -->
+        // Container to advertise for the finished file. A subtitle remux always outputs
+        // Matroska, so the caller must be able to override the extension derived from the URL.
+        overrideExt: String? = null,
+        // ANZ <--
+    ) {
         download.status = Download.State.FINALIZING
         download.progress = 0
         notifyProgress(download)
 
         val videoFilename = DiskUtil.buildValidFilename(download.episode.name)
         // ANZ -->
-        val finalExt = if (download.video?.videoUrl?.contains(".mp4") == true && download.engineType != "DASH") "mp4" else "mkv"
+        val finalExt = overrideExt ?: if (
+            download.video?.videoUrl?.contains(".mp4") == true &&
+            download.engineType != "DASH"
+        ) {
+            "mp4"
+        } else {
+            "mkv"
+        }
         // ANZ <--
         val finalName = "$videoFilename.$finalExt"
 
@@ -725,8 +895,10 @@ class Downloader(
         // copying it again — URI identity is lost across storage zones, so sizes are compared.
         val isAlreadyAtDestination = (destFile != null && destFile.uri == videoFile.uri) ||
             (
-                destFile != null && destFile.length() > 0 &&
-                    videoFile.length() > 0 && destFile.length() == videoFile.length()
+                destFile != null &&
+                    destFile.length() > 0 &&
+                    videoFile.length() > 0 &&
+                    destFile.length() == videoFile.length()
                 )
 
         if (!isAlreadyAtDestination) {
@@ -767,9 +939,15 @@ class Downloader(
         // Pro-Active: Move soft subtitles to the destination directory
         val sandboxDir = getLocalFile(videoFile)?.parentFile ?: File(context.getExternalFilesDir("downloads"), filename)
         val baseName = videoFilename
+        // ANZ -->
         sandboxDir.listFiles()?.forEach { file ->
-            if (file.nameWithoutExtension.startsWith(baseName) && file.name != videoFile.name && 
-                !file.name.endsWith(".part") && !file.name.endsWith(".tmp")) {
+            val ext = file.extension.lowercase()
+            if (file.nameWithoutExtension.startsWith(baseName) &&
+                file.name != videoFile.name &&
+                ext in SIDECAR_SUBTITLE_EXTENSIONS &&
+                !file.name.endsWith(".part") &&
+                !file.name.endsWith(".tmp")
+            ) {
                 val subFile = destDir.createFile(file.name)
                 if (subFile != null) {
                     file.inputStream().use { input ->
@@ -780,7 +958,8 @@ class Downloader(
                 }
             }
         }
-        
+        // ANZ <--
+
         // Finalize: Rename directory to final name
         val finalDir = publicDir.findFile(filename)
         finalDir?.delete() // Cleanup if somehow exists
@@ -802,14 +981,14 @@ class Downloader(
             }
             destDir.delete()
         }
-        
+
         if (isLocalFile(videoFile)) {
             getLocalFile(videoFile)?.parentFile?.deleteRecursively()
         }
 
         download.status = Download.State.DOWNLOADED
         notifyProgress(download)
-        
+
         _queueState.update { it - download }
         store.remove(download)
         notifier.dismissProgress(download)
@@ -825,12 +1004,12 @@ class Downloader(
                 val totalBytes = source.length()
                 var read: Int
                 var lastUpdate = System.currentTimeMillis()
-                
+
                 while (input.read(buffer).also { read = it } != -1) {
                     coroutineContext.ensureActive()
                     output.write(buffer, 0, read)
                     bytesCopied += read
-                    
+
                     val now = System.currentTimeMillis()
                     if (now - lastUpdate > 1000 || bytesCopied == totalBytes) {
                         download.progress = ((bytesCopied.toDouble() / totalBytes.coerceAtLeast(1L)) * 100).toInt()
@@ -859,7 +1038,7 @@ class Downloader(
 
     private suspend fun internalDownload(download: Download, sandboxDir: File, filename: String): UniFile {
         val video = download.video!!
-        
+
         // Scheme Validation: this engine fetches over OkHttp, so only http(s) is usable. A local
         // URI here means the video resolved to an existing download instead of the source's stream.
         if (!video.videoUrl.startsWith("http", ignoreCase = true)) {
@@ -878,7 +1057,7 @@ class Downloader(
         val host = Uri.parse(video.videoUrl).host ?: ""
         val threadCount = if (isTorrentStream) 1 else calculateDynamicConcurrency(host)
         val headers = getHeaders(video)
-        
+
         // Instant Startup: Use cached size if available, otherwise probe in parallel
         var size = download.totalSize
         if (size <= 0 && !isTorrentStream) {
@@ -889,7 +1068,7 @@ class Downloader(
             } catch (e: Exception) {
                 logcat(LogPriority.DEBUG) { "HEAD request failed: ${e.message}" }
             }
-            
+
             // Pro-Active: Fallback to partial GET if HEAD failed (Sibnet/sensitive hoster support)
             if (size <= 0) {
                 try {
@@ -906,12 +1085,12 @@ class Downloader(
                     logcat(LogPriority.DEBUG) { "Fallback GET failed: ${e.message}" }
                 }
             }
-            
+
             download.totalSize = size
         }
 
         if (size > 0) checkFreeSpace(sandboxDir, size)
-        
+
         download.activeThreads = threadCount
 
         val finalExt = if (download.video?.videoUrl?.contains(".mp4") == true) "mp4" else "mkv"
@@ -927,14 +1106,14 @@ class Downloader(
                         val partFile = File(sandboxDir, "$filename.part$i")
                         var localDownloaded = partFile.length()
                         downloadedBytes.add(localDownloaded)
-                        
+
                         val partTotalSize = if (i == threadCount - 1) size - (i * partSize) else partSize
                         download.partProgress[i] = (localDownloaded.toDouble() / partTotalSize.coerceAtLeast(1L)).toFloat().coerceIn(0f, 1f)
 
                         retry(times = 5) {
                             val start = i * partSize + localDownloaded
                             val end = if (i == threadCount - 1) size - 1 else (i + 1) * partSize - 1
-                            
+
                             // Server-Side Safety: Skip if part is already finished
                             if (start > end) {
                                 download.partProgress[i] = 1f
@@ -994,10 +1173,10 @@ class Downloader(
             retry {
                 val start = if (finalFile.exists()) finalFile.length() else 0L
                 if (size > 0) download.partProgress[0] = (start.toFloat() / size).coerceIn(0f, 1f)
-                
+
                 val reqBuilder = Request.Builder().url(video.videoUrl).headers(headers)
                 if (start > 0) reqBuilder.header("Range", "bytes=$start-")
-                
+
                 client.newCall(reqBuilder.build()).execute().use { res ->
                     if (!res.isSuccessful) throw IOException("Unexpected code $res")
 
@@ -1005,7 +1184,7 @@ class Downloader(
                     val isResuming = start > 0 && res.code == 206
                     val append = isResuming
                     val actualStart = if (isResuming) start else 0L
-                    
+
                     val source = res.body?.source() ?: throw IOException("Empty body")
                     java.io.FileOutputStream(finalFile, append).use { out ->
                         val buffer = BufferPool.obtain()
@@ -1016,10 +1195,10 @@ class Downloader(
                             while (source.read(buffer).also { read = it } != -1) {
                                 coroutineContext.ensureActive()
                                 if (download.status == Download.State.PAUSED) throw CancellationException()
-                                
+
                                 out.write(buffer, 0, read)
                                 totalRead += read
-                                
+
                                 if (size > 0) download.partProgress[0] = (totalRead.toFloat() / size).coerceIn(0f, 1f)
 
                                 val now = System.currentTimeMillis()
@@ -1053,7 +1232,7 @@ class Downloader(
             if (!playlistRes.isSuccessful) throw IOException("Failed to fetch playlist: ${playlistRes.code}")
             lines = playlistRes.body?.string()?.lines() ?: emptyList()
             if (lines.none { it.trimStart().startsWith("#EXTM3U") }) {
-                throw IOException("Hanime returned an invalid HLS playlist")
+                throw IOException("Invalid HLS playlist")
             }
 
             val isMaster = lines.any { it.startsWith("#EXT-X-STREAM-INF") }
@@ -1091,7 +1270,7 @@ class Downloader(
 
         if (segments.isEmpty()) throw IOException("No segments found in HLS playlist")
         download.totalSegments = segments.size
-        
+
         var secretKey: javax.crypto.spec.SecretKeySpec? = null
         if (encryptionKeyUrl != null) {
             val keyRes = client.newCall(Request.Builder().url(encryptionKeyUrl).headers(headers).build()).execute()
@@ -1105,7 +1284,7 @@ class Downloader(
         val segmentIndex = java.util.concurrent.atomic.AtomicInteger(0) // ANZ: lock-free O(1) segment dispatch
         // ANZ <--
         var lastUpdate = System.currentTimeMillis()
-        
+
         val host = Uri.parse(video.videoUrl).host ?: ""
         val threadCount = calculateDynamicConcurrency(host)
         download.activeThreads = threadCount
@@ -1181,21 +1360,21 @@ class Downloader(
             }
         }
 
-    download.status = if (secretKey != null) Download.State.DECRYPTING else Download.State.MERGING
-    download.progress = 0
-    notifyProgress(download)
+        download.status = if (secretKey != null) Download.State.DECRYPTING else Download.State.MERGING
+        download.progress = 0
+        notifyProgress(download)
 
-    val finalFile = File(sandboxDir, "$filename.ts")
-    val totalMergeSize = segments.indices.sumOf { File(sandboxDir, "seg_$it.part").length() }
-    checkFreeSpace(sandboxDir, totalMergeSize)
+        val finalFile = File(sandboxDir, "$filename.ts")
+        val totalMergeSize = segments.indices.sumOf { File(sandboxDir, "seg_$it.part").length() }
+        checkFreeSpace(sandboxDir, totalMergeSize)
 
-    java.io.FileOutputStream(finalFile).use { outStream ->
-        val outChannel = outStream.channel
-        val partFiles = segments.indices.map { File(sandboxDir, "seg_$it.part") }
-        mergeChannels(partFiles, outChannel, download, totalMergeSize)
+        java.io.FileOutputStream(finalFile).use { outStream ->
+            val outChannel = outStream.channel
+            val partFiles = segments.indices.map { File(sandboxDir, "seg_$it.part") }
+            mergeChannels(partFiles, outChannel, download, totalMergeSize)
+        }
+        return UniFile.fromFile(finalFile)!!
     }
-    return UniFile.fromFile(finalFile)!!
-}
 
     private fun isPackageInstalled(packageName: String): Boolean {
         return try {
@@ -1276,7 +1455,7 @@ class Downloader(
                             headersBundle.putString(headers.name(i), headers.value(i))
                         }
                         intent.putExtra("android.media.intent.extra.HTTP_HEADERS", headersBundle)
-                        
+
                         val headersArray = Array(headers.size) { i -> "${headers.name(i)}: ${headers.value(i)}" }
                         intent.putExtra("headers", headersArray)
                     }
@@ -1294,7 +1473,7 @@ class Downloader(
             }
 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            
+
             val pm = context.packageManager
             if (packageName.isNotBlank() && packageName != "None" && isPackageInstalled(packageName)) {
                 intent.setPackage(packageName)
@@ -1303,13 +1482,13 @@ class Downloader(
                 if (resolveInfo.isNotEmpty()) {
                     // Optimized for 1DM+: Look for Editor or Add activity first to avoid browser-only components
                     val bestMatch = resolveInfo.find { it.activityInfo.name.contains("Editor", ignoreCase = true) }
-                                     ?: resolveInfo.find { it.activityInfo.name.contains("Add", ignoreCase = true) }
-                                     ?: resolveInfo.find { it.activityInfo.name.contains("Download", ignoreCase = true) }
-                                     ?: resolveInfo.first()
+                        ?: resolveInfo.find { it.activityInfo.name.contains("Add", ignoreCase = true) }
+                        ?: resolveInfo.find { it.activityInfo.name.contains("Download", ignoreCase = true) }
+                        ?: resolveInfo.first()
                     intent.component = ComponentName(bestMatch.activityInfo.packageName, bestMatch.activityInfo.name)
                 }
             }
-            
+
             try {
                 context.startActivity(intent)
             } catch (e: Exception) {
@@ -1319,14 +1498,14 @@ class Downloader(
                 chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(chooser)
             }
-            
+
             // A successful intent handoff is not a completed Anizen download. The external app has
             // only accepted the request, so do not show a downloaded checkmark or cache an empty dir.
             download.status = Download.State.NOT_DOWNLOADED
             _queueState.update { it - download }
             store.remove(download)
             notifier.dismissProgress(download)
-            
+
             delay(1500) // Give external downloader time to register intent and prevent dropping multiple downloads
             return true
         } catch (e: Exception) {
@@ -1339,7 +1518,7 @@ class Downloader(
         partFiles: List<File>,
         outChannel: java.nio.channels.WritableByteChannel,
         download: Download,
-        totalSizeOverride: Long = -1L
+        totalSizeOverride: Long = -1L,
     ) {
         val totalMergeSize = if (totalSizeOverride > 0) totalSizeOverride else partFiles.sumOf { it.length() }
         var mergedBytes = 0L
@@ -1355,11 +1534,11 @@ class Downloader(
                     val size = inChannel.size()
                     var remaining = size
                     var position = 0L
-                    
+
                     while (remaining > 0) {
                         coroutineContext.ensureActive()
                         val toTransfer = Math.min(remaining, 4L * 1024 * 1024)
-                        
+
                         // SAF COMPATIBILITY: SAF OutputStreams wrapped in Channels might not support transferTo
                         // We attempt transferTo first, then fallback to a manually managed buffer to avoid IPC overhead
                         try {
@@ -1429,8 +1608,12 @@ class Downloader(
 
         val headers = video.headers ?: download.source.headers
         // ANZ -->
-        val headerString = if (headers.size == 0) "" else headers.joinToString("") {
-            "${it.first}: ${it.second}\r\n"
+        val headerString = if (headers.size == 0) {
+            ""
+        } else {
+            headers.joinToString("") {
+                "${it.first}: ${it.second}\r\n"
+            }
         }
 
         if (download.totalDuration <= 0L) { // ANZ
@@ -1486,7 +1669,7 @@ class Downloader(
         val statCallback = StatisticsCallback { s ->
             val now = System.currentTimeMillis()
             val outTime = (s.time / 1000.0).toLong()
-            
+
             if (download.totalDuration <= 0L) {
                 if (download.episode.totalSeconds > 0) {
                     download.totalDuration = download.episode.totalSeconds
@@ -1496,7 +1679,7 @@ class Downloader(
             }
 
             download.update(s.size, -1L, false)
-            
+
             if (download.totalDuration > 0 && outTime > 0) {
                 val timeProgress = (100 * outTime / download.totalDuration).toInt().coerceIn(0, 99)
                 if (timeProgress > download.progress) {
@@ -1504,7 +1687,7 @@ class Downloader(
                 }
             }
             // ANZ <--
-            
+
             if (now - lastUpdate > 500L) {
                 lastUpdate = now
                 notifier.onProgressChange(download)
@@ -1724,6 +1907,168 @@ class Downloader(
 
 private const val MIN_DISK_SPACE = 200L * 1024 * 1024
 
+// ANZ -->
+/** Result of a subtitle remux: the muxed file, plus the container its name must advertise. */
+private data class RemuxResult(val file: UniFile, val extension: String)
+
+/** A subtitle already downloaded next to the video, waiting to be muxed into it. */
+private data class SidecarSubtitle(val file: File, val language: String, val extension: String) {
+    val needsConversion: Boolean get() = extension == "vtt"
+
+    val languageTag: String get() = subtitleLanguageTag(language)
+
+    val displayTitle: String get() = subtitleDisplayTitle(language)
+
+    /** Lower wins when the same language is available in several formats. */
+    val formatPriority: Int
+        get() = when (extension) {
+            "ass", "ssa" -> 0
+            "srt" -> 1
+            else -> 2
+        }
+
+    /**
+     * Cheap guard against sidecars that are not subtitles at all: hosts answer a blocked or
+     * expired subtitle URL with an HTML page, which would otherwise become an empty track.
+     */
+    fun hasSubtitleSignature(): Boolean {
+        val head = file.readHead(SUBTITLE_SIGNATURE_PROBE_BYTES)
+        return when (extension) {
+            "ass", "ssa" -> head.contains("[Script Info]") || head.contains("Dialogue:")
+            "vtt" -> head.contains("WEBVTT") || head.contains("-->")
+            else -> head.contains("-->")
+        }
+    }
+}
+
+private val SIDECAR_SUBTITLE_EXTENSIONS = setOf("ass", "ssa", "srt", "vtt")
+
+/** ISO 639-2 tags players and Matroska expect, keyed by the labels extensions actually emit. */
+private val SUBTITLE_LANGUAGE_TAGS = mapOf(
+    "fr" to "fre", "fra" to "fre", "vf" to "fre", "vff" to "fre", "vostfr" to "fre", "french" to "fre",
+    "en" to "eng", "eng" to "eng", "english" to "eng",
+    "es" to "spa", "spa" to "spa", "spanish" to "spa",
+    "de" to "ger", "deu" to "ger", "german" to "ger",
+    "it" to "ita", "ita" to "ita", "italian" to "ita",
+    "pt" to "por", "pt-br" to "por", "por" to "por", "portuguese" to "por",
+    "ja" to "jpn", "jp" to "jpn", "jpn" to "jpn", "japanese" to "jpn",
+    "ko" to "kor", "kor" to "kor",
+    "ru" to "rus", "rus" to "rus",
+    "ar" to "ara", "ara" to "ara",
+    "zh" to "chi", "chi" to "chi",
+    "hi" to "hin", "hin" to "hin",
+)
+
+private val ISO639_2_CODE = Regex("[a-z]{3}")
+
+private fun collectSidecarSubtitles(sandboxDir: File, videoFilename: String): List<SidecarSubtitle> = sandboxDir
+    .listFiles()
+    .orEmpty()
+    .filter { it.isFile && it.length() > 0L }
+    .mapNotNull { it.toSidecarSubtitle(videoFilename) }
+    .groupBy { it.language.lowercase() }
+    .mapNotNull { (_, candidates) -> candidates.minByOrNull { it.formatPriority } }
+    .sortedBy { it.language.lowercase() }
+
+private fun File.toSidecarSubtitle(videoFilename: String): SidecarSubtitle? {
+    val extension = name.substringAfterLast('.', "").lowercase()
+    val suffix = name.removePrefix("$videoFilename.")
+    val language = if (suffix.contains('.')) suffix.substringBeforeLast('.') else "und"
+    val isSidecar = name.startsWith("$videoFilename.") && extension in SIDECAR_SUBTITLE_EXTENSIONS
+    return if (isSidecar) SidecarSubtitle(this, language, extension).takeIf { it.hasSubtitleSignature() } else null
+}
+
+private fun subtitleLanguageTag(language: String): String {
+    val key = language.trim().lowercase()
+    return SUBTITLE_LANGUAGE_TAGS[key]
+        ?: key.takeIf { ISO639_2_CODE.matches(it) }
+        ?: "und"
+}
+
+private fun subtitleDisplayTitle(language: String): String {
+    val label = language.trim().replace('\n', ' ').take(MAX_SUBTITLE_TITLE_LENGTH)
+    return if (label.length <= SHORT_LANGUAGE_CODE_LENGTH) label.uppercase() else label
+}
+
+private fun File.readHead(byteCount: Int): String {
+    val buffer = ByteArray(byteCount)
+    val read = try {
+        inputStream().use { it.read(buffer) }
+    } catch (e: IOException) {
+        logcat(LogPriority.DEBUG) { "Cannot probe subtitle header of $name: ${e.message}" }
+        -1
+    }
+    return if (read > 0) String(buffer, 0, read, Charsets.ISO_8859_1) else ""
+}
+
+private fun hasSpaceForRemux(source: File, targetDir: File): Boolean {
+    val stats = StatFs(targetDir.absolutePath)
+    val available = stats.availableBlocksLong * stats.blockSizeLong
+    return available > (source.length() * REMUX_SPACE_FACTOR).toLong() + MIN_DISK_SPACE
+}
+
+/**
+ * Builds a local-only remux: the video and audio streams are copied, every sidecar is mapped as
+ * its own subtitle track. Source subtitle streams are intentionally not mapped, so the output
+ * indices stay predictable; the sidecars are the authoritative subtitles at this point.
+ */
+private fun buildRemuxArguments(
+    source: File,
+    output: File,
+    subtitles: List<SidecarSubtitle>,
+    convertedCodec: String,
+): Array<String> = buildList {
+    add("-hide_banner")
+    add("-nostdin")
+    add("-y")
+    add("-i")
+    add(source.absolutePath)
+
+    subtitles.forEach { subtitle ->
+        add("-i")
+        add(subtitle.file.absolutePath)
+    }
+
+    add("-map")
+    add("0:v")
+    add("-map")
+    add("0:a?")
+    subtitles.indices.forEach { index ->
+        add("-map")
+        add("${index + 1}:0")
+    }
+
+    add("-c:v")
+    add("copy")
+    add("-c:a")
+    add("copy")
+    subtitles.forEachIndexed { index, subtitle ->
+        add("-c:s:$index")
+        add(if (subtitle.needsConversion) convertedCodec else "copy")
+    }
+    subtitles.forEachIndexed { index, subtitle ->
+        add("-metadata:s:s:$index")
+        add("language=${subtitle.languageTag}")
+        add("-metadata:s:s:$index")
+        add("title=${subtitle.displayTitle}")
+    }
+
+    add("-disposition:s:0")
+    add("default")
+    add("-f")
+    add("matroska")
+    add(output.absolutePath)
+}.toTypedArray()
+
+private const val SUBTITLE_SIGNATURE_PROBE_BYTES = 8 * 1024
+private const val FULL_PROGRESS = 100
+private const val REMUX_NOTIFY_INTERVAL_MS = 500L
+private const val MILLIS_PER_SECOND = 1000L
+private const val REMUX_SPACE_FACTOR = 1.1
+private const val MAX_SUBTITLE_TITLE_LENGTH = 40
+private const val SHORT_LANGUAGE_CODE_LENGTH = 3
+// ANZ <--
+
 /**
  * Schemes the download engines can actually fetch. `content://` and `file://` URIs point at a
  * local copy (produced by [DownloadManager.buildVideo] for already-downloaded episodes) and are
@@ -1738,5 +2083,7 @@ internal fun String.isRemote(): Boolean {
 object BufferPool {
     private val pool = java.util.concurrent.ArrayBlockingQueue<ByteArray>(128)
     fun obtain(): ByteArray = pool.poll() ?: ByteArray(256 * 1024)
-    fun recycle(buffer: ByteArray) { pool.offer(buffer) }
+    fun recycle(buffer: ByteArray) {
+        pool.offer(buffer)
+    }
 }

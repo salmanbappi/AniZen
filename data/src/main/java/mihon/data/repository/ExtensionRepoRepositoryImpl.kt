@@ -43,6 +43,10 @@ class ExtensionRepoRepositoryImpl(
         author: String?,
         discord: String?,
         icon: String?,
+        // ANZ -->
+        isLegacy: Boolean,
+        extensionListUrl: String?,
+        // ANZ <--
     ) {
         try {
             handler.await {
@@ -56,6 +60,10 @@ class ExtensionRepoRepositoryImpl(
                     author,
                     discord,
                     icon,
+                    // ANZ -->
+                    isLegacy,
+                    extensionListUrl,
+                    // ANZ <--
                 )
             }
         } catch (ex: SQLiteException) {
@@ -73,6 +81,10 @@ class ExtensionRepoRepositoryImpl(
         author: String?,
         discord: String?,
         icon: String?,
+        // ANZ -->
+        isLegacy: Boolean,
+        extensionListUrl: String?,
+        // ANZ <--
     ) {
         try {
             handler.await {
@@ -86,6 +98,10 @@ class ExtensionRepoRepositoryImpl(
                     author,
                     discord,
                     icon,
+                    // ANZ -->
+                    isLegacy,
+                    extensionListUrl,
+                    // ANZ <--
                 )
             }
         } catch (ex: SQLiteException) {
@@ -105,6 +121,10 @@ class ExtensionRepoRepositoryImpl(
                 newRepo.author,
                 newRepo.discord,
                 newRepo.icon,
+                // ANZ -->
+                newRepo.isLegacy,
+                newRepo.extensionListUrl,
+                // ANZ <--
             )
         }
     }
@@ -127,6 +147,10 @@ class ExtensionRepoRepositoryImpl(
         author: String?,
         discord: String?,
         icon: String?,
+        // ANZ -->
+        isLegacy: Boolean,
+        extensionListUrl: String?,
+        // ANZ <--
     ): ExtensionRepo = ExtensionRepo(
         baseUrl = baseUrl,
         name = name,
@@ -137,5 +161,9 @@ class ExtensionRepoRepositoryImpl(
         author = author,
         discord = discord,
         icon = icon,
+        // ANZ -->
+        isLegacy = isLegacy,
+        extensionListUrl = extensionListUrl,
+        // ANZ <--
     )
 }

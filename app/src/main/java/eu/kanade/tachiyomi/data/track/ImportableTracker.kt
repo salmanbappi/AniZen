@@ -7,7 +7,7 @@ interface ImportableTracker {
     val name: String
     val isLoggedIn: Boolean
     fun getUsername(): String
-    
+
     suspend fun getImportableList(): List<ImportableEntry>
     fun getNoticeStringRes(): StringResource
 }

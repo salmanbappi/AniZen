@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.compose.ui.util.fastAny
+import androidx.core.app.ServiceCompat
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
@@ -74,6 +75,17 @@ class DiscordRPCService : Service() {
         return null
     }
 
+    // ANZ -->
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val token = connectionsPreferences.connectionsToken(connectionsManager.discord).get()
+        if (!connectionsPreferences.enableDiscordRPC().get() || token.isBlank()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+    // ANZ <--
+
     private fun notification(context: Context) {
         val appName = context.getString(R.string.app_name) // Get app name once
         val builder = context.notificationBuilder(Notifications.CHANNEL_DISCORD_RPC) {
@@ -85,15 +97,18 @@ class DiscordRPCService : Service() {
             setUsesChronometer(true)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                Notifications.ID_DISCORD_RPC,
-                builder.build(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
-        } else {
-            startForeground(Notifications.ID_DISCORD_RPC, builder.build())
-        }
+        // ANZ -->
+        ServiceCompat.startForeground(
+            this,
+            Notifications.ID_DISCORD_RPC,
+            builder.build(),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            },
+        )
+        // ANZ <--
     }
 
     companion object {
@@ -105,13 +120,19 @@ class DiscordRPCService : Service() {
         private val handler = Handler(Looper.getMainLooper())
         private val playerPreferences: PlayerPreferences by injectLazy()
 
+        // ANZ -->
         fun start(context: Context) {
             handler.removeCallbacksAndMessages(null)
-            if (rpc == null && connectionsPreferences.enableDiscordRPC().get()) {
-                since = System.currentTimeMillis()
-                context.startService(Intent(context, DiscordRPCService::class.java))
+            if (connectionsPreferences.enableDiscordRPC().get()) {
+                if (rpc == null) {
+                    since = System.currentTimeMillis()
+                    context.startService(Intent(context, DiscordRPCService::class.java))
+                }
+            } else {
+                stop(context, delay = 0L)
             }
         }
+        // ANZ <--
 
         fun stop(context: Context, delay: Long = 30000L) {
             handler.postDelayed(

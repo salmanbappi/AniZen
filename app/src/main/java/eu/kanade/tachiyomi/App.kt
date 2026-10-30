@@ -52,18 +52,18 @@ import eu.kanade.tachiyomi.data.coil.AnimeKeyer
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
 import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.di.AppModule
 import eu.kanade.tachiyomi.di.PreferenceModule
 import eu.kanade.tachiyomi.di.SYPreferenceModule
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
-import eu.kanade.tachiyomi.util.system.DeviceUtil
-import eu.kanade.tachiyomi.util.system.GLUtil
-import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
+import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
@@ -84,17 +84,17 @@ import logcat.LogcatLogger
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
 import mihon.telemetry.TelemetryConfig
+import okio.Path.Companion.toPath
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.domain.storage.service.StorageManager
+import tachiyomi.data.Database
 import tachiyomi.domain.anime.repository.CustomAnimeRepository
 import tachiyomi.domain.source.service.SourceManager
-import tachiyomi.data.Database
-import eu.kanade.tachiyomi.data.download.DownloadManager
+import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.util.TvDevice
 import tachiyomi.presentation.widget.WidgetManager
@@ -106,7 +106,6 @@ import java.io.File
 import java.security.Security
 import java.text.SimpleDateFormat
 import java.util.Locale
-import okio.Path.Companion.toPath
 
 class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
 
@@ -166,16 +165,26 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             Injekt.get<eu.kanade.tachiyomi.data.cache.CoverCache>()
             Injekt.get<CustomAnimeRepository>()
 
+            // ANZ -->
+            // Eagerly warm Coil ImageLoader & diskCache so the first scroll frame never
+            // freezes on Okio journal initialization or component registry creation.
+            try { // ANZ
+                val imageLoader = coil3.SingletonImageLoader.get(this@App)
+                imageLoader.diskCache
+            } catch (_: Throwable) {
+            }
+            // ANZ <--
+
             // Warm the cover color/ratio cache so the first library scroll is already
             // smooth instead of extracting + measuring on the fly (KMK).
             CoverColorObserver.load()
-            
+
             // Dismiss stuck downloader notifications
             val downloadManager = Injekt.get<DownloadManager>()
             withUIContext<Unit> {
                 downloadManager.dismissNotifications()
             }
-            
+
             val syncPreferences: SyncPreferences = Injekt.get()
             val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
             if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppStart) {
@@ -203,6 +212,15 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             val process = getProcessName()
             if (packageName != process) WebView.setDataDirectorySuffix(process)
         }
+
+        // ANZ -->
+        try { // ANZ
+            WebViewUtil.supportsWebView(this)
+        } catch (_: Throwable) {
+        } finally {
+            chromiumInitialized = true
+        }
+        // ANZ <--
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
 
@@ -283,9 +301,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(AnimeKeyer())
             }
 
-            // Scrolling Optimization: Smooth transitions and better memory handling
-            crossfade((300 * this@App.animatorDurationScale).toInt())
-            allowRgb565(DeviceUtil.isLowRamDevice(this@App))
+            // ANZ -->
+            crossfade((300 * this@App.animatorDurationScale).toInt()) // ANZ
+            allowRgb565(true) // ANZ
+            // ANZ <--
             if (networkPreferences.verboseLogging().get()) logger(DebugLogger())
 
             memoryCache {
@@ -300,9 +319,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                     .build()
             }
 
-            val coreCount = Runtime.getRuntime().availableProcessors()
-            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(coreCount.coerceIn(4, 12)))
-            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(coreCount.coerceIn(3, 8))) // Balanced for performance and UI smoothness
+            // ANZ -->
+            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(8)) // ANZ
+            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(3)) // ANZ
+            // ANZ <--
         }.build()
     }
 
@@ -327,24 +347,30 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         DiscordRPCService.stop(applicationContext)
     }
 
-    override fun getPackageName(): String {
+    // ANZ -->
+    @Volatile
+    private var chromiumInitialized = false
+    private val spoofedPackageName by lazy { WebViewUtil.spoofedPackageName(this) }
+
+    override fun getPackageName(): String { // ANZ
+        if (chromiumInitialized || Looper.myLooper() != Looper.getMainLooper()) {
+            return super.getPackageName()
+        }
         try {
-            val stackTrace = Looper.getMainLooper().thread.stackTrace
-            val chromiumElement = stackTrace.find {
-                it.className.equals(
-                    "org.chromium.base.BuildInfo",
-                    ignoreCase = true,
-                )
+            val stackTrace = Throwable().stackTrace
+            val checkLimit = minOf(stackTrace.size, 6)
+            for (i in 0 until checkLimit) {
+                val element = stackTrace[i]
+                if (element.className.contains("chromium", ignoreCase = true)) {
+                    chromiumInitialized = true
+                    return spoofedPackageName ?: super.getPackageName()
+                }
             }
-            if (chromiumElement?.methodName.equals("getAll", ignoreCase = true)) {
-                // ANZ -->
-                return WebViewUtil.spoofedPackageName(applicationContext) ?: super.getPackageName()
-                // ANZ <--
-            }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         return super.getPackageName()
     }
+    // ANZ <--
 
     private fun setupNotificationChannels() {
         try {

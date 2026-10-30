@@ -103,7 +103,7 @@ class NavigationSettingsScreen(
 
         val haptic = LocalHapticFeedback.current
         val context = LocalContext.current
-        
+
         var showImportDialog by remember { mutableStateOf(initialLayoutData != null) }
         var importInput by remember { mutableStateOf(initialLayoutData ?: "") }
 
@@ -180,23 +180,23 @@ class NavigationSettingsScreen(
                                 ),
                                 AppBar.OverflowAction(
                                     title = "Default Preset",
-                                    onClick = { 
+                                    onClick = {
                                         Log.d("AniZenNav", "Preset applied: Default")
-                                        uiPreferences.updateNavConfig(NavPresets.DEFAULT) 
+                                        uiPreferences.updateNavConfig(NavPresets.DEFAULT)
                                     },
                                 ),
                                 AppBar.OverflowAction(
                                     title = "Minimal Preset",
-                                    onClick = { 
+                                    onClick = {
                                         Log.d("AniZenNav", "Preset applied: Minimal")
-                                        uiPreferences.updateNavConfig(NavPresets.MINIMAL) 
+                                        uiPreferences.updateNavConfig(NavPresets.MINIMAL)
                                     },
                                 ),
                                 AppBar.OverflowAction(
                                     title = "Power Preset",
-                                    onClick = { 
+                                    onClick = {
                                         Log.d("AniZenNav", "Preset applied: Power")
-                                        uiPreferences.updateNavConfig(NavPresets.POWER) 
+                                        uiPreferences.updateNavConfig(NavPresets.POWER)
                                     },
                                 ),
                                 AppBar.OverflowAction(
@@ -220,7 +220,7 @@ class NavigationSettingsScreen(
             },
         ) { paddingValues ->
             val lazyListState = rememberLazyListState()
-            
+
             val visibleItems: List<NavItem> = remember(bottomNavTabs) {
                 bottomNavTabs.mapNotNull { NavItem.fromId(it) }
             }
@@ -250,7 +250,7 @@ class NavigationSettingsScreen(
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 val visibleIndexFrom = visibleItems.indexOfFirst { "visible-${it.id}" == from.key }
                 val visibleIndexTo = visibleItems.indexOfFirst { "visible-${it.id}" == to.key }
-                
+
                 if (visibleIndexFrom != -1 && visibleIndexTo != -1) {
                     val newList = visibleItems.toMutableList().apply {
                         add(visibleIndexTo, removeAt(visibleIndexFrom))
@@ -336,7 +336,7 @@ class NavigationSettingsScreen(
                             icon = null
                         )
                         if (timeRule) {
-                            val formatHour = { h: Int -> 
+                            val formatHour = { h: Int ->
                                 when (h) {
                                     0 -> "12 AM"
                                     12 -> "12 PM"
@@ -345,7 +345,7 @@ class NavigationSettingsScreen(
                                 }
                             }
                             val hoursMap = (0..23).associateWith { formatHour(it) }.toImmutableMap()
-                            
+
                             val startHour by uiPreferences.adaptiveTimeRuleStart().collectAsStatePref()
                             ListPreferenceWidget(
                                 value = startHour,
@@ -462,7 +462,7 @@ class NavigationSettingsScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                     PreferenceGroupHeader(title = "Telemetry Debug (Dev Only)")
                 }
-                
+
                 items(
                     items = NavActionExecutor.getHistory(),
                     key = { it.timestamp }
@@ -527,7 +527,7 @@ class NavigationSettingsScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
-                
+
                 if (isVisible && reorderableScope != null) {
                     IconButton(
                         onClick = {},

@@ -37,7 +37,9 @@ class LocalHttpServer(
     private fun serveProxy(session: IHTTPSession): Response {
         val params = session.parameters
         val targetUrl = params["url"]?.get(0) ?: return newFixedLengthResponse(
-            Response.Status.BAD_REQUEST, "text/plain", "Missing url parameter",
+            Response.Status.BAD_REQUEST,
+            "text/plain",
+            "Missing url parameter",
         )
 
         return try {
@@ -74,7 +76,9 @@ class LocalHttpServer(
 
             if (inputStream == null) {
                 return newFixedLengthResponse(
-                    Response.Status.INTERNAL_ERROR, "text/plain", "No response from upstream",
+                    Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    "No response from upstream",
                 )
             }
 
@@ -104,7 +108,9 @@ class LocalHttpServer(
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Proxy error for $targetUrl" }
             newFixedLengthResponse(
-                Response.Status.INTERNAL_ERROR, "text/plain", "Proxy error: ${e.message}",
+                Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                "Proxy error: ${e.message}",
             )
         }
     }

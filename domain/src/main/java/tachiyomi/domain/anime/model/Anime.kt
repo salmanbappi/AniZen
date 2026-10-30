@@ -1,12 +1,12 @@
 package tachiyomi.domain.anime.model
 
-import eu.kanade.tachiyomi.animesource.model.Credit
-import eu.kanade.tachiyomi.animesource.model.FetchType;
 import androidx.compose.runtime.Immutable
-import tachiyomi.domain.anime.model.SeasonDisplayMode
+import eu.kanade.tachiyomi.animesource.model.Credit
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.anime.interactor.GetCustomAnimeInfo
+import tachiyomi.domain.anime.model.SeasonDisplayMode
 import tachiyomi.domain.library.service.LibraryPreferences
 import uy.kohesive.injekt.injectLazy
 import java.io.Serializable

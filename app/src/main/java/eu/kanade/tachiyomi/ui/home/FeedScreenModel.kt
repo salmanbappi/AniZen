@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
+import eu.kanade.tachiyomi.ui.browse.source.browse.FilterSerializer
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
@@ -19,12 +20,15 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.toDomainAnime
-import eu.kanade.tachiyomi.ui.browse.source.browse.FilterSerializer
+import tachiyomi.domain.history.interactor.LogActivity
+import tachiyomi.domain.history.model.ActivityLog
 import tachiyomi.domain.source.interactor.GetFeedSavedSearchCategories
 import tachiyomi.domain.source.interactor.GetFeedSavedSearchGlobal
 import tachiyomi.domain.source.interactor.GetSavedSearchGlobalFeed
@@ -33,10 +37,6 @@ import tachiyomi.domain.source.model.FeedSavedSearch
 import tachiyomi.domain.source.model.FeedSavedSearchCategory
 import tachiyomi.domain.source.model.SavedSearch
 import tachiyomi.domain.source.service.SourceManager
-import tachiyomi.domain.history.interactor.LogActivity
-import tachiyomi.domain.history.model.ActivityLog
-import logcat.LogPriority
-import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -80,10 +80,10 @@ class FeedScreenModel(
                         }
                         state.copy(
                             categories = categoriesToUse,
-                            items = newItems.toImmutableMap()
+                            items = newItems.toImmutableMap(),
                         )
                     }
-                    
+
                     if (updatedCategories.isNotEmpty()) {
                         setupFeedSubscriptions(updatedCategories)
                     }
@@ -124,10 +124,10 @@ class FeedScreenModel(
                         val savedSearches = getSavedSearchGlobalFeed.await(category.id)
                         val initialItems = feedSavedSearches.mapNotNull { feed ->
                             val source = sourceManager.get(feed.source) as? AnimeCatalogueSource
-                            
+
                             // Preserve existing anime list if it exists to avoid flickering
                             val existingAnime = mutableState.value.items[category.id]?.find { it.feed.id == feed.id }?.animeList ?: persistentListOf<Anime>()
-                            
+
                             FeedItem(
                                 feed = feed,
                                 source = source ?: return@mapNotNull null,
@@ -198,15 +198,15 @@ class FeedScreenModel(
                                                     val index = results.indexOfFirst { it.url == previousTopUrl }
                                                     if (index == -1) results.size else index
                                                 }
-                                                
+
                                                 if (newItemsCount > 0) {
                                                     logActivity.await(source.id, ActivityLog.TYPE_FEED_UPDATE, feedId = feed.id, count = newItemsCount.toLong())
                                                 }
                                                 updateFeedSavedSearch.await(
                                                     tachiyomi.domain.source.model.FeedSavedSearchUpdate(
                                                         id = feed.id,
-                                                        lastTopUrl = currentTopUrl
-                                                    )
+                                                        lastTopUrl = currentTopUrl,
+                                                    ),
                                                 )
                                             }
 
@@ -219,7 +219,7 @@ class FeedScreenModel(
                                                         item
                                                     }
                                                 }.toImmutableList()
-                                                
+
                                                 val newItemsMap = state.items.toMutableMap()
                                                 newItemsMap[category.id] = updatedItems
                                                 state.copy(items = newItemsMap.toImmutableMap())
@@ -237,7 +237,7 @@ class FeedScreenModel(
                                                     item
                                                 }
                                             }.toImmutableList()
-                                            
+
                                             val newItemsMap = state.items.toMutableMap()
                                             newItemsMap[category.id] = updatedItems
                                             state.copy(items = newItemsMap.toImmutableMap())

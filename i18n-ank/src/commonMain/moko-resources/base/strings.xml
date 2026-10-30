@@ -241,4 +241,22 @@
 
     <!-- WebView -->
     <string name="action_webview_close_tab">Close tab</string>
+
+    <!-- Interpolation -->
+    <string name="player_sheets_interpolation_title">Interpolation</string>
+    <string name="pref_interpolation_profile">Profile</string>
+    <string name="pref_interpolation_profile_summary">Optimized for content type</string>
+    <string name="pref_interpolation_target_fps">Target FPS</string>
+
+    <!-- Download Remux -->
+    <string name="pref_remux_subtitles_title">Embed subtitles into video (MKV)</string>
+    <string name="pref_remux_subtitles_summary">Muxes downloaded soft subtitles directly into the video container. Requires extra temporary disk space.</string>
+
+    <!-- Extension Stores -->
+    <string name="label_extension_stores">Extension stores</string>
+    <string name="action_add_repo_message_v2">Add additional extension stores or repos. Accepts index.pb, repo.json, or index.min.json URLs.</string>
+
+    <!-- Advanced Settings -->
+    <string name="pref_redact_sensitive_headers">Redact sensitive headers</string>
+    <string name="pref_redact_sensitive_headers_summary">Prevents sensitive HTTP headers like Authorization and Cookie from being logged to crash dumps.</string>
 </resources>

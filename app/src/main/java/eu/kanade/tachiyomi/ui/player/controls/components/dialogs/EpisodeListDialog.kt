@@ -131,7 +131,9 @@ private fun EpisodeListItem(
     onBookmarkClicked: (Long?, Boolean) -> Unit,
     onEpisodeClicked: (Long?) -> Unit,
 ) {
-    var isBookmarked by remember { mutableStateOf(episode.bookmark) }
+    // ANZ -->
+    var isBookmarked by remember(episode.id, episode.bookmark) { mutableStateOf(episode.bookmark) }
+    // ANZ <--
     var textHeight by remember { mutableStateOf(0) }
 
     val bookmarkIcon = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.Bookmark

@@ -10,8 +10,8 @@ import tachiyomi.domain.episode.model.Episode
  * Gets next unseen episode with filters and sorting applied
  */
 fun List<Episode>.getNextUnseen(
-    anime: Anime, 
-    downloadManager: DownloadManager, 
+    anime: Anime,
+    downloadManager: DownloadManager,
     seasonName: String? = null,
     episodeToSeason: Map<Long, String> = emptyMap(),
 ): Episode? {
@@ -36,7 +36,7 @@ fun List<Episode>.getNextUnseen(
  * Gets next unseen episode with filters and sorting applied
  */
 fun List<EpisodeList.Item>.getNextUnseen(
-    anime: Anime, 
+    anime: Anime,
     seasonName: String? = null,
     episodeToSeason: Map<Long, String> = emptyMap(),
 ): Episode? {

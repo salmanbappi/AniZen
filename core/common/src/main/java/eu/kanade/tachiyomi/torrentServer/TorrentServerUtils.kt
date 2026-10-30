@@ -71,11 +71,11 @@ object TorrentServerUtils {
 
             val nonMobileIp = ipAddresses.find { (name, _) ->
                 !name.startsWith("rmnet") &&
-                !name.startsWith("ccmni") &&
-                !name.startsWith("pdp") &&
-                !name.startsWith("tun") &&
-                !name.startsWith("tap") &&
-                !name.startsWith("p2p")
+                    !name.startsWith("ccmni") &&
+                    !name.startsWith("pdp") &&
+                    !name.startsWith("tun") &&
+                    !name.startsWith("tap") &&
+                    !name.startsWith("p2p")
             }?.second
             if (nonMobileIp != null) return nonMobileIp
 

@@ -19,7 +19,6 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
@@ -37,7 +36,6 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import kotlin.time.Duration.Companion.seconds
 
 class ExtensionsScreenModel(
     preferences: SourcePreferences = Injekt.get(),
@@ -164,7 +162,9 @@ class ExtensionsScreenModel(
                     }
                 }
         }
-        screenModelScope.launchIO { findAvailableExtensions() }
+        // ANZ -->
+        screenModelScope.launchIO { findAvailableExtensions(isManual = false) } // ANZ
+        // ANZ <--
 
         preferences.animeExtensionUpdatesCount().changes()
             .onEach { mutableState.update { state -> state.copy(updates = it) } }
@@ -229,17 +229,22 @@ class ExtensionsScreenModel(
         extensionManager.uninstallExtension(extension)
     }
 
-    fun findAvailableExtensions() {
+    // ANZ -->
+    fun findAvailableExtensions(isManual: Boolean = false) { // ANZ
         screenModelScope.launchIO {
-            mutableState.update { it.copy(isRefreshing = true) }
-            extensionManager.findAvailableExtensions()
-
-            // Fake slower refresh so it doesn't seem like it's not doing anything
-            delay(1.seconds)
-
-            mutableState.update { it.copy(isRefreshing = false) }
+            if (isManual) {
+                mutableState.update { it.copy(isRefreshing = true) }
+            }
+            try {
+                extensionManager.findAvailableExtensions()
+            } finally {
+                if (isManual) {
+                    mutableState.update { it.copy(isRefreshing = false) }
+                }
+            }
         }
     }
+    // ANZ <--
 
     fun trustExtension(extension: Extension.Untrusted) {
         screenModelScope.launch {
@@ -270,6 +275,7 @@ object ExtensionUiModel {
         data class Resource(val textRes: StringResource) : Header
         data class Text(val text: String) : Header
     }
+
     @androidx.compose.runtime.Immutable
     data class Item(
         val extension: Extension,

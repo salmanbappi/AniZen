@@ -2,8 +2,8 @@ package eu.kanade.tachiyomi.ui.browse
 
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Panorama
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -39,10 +39,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import androidx.compose.runtime.collectAsState as collectAsStateFlow
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 data object BrowseTab : Tab {
 
@@ -109,15 +109,15 @@ data object BrowseTab : Tab {
                                 AppBar.Action(
                                     title = "Edit Feed",
                                     icon = Icons.Outlined.Settings,
-                                    onClick = { 
+                                    onClick = {
                                         navigator.push(FeedManageScreen())
                                     },
                                 ),
                             ),
-                            content = { contentPadding, _ -> 
+                            content = { contentPadding, _ ->
                                 FeedTab.Content(contentPadding, effectivePanorama)
-                            }
-                        )
+                            },
+                        ),
                     )
                 }
                 add(extensionsTab)
@@ -137,9 +137,9 @@ data object BrowseTab : Tab {
         )
         LaunchedEffect(state, showFeedInBrowse) {
             switchToExtensionTabChannel.receiveAsFlow()
-                .collectLatest { 
+                .collectLatest {
                     val targetPage = if (showFeedInBrowse) 2 else 1
-                    state.scrollToPage(targetPage) 
+                    state.scrollToPage(targetPage)
                 }
         }
 

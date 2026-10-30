@@ -18,8 +18,13 @@ object WebViewUtil {
     // ANZ -->
     private const val CHROME_PACKAGE = "com.android.chrome"
 
+    private var cachedSpoofedPackageName: String? = null // ANZ
+    private var spoofChecked = false
+
+    @Synchronized
     fun spoofedPackageName(context: Context): String? { // ANZ
-        return try {
+        if (spoofChecked) return cachedSpoofedPackageName
+        val pkg = try {
             context.packageManager.getPackageInfo(CHROME_PACKAGE, PackageManager.GET_META_DATA)
 
             CHROME_PACKAGE
@@ -31,6 +36,9 @@ object WebViewUtil {
                     ?: packages.firstOrNull { it.contains("android") && it.contains("setting") }
             }
         }
+        cachedSpoofedPackageName = pkg
+        spoofChecked = true
+        return pkg
     }
     // ANZ <--
 

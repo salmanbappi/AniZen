@@ -4,7 +4,6 @@ import android.view.View
 import coil3.load
 import eu.davidea.viewholders.FlexibleViewHolder
 import eu.kanade.tachiyomi.databinding.EditMergedAnimeSettingsItemBinding
-import eu.kanade.tachiyomi.util.system.dpToPx
 import tachiyomi.domain.anime.model.MergedAnimeReference
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt

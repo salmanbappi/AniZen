@@ -56,6 +56,9 @@ class AnimeCoverFetcher(
     private val sourceLazy: Lazy<HttpSource?>,
     private val callFactoryLazy: Lazy<Call.Factory>,
     private val imageLoader: ImageLoader,
+    // ANZ -->
+    private val coverCache: CoverCache? = null, // ANZ
+    // ANZ <--
 ) : Fetcher {
 
     private val diskCacheKey: String
@@ -69,9 +72,12 @@ class AnimeCoverFetcher(
         val useCustomCover = options.extras.getOrDefault(USE_CUSTOM_COVER_KEY)
         if (useCustomCover) {
             val customCoverFile = customCoverFileLazy.value
-            if (customCoverFile.exists()) {
+            // ANZ -->
+            val hasCustom = coverCache?.hasCustomCoverFile(customCoverFile) ?: customCoverFile.exists()
+            if (hasCustom) {
                 return fileLoader(customCoverFile)
             }
+            // ANZ <--
         }
 
         // diskCacheKey is thumbnail_url
@@ -115,9 +121,16 @@ class AnimeCoverFetcher(
         } else {
             null
         }
-        if (libraryCoverCacheFile?.exists() == true && options.diskCachePolicy.readEnabled) {
+        // ANZ -->
+        val isCached = if (libraryCoverCacheFile != null) {
+            coverCache?.hasCoverFile(libraryCoverCacheFile) ?: libraryCoverCacheFile.exists()
+        } else {
+            false
+        }
+        if (isCached && libraryCoverCacheFile != null && options.diskCachePolicy.readEnabled) {
             return fileLoader(libraryCoverCacheFile)
         }
+        // ANZ <--
 
         var snapshot = readFromDiskCache()
         try {
@@ -243,6 +256,9 @@ class AnimeCoverFetcher(
             cacheFile.sink().buffer().use { output ->
                 output.writeAll(input)
             }
+            // ANZ -->
+            coverCache?.recordCover(cacheFile)
+            // ANZ <--
         } catch (e: Exception) {
             cacheFile.delete()
             throw e
@@ -319,6 +335,9 @@ class AnimeCoverFetcher(
                 sourceLazy = lazy { sourceManager.get(data.source) as? HttpSource },
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
+                // ANZ -->
+                coverCache = coverCache,
+                // ANZ <--
             )
         }
     }
@@ -341,6 +360,9 @@ class AnimeCoverFetcher(
                 sourceLazy = lazy { sourceManager.get(data.sourceId) as? HttpSource },
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
+                // ANZ -->
+                coverCache = coverCache,
+                // ANZ <--
             )
         }
     }
@@ -367,6 +389,9 @@ class AnimeCoverFetcher(
                 sourceLazy = lazy { sourceManager.get(data.sourceId) as? HttpSource },
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
+                // ANZ -->
+                coverCache = coverCache,
+                // ANZ <--
             )
         }
     }

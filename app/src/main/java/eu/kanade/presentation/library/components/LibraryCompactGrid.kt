@@ -2,38 +2,21 @@ package eu.kanade.presentation.library.components
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.util.fastAny
-import eu.kanade.tachiyomi.ui.library.LibraryItem
-import kotlinx.collections.immutable.ImmutableList
-import tachiyomi.domain.anime.model.AnimeCover
-import tachiyomi.domain.library.model.LibraryAnime
-import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
+import kotlinx.collections.immutable.ImmutableList
+import tachiyomi.domain.anime.model.asAnimeCover
+import tachiyomi.domain.library.model.LibraryAnime
 
 @Composable
 fun LibraryCompactGrid(
@@ -62,14 +45,14 @@ fun LibraryCompactGrid(
 
         itemsIndexed(
             items = items,
-            key = { _, item -> 
+            key = { _, item ->
                 when (item) {
-                    is LibraryDisplayItem.Anime -> "library-grid-${item.libraryItem.libraryAnime.anime.id}"
-                    is LibraryDisplayItem.Folder -> "library-folder-${item.folder.id}"
-                    is LibraryDisplayItem.Header -> "library-header-${item.name}"
+                    is LibraryDisplayItem.Anime -> item.libraryItem.libraryAnime.anime.id
+                    is LibraryDisplayItem.Folder -> -item.folder.id
+                    is LibraryDisplayItem.Header -> "header_${item.name}"
                 }
             },
-            contentType = { _, item -> 
+            contentType = { _, item ->
                 when (item) {
                     is LibraryDisplayItem.Anime -> "anime_library_compact_grid_item"
                     is LibraryDisplayItem.Folder -> "folder_library_compact_grid_item"
@@ -81,7 +64,7 @@ fun LibraryCompactGrid(
                     is LibraryDisplayItem.Header -> GridItemSpan(maxLineSpan)
                     else -> GridItemSpan(1)
                 }
-            }
+            },
         ) { _, displayItem ->
             when (displayItem) {
                 is LibraryDisplayItem.Anime -> {
@@ -90,13 +73,7 @@ fun LibraryCompactGrid(
                     AnimeCompactGridItem(
                         isSelected = libraryItem.libraryAnime.id in selectedIds,
                         title = anime.title.takeIf { showTitle },
-                        coverData = AnimeCover(
-                            animeId = anime.id,
-                            sourceId = anime.source,
-                            isAnimeFavorite = anime.favorite,
-                            ogUrl = anime.thumbnailUrl,
-                            lastModified = anime.coverLastModified,
-                        ),
+                        coverData = anime.asAnimeCover(),
                         coverBadgeStart = {
                             DownloadsBadge(count = libraryItem.downloadCount)
                             UnviewedBadge(count = libraryItem.unseenCount)
@@ -135,11 +112,10 @@ fun LibraryCompactGrid(
                     Text(
                         text = displayItem.name,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
                     )
                 }
             }
         }
     }
 }
-

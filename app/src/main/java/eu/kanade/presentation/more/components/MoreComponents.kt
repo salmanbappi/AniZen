@@ -28,23 +28,23 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun MoreSection(
     title: String,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Column {
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
+                letterSpacing = 1.sp,
             ),
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+            modifier = Modifier.padding(start = 12.dp, bottom = 8.dp),
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 2.dp
+            tonalElevation = 2.dp,
         ) {
             Column {
                 content()
@@ -60,15 +60,15 @@ fun MoreItem(
     icon: ImageVector? = null,
     iconPainter: Painter? = null,
     iconTint: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Surface(
         onClick = onClick,
-        color = Color.Transparent
+        color = Color.Transparent,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null || iconPainter != null) {
                 if (icon != null) {
@@ -76,14 +76,14 @@ fun MoreItem(
                         imageVector = icon,
                         contentDescription = null,
                         tint = iconTint,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(24.dp),
                     )
                 } else if (iconPainter != null) {
                     Icon(
                         painter = iconPainter,
                         contentDescription = null,
                         tint = iconTint,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(24.dp),
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -92,20 +92,20 @@ fun MoreItem(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )
                 }
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
             )
         }
     }

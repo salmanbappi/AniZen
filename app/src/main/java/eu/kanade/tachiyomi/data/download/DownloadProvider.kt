@@ -5,6 +5,8 @@ import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.util.size
 import eu.kanade.tachiyomi.util.storage.DiskUtil
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.storage.displayablePath
@@ -18,9 +20,6 @@ import tachiyomi.source.localanime.io.LocalAnimeSourceFileSystem
 import tachiyomi.source.localanime.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * This class is used to provide the directories where the downloads should be saved.
@@ -50,10 +49,10 @@ class DownloadProvider(
      */
     suspend fun getAnimeDir(animeTitle: String, source: Source): UniFile {
         val cacheKey = "${source.id}_$animeTitle"
-        animeDirCache.get(cacheKey)?.let { 
-            if (it.exists()) return it else animeDirCache.remove(cacheKey) 
+        animeDirCache.get(cacheKey)?.let {
+            if (it.exists()) return it else animeDirCache.remove(cacheKey)
         }
-        
+
         try {
             return dirMutex.withLock {
                 val dir = downloadsDir!!
@@ -155,23 +154,22 @@ class DownloadProvider(
      */
     fun findEpisodeDirs(episodes: List<Episode>, anime: Anime, source: Source): Pair<UniFile?, List<UniFile>> {
         val animeDir = findAnimeDir(if (source.isLocal()) anime.url else anime.ogTitle, source)
+            ?: return null to emptyList()
+        val allFiles = animeDir.listFiles().orEmpty()
+        val filesByName = allFiles.associateBy { it.name }
+
         if (source.isLocal()) {
-            val files = animeDir?.listFiles().orEmpty()
             return animeDir to episodes.mapNotNull { episode ->
                 // Try finding by URL filename first
                 val filenameFromUrl = episode.url.split('/', limit = 2).lastOrNull()
-                val fileByUrl = filenameFromUrl?.let { animeDir?.findFile(it) }
+                val fileByUrl = filenameFromUrl?.let { filesByName[it] }
 
                 // Fallback to finding by name without extension
-                fileByUrl ?: files.find { it.nameWithoutExtension == episode.name }
+                fileByUrl ?: allFiles.find { it.nameWithoutExtension == episode.name }
             }
         }
-        if (animeDir == null) return null to emptyList()
-        val allFiles = animeDir.listFiles().orEmpty()
         return animeDir to episodes.mapNotNull { episode ->
-            val exact = getValidEpisodeDirNames(episode.name, episode.scanlator).asSequence()
-                .mapNotNull { animeDir.findFile(it) }
-                .firstOrNull()
+            val exact = getValidEpisodeDirNames(episode.name, episode.scanlator).firstNotNullOfOrNull { filesByName[it] }
             if (exact != null) return@mapNotNull exact
 
             if (episode.isRecognizedNumber) {

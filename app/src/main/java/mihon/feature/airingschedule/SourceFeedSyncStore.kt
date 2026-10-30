@@ -16,7 +16,10 @@ import java.time.ZoneId
  */
 class SourceFeedSyncStore(
     private val context: Context,
-    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
+    private val json: Json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    },
 ) {
     fun readRecent(now: LocalDate = LocalDate.now(ZoneId.systemDefault())): List<SourceFeedObservation> {
         val directory = directory()

@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.data.track.simkl
 
 import android.net.Uri
-import android.util.Log
 import androidx.core.net.toUri
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
@@ -186,10 +185,10 @@ class SimklApi(private val client: OkHttpClient, interceptor: SimklInterceptor) 
                     .firstOrNull() ?: return@withIOContext null
             }
 
-            Log.i("SOMETHING-IDK", foundAnime.toString())
-
             if (foundAnime.result != true) return@withIOContext null
-            val lastWatched = foundAnime.lastWatched ?: return@withIOContext null
+            // ANZ -->
+            val lastWatched = foundAnime.lastWatchedAt ?: return@withIOContext null
+            // ANZ <--
             val status = foundAnime.list ?: return@withIOContext null
             val type = track.tracking_url
                 .substringAfter("/")
@@ -203,8 +202,10 @@ class SimklApi(private val client: OkHttpClient, interceptor: SimklInterceptor) 
             val listAnime = with(json) {
                 authClient.newCall(GET(url.toString()))
                     .awaitSuccess()
-                    .parseAs<SimklSyncResult>()
-                    .getFromType(queryType)
+                    // ANZ -->
+                    .parseAs<SimklSyncResult?>()
+                    ?.getFromType(queryType)
+                    // ANZ <--
                     ?.firstOrNull { item ->
                         item.getFromType(typeName).ids.simkl == track.remote_id
                     } ?: return@withIOContext null

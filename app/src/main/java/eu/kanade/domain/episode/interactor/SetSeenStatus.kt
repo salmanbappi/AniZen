@@ -44,14 +44,14 @@ class SetSeenStatus(
             episodeRepository.updateAll(
                 episodesToUpdate.map { mapper(it, seen) },
             )
-            
+
             // Log engagement for manual actions
             if (seen) {
                 episodesToUpdate.firstOrNull()?.let { ep ->
                     val anime = animeRepository.getAnimeById(ep.animeId)
                     val allEpisodes = episodeRepository.getEpisodeByAnimeId(anime.id)
                     val isFinished = allEpisodes.all { it.seen || episodesToUpdate.any { updated -> updated.id == it.id } }
-                    
+
                     if (isFinished) {
                         logActivity.await(anime.source, ActivityLog.TYPE_COMPLETE, animeId = anime.id)
                     } else {

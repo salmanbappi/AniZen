@@ -1,7 +1,5 @@
 package tachiyomi.presentation.core.components
 
-import kotlinx.collections.immutable.toImmutableList
-
 import android.view.ViewConfiguration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -31,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -47,20 +44,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastForEach
-import androidx.compose.ui.util.fastLastOrNull
 import androidx.compose.ui.util.fastMaxBy
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.sample
-import tachiyomi.presentation.core.components.Scroller.EXACT_HEIGHT_KEY_PREFIX
-import tachiyomi.presentation.core.components.Scroller.STICKY_HEADER_KEY_PREFIX
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
@@ -141,8 +131,8 @@ private fun ListFastScrollThumb(
         (contentHeightPx - thumbTopPadding - thumbBottomPadding - thumbHeightPx).coerceAtLeast(0f)
     }
 
-    var thumbOffsetY by remember(thumbTopPadding) { mutableFloatStateOf(thumbTopPadding) }
-    val itemSizeCache = remember { mutableMapOf<Int, Int>() }
+    // ANZ -->
+    var thumbOffsetY by remember(thumbTopPadding) { mutableFloatStateOf(thumbTopPadding) } // ANZ
     val dragInteractionSource = remember { MutableInteractionSource() }
     val isThumbDragged by dragInteractionSource.collectIsDraggedAsState()
 
@@ -154,8 +144,6 @@ private fun ListFastScrollThumb(
     }
 
     // ── List → Thumb ─────────────────────────────────────────────────────────
-    // Stable keys: this LaunchedEffect never restarts during an active scroll session.
-    // snapshotFlow reads layoutInfo reactively on the coroutine thread — not composition.
     LaunchedEffect(listState, trackHeightPx, thumbTopPadding) {
         snapshotFlow {
             if (isThumbDragged) return@snapshotFlow null
@@ -165,38 +153,26 @@ private fun ListFastScrollThumb(
             if (totalItems == 0 || info.visibleItemsInfo.isEmpty()) return@snapshotFlow null
 
             val visibleItems = info.visibleItemsInfo
-            visibleItems.fastForEach { item ->
-                itemSizeCache[item.index] = item.size
-            }
-
-            val sizes = IntArray(itemSizeCache.size)
-            var i = 0
-            for ((_, size) in itemSizeCache) {
-                sizes[i++] = size
-            }
-            sizes.sort()
-            val medianSize = if (sizes.isEmpty()) 1 else sizes[(sizes.size - 1) / 2]
-
             val firstItem = visibleItems.first()
-            var pastItemsSize = 0
-            for (index in 0 until firstItem.index) {
-                pastItemsSize += itemSizeCache[index] ?: medianSize
-            }
-            
-            val beforePadding = info.beforeContentPadding
-            val afterPadding = info.afterContentPadding
-            val currentOffset = pastItemsSize + beforePadding + (info.viewportStartOffset - firstItem.offset)
+            val lastItem = visibleItems.last()
 
-            var totalSize = 0
-            for (index in 0 until totalItems) {
-                totalSize += itemSizeCache[index] ?: medianSize
+            if (lastItem.index == totalItems - 1 && firstItem.index == 0) {
+                return@snapshotFlow 0f
             }
 
-            val viewportPx = info.viewportEndOffset - info.viewportStartOffset
-            val totalScrollableSize = totalSize + beforePadding + afterPadding
-            val proportion = currentOffset.toFloat() / (totalScrollableSize - viewportPx).coerceAtLeast(1)
-            
-            proportion.coerceIn(0f, 1f)
+            val isAtBottom = lastItem.index == totalItems - 1 &&
+                (lastItem.offset + lastItem.size) <= info.viewportEndOffset
+
+            if (isAtBottom) {
+                1f
+            } else {
+                val firstItemSize = firstItem.size.coerceAtLeast(1).toFloat()
+                val itemsBefore = firstItem.index.toFloat() +
+                    (info.viewportStartOffset - firstItem.offset).toFloat() / firstItemSize
+                val visibleCount = visibleItems.size.toFloat()
+                val scrollableItems = (totalItems.toFloat() - visibleCount).coerceAtLeast(1f)
+                (itemsBefore / scrollableItems).coerceIn(0f, 1f)
+            }
         }.collectLatest { proportion ->
             if (proportion == null) return@collectLatest
             thumbOffsetY = trackHeightPx * proportion + thumbTopPadding
@@ -207,62 +183,34 @@ private fun ListFastScrollThumb(
     // ── Thumb → List ─────────────────────────────────────────────────────────
     LaunchedEffect(listState, trackHeightPx, thumbTopPadding) {
         var lastScrolledIndex = -1
-        var lastScrolledOffset = -1
         snapshotFlow { if (isThumbDragged) thumbOffsetY else null }
             .collectLatest { y ->
                 if (y == null) {
                     lastScrolledIndex = -1
-                    lastScrolledOffset = -1
                     return@collectLatest
                 }
 
-                val proportion = ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
+                val proportion = if (trackHeightPx > 0f) {
+                    ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
 
                 val info = listState.layoutInfo
                 val totalItems = info.totalItemsCount
-                if (totalItems == 0 || info.visibleItemsInfo.isEmpty()) return@collectLatest
+                if (totalItems == 0) return@collectLatest
 
-                val sizes = IntArray(itemSizeCache.size)
-                var i = 0
-                for ((_, size) in itemSizeCache) {
-                    sizes[i++] = size
-                }
-                sizes.sort()
-                val medianSize = if (sizes.isEmpty()) 1 else sizes[(sizes.size - 1) / 2]
-
-                var totalSize = 0
-                for (index in 0 until totalItems) {
-                    totalSize += itemSizeCache[index] ?: medianSize
-                }
-
-                val beforePadding = info.beforeContentPadding
-                val afterPadding = info.afterContentPadding
-                val viewportPx = info.viewportEndOffset - info.viewportStartOffset
-                val totalScrollableSize = totalSize + beforePadding + afterPadding
-                val targetScrollOffset = proportion * (totalScrollableSize - viewportPx).coerceAtLeast(1)
-                val targetOffsetPx = targetScrollOffset - beforePadding
-
-                var accumulatedSize = 0
-                var targetIndex = 0
-                for (index in 0 until totalItems) {
-                    val size = itemSizeCache[index] ?: medianSize
-                    if (accumulatedSize + size > targetOffsetPx) {
-                        targetIndex = index
-                        break
-                    }
-                    accumulatedSize += size
-                }
-                
-                val targetItemOffset = (targetOffsetPx - accumulatedSize).roundToInt()
-
-                if (targetIndex != lastScrolledIndex || abs(targetItemOffset - lastScrolledOffset) > 4) {
+                val visibleCount = info.visibleItemsInfo.size // ANZ
+                val scrollableItems = (totalItems - visibleCount).coerceAtLeast(1)
+                val targetIndex = (proportion * scrollableItems).roundToInt().coerceIn(0, totalItems - 1)
+                if (targetIndex != lastScrolledIndex) {
                     lastScrolledIndex = targetIndex
-                    lastScrolledOffset = targetItemOffset
-                    listState.scrollToItem(targetIndex, targetItemOffset)
+                    listState.scrollToItem(targetIndex, 0)
                     scrolled.tryEmit(Unit)
                 }
             }
     }
+    // ANZ <--
 
     // ── Visibility ───────────────────────────────────────────────────────────
     val alpha = remember { Animatable(0f) }
@@ -299,7 +247,9 @@ private fun ListFastScrollThumb(
                 orientation = Orientation.Vertical,
                 state = draggableState,
             )
-            .systemGestureExclusion()
+            // ANZ -->
+            .then(if (isThumbDragged) Modifier.systemGestureExclusion() else Modifier) // ANZ
+            // ANZ <--
             .height(ThumbLength)
             .padding(end = endContentPadding)
             .width(ThumbThickness)
@@ -379,8 +329,8 @@ private fun GridFastScrollThumb(
         (contentHeightPx - thumbTopPadding - thumbBottomPadding - thumbHeightPx).coerceAtLeast(0f)
     }
 
-    var thumbOffsetY by remember(thumbTopPadding) { mutableFloatStateOf(thumbTopPadding) }
-    val itemSizeCache = remember { mutableMapOf<Int, Int>() }
+    // ANZ -->
+    var thumbOffsetY by remember(thumbTopPadding) { mutableFloatStateOf(thumbTopPadding) } // ANZ
     val dragInteractionSource = remember { MutableInteractionSource() }
     val isThumbDragged by dragInteractionSource.collectIsDraggedAsState()
     val scrolled = remember {
@@ -400,51 +350,32 @@ private fun GridFastScrollThumb(
             if (totalItems == 0 || info.visibleItemsInfo.isEmpty()) return@snapshotFlow null
 
             val visibleItems = info.visibleItemsInfo
-            
-            // Group items by row offset to find the height of each row
-            val rowHeights = mutableMapOf<Int, Int>()
-            visibleItems.fastForEach { item ->
-                val currentMax = rowHeights[item.offset.y] ?: 0
-                rowHeights[item.offset.y] = max(currentMax, item.size.height)
-            }
-            
-            // Assign row heights to cache by index
-            visibleItems.fastForEach { item ->
-                itemSizeCache[item.index] = rowHeights[item.offset.y] ?: item.size.height
-            }
-
-            val sizes = IntArray(itemSizeCache.size)
-            var i = 0
-            for ((_, size) in itemSizeCache) {
-                sizes[i++] = size
-            }
-            sizes.sort()
-            val medianSize = if (sizes.isEmpty()) 1 else sizes[(sizes.size - 1) / 2]
-
             val firstItem = visibleItems.first()
-            val avgItemsPerRow = columnCount.coerceAtLeast(1)
-            
-            var pastItemsSize = 0
-            for (index in 0 until firstItem.index) {
-                val size = itemSizeCache[index] ?: medianSize
-                pastItemsSize += size / avgItemsPerRow
-            }
-            
-            val beforePadding = info.beforeContentPadding
-            val afterPadding = info.afterContentPadding
-            val currentOffset = pastItemsSize + beforePadding + (info.viewportStartOffset - firstItem.offset.y)
+            val lastItem = visibleItems.last()
 
-            var totalSize = 0
-            for (index in 0 until totalItems) {
-                val size = itemSizeCache[index] ?: medianSize
-                totalSize += size / avgItemsPerRow
+            val cols = columnCount.coerceAtLeast(1)
+            val totalRows = (totalItems + cols - 1) / cols
+
+            val firstRow = firstItem.index / cols
+            val lastRow = lastItem.index / cols
+
+            if (firstRow == 0 && lastRow == totalRows - 1) {
+                return@snapshotFlow 0f
             }
 
-            val viewportPx = info.viewportEndOffset - info.viewportStartOffset
-            val totalScrollableSize = totalSize + beforePadding + afterPadding
-            val proportion = currentOffset.toFloat() / (totalScrollableSize - viewportPx).coerceAtLeast(1)
+            val isAtBottom = lastItem.index == totalItems - 1 &&
+                (lastItem.offset.y + lastItem.size.height) <= info.viewportEndOffset
 
-            proportion.coerceIn(0f, 1f)
+            if (isAtBottom) {
+                1f
+            } else {
+                val firstItemHeight = firstItem.size.height.coerceAtLeast(1).toFloat()
+                val rowsBefore = firstRow.toFloat() +
+                    (info.viewportStartOffset - firstItem.offset.y).toFloat() / firstItemHeight
+                val visibleRows = (lastRow - firstRow + 1).toFloat()
+                val scrollableRows = (totalRows.toFloat() - visibleRows).coerceAtLeast(1f)
+                (rowsBefore / scrollableRows).coerceIn(0f, 1f)
+            }
         }.collectLatest { proportion ->
             if (proportion == null) return@collectLatest
             thumbOffsetY = trackHeightPx * proportion + thumbTopPadding
@@ -455,68 +386,43 @@ private fun GridFastScrollThumb(
     // ── Thumb → Grid ─────────────────────────────────────────────────────────
     LaunchedEffect(state, trackHeightPx, thumbTopPadding, columnCount) {
         var lastScrolledIndex = -1
-        var lastScrolledOffset = -1
         snapshotFlow { if (isThumbDragged) thumbOffsetY else null }
             .collectLatest { y ->
                 if (y == null) {
                     lastScrolledIndex = -1
-                    lastScrolledOffset = -1
                     return@collectLatest
                 }
-                
-                val proportion = ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
+
+                val proportion = if (trackHeightPx > 0f) {
+                    ((y - thumbTopPadding) / trackHeightPx).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
 
                 val info = state.layoutInfo
                 val totalItems = info.totalItemsCount
-                if (totalItems == 0 || info.visibleItemsInfo.isEmpty()) return@collectLatest
+                if (totalItems == 0) return@collectLatest
 
-                val sizes = IntArray(itemSizeCache.size)
-                var i = 0
-                for ((_, size) in itemSizeCache) {
-                    sizes[i++] = size
+                val cols = columnCount.coerceAtLeast(1)
+                val totalRows = (totalItems + cols - 1) / cols
+                val visibleItems = info.visibleItemsInfo
+                val visibleRows = if (visibleItems.isNotEmpty()) {
+                    (visibleItems.last().index / cols - visibleItems.first().index / cols + 1)
+                } else {
+                    1
                 }
-                sizes.sort()
-                val medianSize = if (sizes.isEmpty()) 1 else sizes[(sizes.size - 1) / 2]
+                val scrollableRows = (totalRows - visibleRows).coerceAtLeast(1)
+                val targetRow = (proportion * scrollableRows).roundToInt().coerceIn(0, totalRows - 1)
+                val targetIndex = (targetRow * cols).coerceIn(0, totalItems - 1)
 
-                val avgItemsPerRow = columnCount.coerceAtLeast(1)
-
-                var totalSize = 0
-                for (index in 0 until totalItems) {
-                    val size = itemSizeCache[index] ?: medianSize
-                    totalSize += size / avgItemsPerRow
-                }
-
-                val beforePadding = info.beforeContentPadding
-                val afterPadding = info.afterContentPadding
-                val viewportPx = info.viewportEndOffset - info.viewportStartOffset
-                val totalScrollableSize = totalSize + beforePadding + afterPadding
-                val targetScrollOffset = proportion * (totalScrollableSize - viewportPx).coerceAtLeast(1)
-                val targetOffsetPx = targetScrollOffset - beforePadding
-
-                var accumulatedSize = 0
-                var targetIndex = 0
-                for (index in 0 until totalItems) {
-                    val size = itemSizeCache[index] ?: medianSize
-                    val effectiveSize = size / avgItemsPerRow
-                    if (accumulatedSize + effectiveSize > targetOffsetPx) {
-                        targetIndex = index
-                        break
-                    }
-                    accumulatedSize += effectiveSize
-                }
-                
-                val targetRowIndex = (targetIndex / avgItemsPerRow)
-                val accumulatedRowSize = (accumulatedSize)
-                val targetItemOffset = (targetOffsetPx - accumulatedRowSize).roundToInt()
-
-                if (targetIndex != lastScrolledIndex || abs(targetItemOffset - lastScrolledOffset) > 4) {
+                if (targetIndex != lastScrolledIndex) {
                     lastScrolledIndex = targetIndex
-                    lastScrolledOffset = targetItemOffset
-                    state.scrollToItem(targetIndex, targetItemOffset)
+                    state.scrollToItem(targetIndex, 0)
                     scrolled.tryEmit(Unit)
                 }
             }
     }
+    // ANZ <--
 
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(state, isThumbDragged) {
@@ -552,7 +458,9 @@ private fun GridFastScrollThumb(
                 orientation = Orientation.Vertical,
                 state = draggableState,
             )
-            .systemGestureExclusion()
+            // ANZ -->
+            .then(if (isThumbDragged) Modifier.systemGestureExclusion() else Modifier) // ANZ
+            // ANZ <--
             .height(ThumbLength)
             .padding(end = endContentPadding)
             .width(ThumbThickness)
@@ -590,8 +498,6 @@ private fun rememberColumnWidthSums(
         }
     }
 }
-
-
 
 private class MutableData<T>(var value: T)
 

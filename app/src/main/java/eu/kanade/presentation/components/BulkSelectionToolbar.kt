@@ -60,7 +60,7 @@ fun BulkSelectionToolbar(
                                             modifier = Modifier.size(24.dp),
                                             strokeWidth = 2.dp,
                                         )
-                                    }
+                                    },
                                 ),
                             )
                         } else {

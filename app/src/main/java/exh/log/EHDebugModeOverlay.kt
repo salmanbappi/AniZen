@@ -21,9 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import eu.kanade.tachiyomi.ui.player.PlayerStats
+import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
+import eu.kanade.tachiyomi.util.system.findActivity
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
-import `is`.xyz.mpv.MPV
 import kotlinx.coroutines.delay
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -31,7 +34,7 @@ import java.util.Locale
 @Composable
 fun InterpolationStatsOverlay() {
     // ANZ -->
-    val activity = LocalContext.current as? PlayerActivity
+    val activity = LocalContext.current.findActivity() as? PlayerActivity
     val mpv = activity?.viewModel?.mpv
     val context = LocalContext.current
     LaunchedEffect(Unit) {
@@ -40,9 +43,8 @@ fun InterpolationStatsOverlay() {
             PlayerStats.videoParamsFps.value = mpv?.getPropertyDouble("video-params/fps") ?: 0.0
             PlayerStats.containerFps.value = mpv?.getPropertyDouble("container-fps") ?: 0.0
             val detectedRefreshRate = context.getDisplayRefreshRate().toDouble()
-            PlayerStats.displayFps.value = (mpv?.getPropertyDouble("override-display-fps")?.takeIf { it > 0.0 }
-                ?: mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
-                ?: detectedRefreshRate)
+            val mpvDisplayFps = mpv?.getPropertyDouble("display-fps")?.takeIf { it > 0.0 }
+            PlayerStats.displayFps.value = mpvDisplayFps ?: detectedRefreshRate
             PlayerStats.estimatedDisplayFps.value = mpv?.getPropertyDouble("estimated-display-fps") ?: 0.0
 
             PlayerStats.isInterpolating.value = mpv?.getPropertyBoolean("interpolation") ?: false
@@ -71,14 +73,14 @@ fun InterpolationStatsOverlay() {
     val containerFps by PlayerStats.containerFps.collectAsState(0.0)
     val displayFps by PlayerStats.displayFps.collectAsState(0.0)
     val actualFps by PlayerStats.estimatedDisplayFps.collectAsState(0.0)
-    
+
     val isInterpolating by PlayerStats.isInterpolating.collectAsState(false)
     val videoSync by PlayerStats.videoSync.collectAsState("")
     val tscale by PlayerStats.tscale.collectAsState("")
     val delayedFrames by PlayerStats.delayedFrames.collectAsState(0L)
     val mistime by PlayerStats.mistime.collectAsState(0.0)
     val voPasses by PlayerStats.voPasses.collectAsState(0L)
-    
+
     val hwdec by PlayerStats.hwdec.collectAsState("")
     // ANZ -->
     val currentVo by PlayerStats.currentVo.collectAsState("")
@@ -108,7 +110,7 @@ fun InterpolationStatsOverlay() {
     )
 
     Column(
-        Modifier.padding(16.dp)
+        Modifier.padding(16.dp),
     ) {
         Text(text = "SMOOTH MOTION DEBUG (PAGE 6)", style = baseStyle.copy(color = Color(0xFF33BBFF)))
         Spacer(Modifier.height(8.dp))
@@ -118,7 +120,9 @@ fun InterpolationStatsOverlay() {
         // Only direct surface rendering (vo=mediacodec_embed) bypasses mpv's GPU renderer.
         val isDirectSurface = currentVo == "mediacodec_embed"
         val isDumbMode = gpuDumbMode
-        val isWorking = isInterpolating && !isDirectSurface && !isDumbMode &&
+        val isWorking = isInterpolating &&
+            !isDirectSurface &&
+            !isDumbMode &&
             (voPasses > 1 || actualFps > (vfFps + 5) || (tscale.isNotEmpty() && tscale != "none"))
 
         val statusText = when {
@@ -147,19 +151,28 @@ fun InterpolationStatsOverlay() {
         }
         StatLine("Pipeline", pipelineMode, baseStyle)
         // ANZ <--
-        
+
         Spacer(Modifier.height(12.dp))
 
         // FPS Details with fallbacks
         val finalSourceFps = listOf(sourceFps, containerFps, vfFps).firstOrNull { it > 0.0 } ?: 0.0
         val finalActualFps = if (actualFps > 0) actualFps else vfFps
-        
+
         StatLine("Source Rate", "${format.format(finalSourceFps)} fps", baseStyle)
-        StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 58) Color.Green else Color.Unspecified))
-        StatLine("Refresh Rate", "${format.format(displayFps)} Hz", baseStyle)
-        
+        // ANZ -->
+        val fpsLimitInt = Injekt.get<DecoderPreferences>().interpolationFPSLimit().get()
+        val targetLabel = when {
+            !isWorking -> "Off"
+            fpsLimitInt == 0 -> "Auto"
+            else -> "$fpsLimitInt fps"
+        }
+        StatLine("Target FPS", targetLabel, baseStyle)
+        StatLine("Actual Display", "${format.format(finalActualFps)} fps", baseStyle.copy(color = if (finalActualFps >= 24) Color.Green else Color.Unspecified))
+        StatLine("Display Rate", "${format.format(displayFps)} Hz", baseStyle)
+        // ANZ <--
+
         Spacer(Modifier.height(8.dp))
-        
+
         StatLine("Mistime", "${(mistime * 1000).toInt()} ms", baseStyle)
         StatLine("Dropped", "$delayedFrames frames", baseStyle.copy(color = if (delayedFrames > 0) Color.Red else Color.Unspecified))
 
@@ -169,7 +182,7 @@ fun InterpolationStatsOverlay() {
         val finalW = listOf(dwidth, videoW, videoOutW).firstOrNull { it > 0L } ?: 0L
         val finalH = listOf(dheight, videoH, videoOutH).firstOrNull { it > 0L } ?: 0L
         Row {
-            StatLine("Res", "${finalW}x${finalH}", baseStyle)
+            StatLine("Res", "${finalW}x$finalH", baseStyle)
             Text(" | ", style = baseStyle)
             StatLine("HW", hwdec.ifEmpty { "no" }, baseStyle)
         }

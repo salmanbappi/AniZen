@@ -69,7 +69,9 @@ object ScheduleNotifications {
             val delays = tracker?.getDelays().orEmpty()
             val manualDelay = if (schedulePreferences.uploadDelayRefreshInterval().get() == SchedulePreferences.UploadDelayInterval.CUSTOM) {
                 SchedulePreferences.parseCustomDelayMinutes(schedulePreferences.customUploadDelayMinutes().get())
-            } else null
+            } else {
+                null
+            }
             val sourcePrefs = runCatching { Injekt.get<eu.kanade.domain.source.service.SourcePreferences>() }.getOrNull()
             val pinned = sourcePrefs?.pinnedSources()?.get().orEmpty()
             val favs = schedulePreferences.favoriteSourceIds().get()

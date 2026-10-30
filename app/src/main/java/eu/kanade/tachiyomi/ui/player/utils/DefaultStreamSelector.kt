@@ -23,6 +23,21 @@ object DefaultStreamSelector {
     )
     private val BRACKET_GROUP_PATTERN = Regex("""\[(.{1,48}?)]""")
 
+    private val CODEC_TOKEN_PATTERN = Regex("""\b(hevc|x265|h265|265|x264|h264|264|av1|vp9)\b""")
+    private val DUAL_AUDIO_PATTERN = Regex("""\bdual[ ._-]*audio\b""")
+    private val DUBBED_PATTERN = Regex("""\bdub(?:bed)?\b""")
+    private val WHITESPACE_REGEX = Regex("""\s+""")
+    private val NUMBER_TAG_PATTERN = Regex("""\b0*(\d{1,4})\s*(?:v\d+)?\b""")
+    private val BRACKETS_PARENS_PATTERN = Regex("""[\[\]()]""")
+    private val META_BRACKET_PATTERN = Regex("""download|cached|torrentio|seadex|tb\+|best|dual\s*audio""")
+
+    private val KNOWN_PROVIDERS = listOf(
+        "1337x", "torrentgalaxy", "nyaasi", "seadex", "anidex", "tokyotosho",
+        "horriblesubs", "magnetdl", "thepiratebay", "kickasstorrents", "eztv", "rarbg", "yts",
+        "ilcorsaronero",
+    )
+    private val META_TAGS_SET = setOf("seadex", "tb+", "tb")
+
     fun selectorFor(video: Video, hosterName: String = ""): String = encode(fingerprintFor(video, hosterName))
 
     fun isDefaultMatch(selector: String, video: Video, candidates: List<Video>): Boolean {
@@ -73,7 +88,9 @@ object DefaultStreamSelector {
                     bestScore = score
                     bestIndex = index
                 }
-                score == bestScore && score > 0 && bestIndex >= 0 &&
+                score == bestScore &&
+                    score > 0 &&
+                    bestIndex >= 0 &&
                     sizeBytes(video) > sizeBytes(candidates[bestIndex]) -> {
                     bestIndex = index
                 }
@@ -172,8 +189,9 @@ object DefaultStreamSelector {
     private const val CONTINUITY_RELAXED_THRESHOLD = 48
 
     private fun fingerprintFor(video: Video, hosterName: String = ""): StreamFingerprint {
-        val lines = video.videoTitle.lines().map { it.trim() }.filter { it.isNotBlank() }
-        val rawTitle = video.videoTitle.replace('\n', ' ').trim()
+        val lines = video.videoTitle.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
+        val rawTitle = lines.joinToString(" ")
+
         val fileLine = lines.lastOrNull {
             ".mkv" in it.lowercase(Locale.ENGLISH) || ".mp4" in it.lowercase(Locale.ENGLISH)
         } ?: lines.lastOrNull { !it.startsWith("Provider:", ignoreCase = true) && !it.startsWith("Size:", ignoreCase = true) }
@@ -291,7 +309,7 @@ object DefaultStreamSelector {
         val tokensA = a.split(' ').filter { it.length >= 3 }.toSet()
         val tokensB = b.split(' ').filter { it.length >= 3 }.toSet()
         if (tokensA.isEmpty() || tokensB.isEmpty()) return 0.0
-        val intersection = tokensA.intersect(tokensB).size
+        val intersection = tokensA.count { it in tokensB }
         return intersection.toDouble() / minOf(tokensA.size, tokensB.size)
     }
 
@@ -322,18 +340,14 @@ object DefaultStreamSelector {
     private fun legacyTokensFor(video: Video): List<String> {
         val title = video.videoTitle.replace('\n', ' ').lowercase(Locale.ENGLISH)
         val normalized = title.normalize()
-        val providers = listOf(
-            "1337x", "torrentgalaxy", "nyaasi", "seadex", "anidex", "tokyotosho",
-            "horriblesubs", "magnetdl", "thepiratebay", "kickasstorrents", "eztv", "rarbg", "yts",
-        )
-        val providerTokens = providers.filter { normalized.contains(it.normalize()) }
+        val providerTokens = KNOWN_PROVIDERS.filter { normalized.contains(it) }
         val resolutionTokens = RESOLUTION_PATTERN
             .findAll(title).map { it.value.lowercase(Locale.ENGLISH) }
-        val codecTokens = Regex("\\b(hevc|x265|h265|265|x264|h264|264|av1|vp9)\\b")
+        val codecTokens = CODEC_TOKEN_PATTERN
             .findAll(title).map { it.value.lowercase(Locale.ENGLISH).toCodecToken() }
         val audioTokens = sequence {
-            if (Regex("\\bdual[ ._-]*audio\\b").containsMatchIn(title)) yield("dual audio")
-            if (Regex("\\bdub(?:bed)?\\b").containsMatchIn(title)) yield("dubbed")
+            if (DUAL_AUDIO_PATTERN.containsMatchIn(title)) yield("dual audio")
+            if (DUBBED_PATTERN.containsMatchIn(title)) yield("dubbed")
         }
         val releaseGroupTokens = BRACKET_GROUP_PATTERN
             .findAll(video.videoTitle)
@@ -413,23 +427,23 @@ object DefaultStreamSelector {
     }
 
     private fun normalizeExact(text: String): String =
-        text.lowercase(Locale.ENGLISH).replace(Regex("\\s+"), " ").trim()
+        text.lowercase(Locale.ENGLISH).replace(WHITESPACE_REGEX, " ").trim()
 
     private fun normalizeBatch(text: String): String {
         var normalized = normalizeExact(text)
         normalized = EPISODE_NUMBER_PATTERN.replace(normalized, " ")
-        normalized = normalized.replace(Regex("""\b0*(\d{1,4})\s*(?:v\d+)?\b"""), " ")
-        normalized = normalized.replace(Regex("""[\[\]\(\)]"""), " ")
-        normalized = normalized.replace(Regex("\\s+"), " ").trim()
+        normalized = normalized.replace(NUMBER_TAG_PATTERN, " ")
+        normalized = normalized.replace(BRACKETS_PARENS_PATTERN, " ")
+        normalized = normalized.replace(WHITESPACE_REGEX, " ").trim()
         return normalized.normalize()
     }
 
     private fun normalizeFileBase(fileLine: String): String {
         var normalized = normalizeExact(fileLine)
         normalized = EPISODE_NUMBER_PATTERN.replace(normalized, " ")
-        normalized = normalized.replace(Regex("""\b0*(\d{1,4})\s*(?:v\d+)?\b"""), " ")
+        normalized = normalized.replace(NUMBER_TAG_PATTERN, " ")
         normalized = BRACKET_GROUP_PATTERN.replace(normalized, " ")
-        normalized = normalized.replace(Regex("\\s+"), " ").trim()
+        normalized = normalized.replace(WHITESPACE_REGEX, " ").trim()
         return normalized.normalize()
     }
 
@@ -447,17 +461,18 @@ object DefaultStreamSelector {
 
     private fun isMetaBracketTag(tag: String): Boolean {
         val lower = tag.lowercase(Locale.ENGLISH)
-        return lower.contains(Regex("download|cached|torrentio|seadex|tb\\+|best|dual\\s*audio")) ||
+        return lower.contains(META_BRACKET_PATTERN) ||
             RESOLUTION_PATTERN.containsMatchIn(lower) ||
-            lower in setOf("seadex", "tb+", "tb")
+            lower in META_TAGS_SET
     }
 
     private fun parseQualityTag(text: String): String =
         RESOLUTION_PATTERN.find(text)?.value?.lowercase(Locale.ENGLISH) ?: ""
 
     private fun parseSizeBytes(text: String): Long {
-        val lines = text.lines().map { it.trim() }
-        val sizeLine = lines.firstOrNull { it.startsWith("Size:", ignoreCase = true) }
+        val sizeLine = text.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("Size:", ignoreCase = true) }
         sizeLine?.let { line ->
             val match = SIZE_PATTERN.find(line)
             if (match != null) {
@@ -486,7 +501,7 @@ object DefaultStreamSelector {
             ?: -1
 
     private fun parseProvider(text: String): String {
-        val providerLine = text.lines()
+        val providerLine = text.lineSequence()
             .firstOrNull { it.trimStart().startsWith("Provider:", ignoreCase = true) }
             ?.substringAfter(':')
             ?.trim()
@@ -497,12 +512,7 @@ object DefaultStreamSelector {
         }
 
         val normalized = text.lowercase(Locale.ENGLISH).normalize()
-        val providers = listOf(
-            "1337x", "torrentgalaxy", "nyaasi", "seadex", "anidex", "tokyotosho",
-            "horriblesubs", "magnetdl", "thepiratebay", "kickasstorrents", "eztv", "rarbg", "yts",
-            "ilcorsaronero",
-        )
-        return providers.firstOrNull { normalized.contains(it.normalize()) } ?: ""
+        return KNOWN_PROVIDERS.firstOrNull { normalized.contains(it) } ?: ""
     }
 
     private fun sizeBytes(video: Video): Long = parseSizeBytes(video.videoTitle)
@@ -519,10 +529,10 @@ object DefaultStreamSelector {
     }
 
     private fun String.normalize(): String =
-        lowercase(Locale.ENGLISH).replace(Regex("[^a-z0-9]"), "")
+        lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
     private fun String.normalizeRip(): String =
-        lowercase(Locale.ENGLISH).replace(Regex("\\s+"), " ").trim()
+        lowercase(Locale.ROOT).replace(WHITESPACE_REGEX, " ").trim()
 
     private fun String.toCodecToken(): String = when (this) {
         "h265", "265" -> "x265"

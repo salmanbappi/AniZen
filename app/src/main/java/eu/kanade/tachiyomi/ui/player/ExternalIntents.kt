@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
@@ -16,12 +15,12 @@ import eu.kanade.domain.track.service.DelayedTrackingUpdateJob
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.track.store.DelayedTrackingStore
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.PlayerData
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.track.AnimeTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.isNsfw
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -368,10 +367,12 @@ class ExternalIntents {
      * @param uri the path data of the video.
      */
     private fun getMime(uri: Uri): String {
-        return when (uri.path?.substringAfterLast(".")) {
-            "mp4" -> "video/mp4"
-            "mkv" -> "video/x-matroska"
-            "m3u8" -> "application/x-mpegURL"
+        val uriString = uri.toString()
+        val path = uri.path.orEmpty()
+        return when {
+            path.endsWith(".mp4", ignoreCase = true) -> "video/mp4"
+            path.endsWith(".mkv", ignoreCase = true) -> "video/x-matroska"
+            uriString.contains("m3u8", ignoreCase = true) || uriString.contains("/hls/", ignoreCase = true) -> "application/x-mpegURL"
             else -> "video/*"
         }
     }

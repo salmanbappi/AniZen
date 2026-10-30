@@ -17,6 +17,7 @@
 
 package eu.kanade.tachiyomi.ui.player
 
+import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import `is`.xyz.mpv.MPV
@@ -57,13 +58,15 @@ fun applyDebandSetting(mpv: MPV?, setting: DebandSettings, value: Int) {
 // ANZ <--
 
 fun buildVFChain(decoderPreferences: DecoderPreferences): String {
-    val useYuv420p = decoderPreferences.useYUV420P().get()
-
-    return if (useYuv420p) {
-        "format=yuv420p"
-    } else {
-        ""
+    val filters = mutableListOf<String>() // ANZ
+    if (decoderPreferences.useYUV420P().get()) {
+        filters.add("format=yuv420p")
     }
+    val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
+    if (decoderPreferences.smoothMotion().get() && fpsLimit > 0) {
+        filters.add("fps=$fpsLimit")
+    }
+    return filters.joinToString(",")
 }
 
 // ANZ -->
@@ -140,6 +143,38 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
         } else {
             mpv?.setPropertyString("glsl-shaders", "")
         }
+    }
+}
+
+fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
+    val enabled = prefs.smoothMotion().get()
+    if (enabled) {
+        val fpsLimit = prefs.interpolationFPSLimit().get() // ANZ
+
+        if (prefs.tryHWDecoding().get()) {
+            val hwdecMode = if (fpsLimit > 0) "mediacodec-copy" else "mediacodec"
+            mpv?.setPropertyString("hwdec", hwdecMode)
+        }
+
+        mpv?.setPropertyString("vf", buildVFChain(prefs))
+        mpv?.setPropertyString("video-sync", "display-resample")
+        mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
+        mpv?.setPropertyString("video-sync-max-video-change", "1")
+        mpv?.setPropertyString("interpolation", "yes")
+        mpv?.setPropertyString("interpolation-threshold", "-1")
+        mpv?.setPropertyString("correct-pts", "yes")
+        mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
+        mpv?.setPropertyString("gpu-dumb-mode", "no")
+    } else {
+        if (prefs.tryHWDecoding().get()) {
+            mpv?.setPropertyString("hwdec", "mediacodec")
+        }
+        mpv?.setPropertyString("vf", buildVFChain(prefs))
+        mpv?.setPropertyString("video-sync", "audio")
+        mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
+        mpv?.setPropertyString("video-sync-max-video-change", "1")
+        mpv?.setPropertyString("interpolation", "no")
+        mpv?.setPropertyString("gpu-dumb-mode", "auto")
     }
 }
 // ANZ <--

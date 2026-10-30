@@ -61,6 +61,8 @@ fun Anime.copyFrom(other: SAnime): Anime {
     )
 }
 
+// ANZ -->
 fun Anime.hasCustomCover(coverCache: CoverCache = Injekt.get()): Boolean {
-    return coverCache.getCustomCoverFile(id).exists()
+    return coverCache.hasCustomCover(id)
 }
+// ANZ <--

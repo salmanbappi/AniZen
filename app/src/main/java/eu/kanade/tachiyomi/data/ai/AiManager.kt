@@ -1,35 +1,39 @@
 package eu.kanade.tachiyomi.data.ai
 
 import android.content.Context
-import eu.kanade.tachiyomi.data.ai.everythingmoe.EverythingMoeScraper
+import com.hippo.unifile.UniFile
 import eu.kanade.domain.ai.AiPreferences
 import eu.kanade.tachiyomi.BuildConfig
+import eu.kanade.tachiyomi.data.ai.everythingmoe.EverythingMoeScraper
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
-import com.hippo.unifile.UniFile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import logcat.LogPriority
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
-import logcat.LogPriority
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
-import java.io.File
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
+
+private val PACKAGE_PATTERN = Regex("""(eu\.kanade|app\.anizen|mpv|ffmpeg|AndroidRuntime|libc|DEBUG|System\.err|XLog|FileUtils|ActivityThread|InputDispatcher)""")
+private val PII_REDACTION_PATTERN = Regex("""(?:authorization|cookie|set-cookie):\s*[^\n\r]+|(?<=\?|&)[^=]+=[^&\s]*|(?:[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(?:auth|token|key|password|secret|sid|session)=[a-zA-Z0-9._-]+""", RegexOption.IGNORE_CASE)
+private val TRACE_TRIGGER_PATTERN = Regex("""(FATAL EXCEPTION|Native crash|SIGSEGV|SIGABRT|mpv: error|Check failed)""", RegexOption.IGNORE_CASE)
+private val NATIVE_PC_PATTERN = Regex("""#\d+ pc """)
+private val DIAGNOSTICS_QUERY_PATTERN = Regex("""log|error|fail|video|load|setting|where|how|device|black|broke|froze|slow|crash|die|dead|bug|stuck|lag|hang|freeze""")
+private val LIBRARY_QUERY_PATTERN = Regex("""library|anime|watch|collection|have|my|list|recommend""")
+private val EXTENSION_QUERY_PATTERN = Regex("""extension|source|site|domain|mirror|everythingmoe|stream|1080p|dub|sub|quality|down|dead|alive|link|recommend|best|working|broken""")
 
 class AiManager(
     private val context: Context,
@@ -46,9 +50,11 @@ class AiManager(
         EverythingMoeScraper(context, networkHelper, json)
     }
 
-    // Circuit Breaker Config
-    private val MAP_VERSION = 132
-    private val REMOTE_KILL_SWITCH_URL = "https://raw.githubusercontent.com/salmanbappi/anikku-config/main/ai_kill_switch.json"
+    companion object {
+        // Circuit Breaker Config
+        private val MAP_VERSION = 132
+        private val REMOTE_KILL_SWITCH_URL = "https://raw.githubusercontent.com/salmanbappi/anikku-config/main/ai_kill_switch.json"
+    }
 
     fun resetCircuitBreaker() {
         aiPreferences.isCircuitBreakerTripped().set(false)
@@ -63,7 +69,7 @@ class AiManager(
 
     fun chatWithAssistantStream(query: String, history: List<ChatMessage>): Flow<String> = flow {
         if (!aiPreferences.enableAi().get() || !aiPreferences.enableAiAssistant().get()) return@flow
-        
+
         if (isCircuitBreakerTripped()) {
             emit("Stability Alert: AI temporarily disabled due to detected app instability. [RESET_REQUIRED]")
             return@flow
@@ -85,16 +91,16 @@ class AiManager(
             "openrouter" -> aiPreferences.openrouterApiKey().get()
             "together" -> aiPreferences.togetherApiKey().get()
             else -> aiPreferences.groqApiKey().get()
-        }.ifBlank { 
+        }.ifBlank {
             emit("Please set an API Key in Settings > AI Integration")
-            return@flow 
+            return@flow
         }
 
         val customPrompt = aiPreferences.aiSystemPrompt().get()
         val defaultSystemInstruction = """
             You are the 'AniZen System Assistant', a senior systems engineer.
             You have access to native diagnostic tools for logs, system maps, the user's anime library, and EverythingMoe extension intelligence.
-            
+
             OPERATIONAL PROTOCOLS:
             1. FORMATTING: STRICTLY NO TABLES. Use bullet points or lists for structured data. NEVER output Markdown tables.
             2. SEMANTIC INTENT: Identify negative system states (e.g., "black screen", "crash", "stuck") and call get_system_diagnostics.
@@ -104,14 +110,14 @@ class AiManager(
             6. EXTENSION & COMMUNITY INTELLIGENCE: Use [EXTENSION_COMMUNITY_INTELLIGENCE] (from EverythingMoe) for accurate site status, active mirrors, stream tags (1080p, dubs, soft-subs), and community reviews. Clearly differentiate extensions that are actually INSTALLED on the user's device versus external directory listings.
             7. PRIVACY: PII (Auth headers, Cookies, and URL params) is strictly redacted.
         """.trimIndent()
-        
+
         val systemInstruction = if (customPrompt.isNotBlank()) customPrompt else defaultSystemInstruction
 
         val messages = history.toMutableList()
         messages.add(ChatMessage(role = "user", content = query))
 
         aiPreferences.isRequestPending().set(true)
-        
+
         try {
             when (engine) {
                 "gemini" -> callGeminiStream(messages, apiKey, systemInstruction, withTools = true).collect { emit(it) }
@@ -135,7 +141,7 @@ class AiManager(
         return try {
             val library = getLibraryAnime.await()
             if (library.isEmpty()) return "Library is empty."
-            
+
             // Limit to top 50 items to save tokens and prevent blank responses
             library.take(50).joinToString("\n") { anime ->
                 "- ${anime.anime.title} [Status: ${anime.anime.status}, Seen: ${anime.seenCount}]"
@@ -153,7 +159,7 @@ class AiManager(
 
     fun getStatisticsAnalysisStream(statsSummary: String): Flow<String> = flow {
         if (!aiPreferences.enableAi().get() || !aiPreferences.enableAiStatistics().get()) return@flow
-        
+
         if (isCircuitBreakerTripped()) return@flow
 
         val engine = aiPreferences.aiEngine().get()
@@ -172,16 +178,16 @@ class AiManager(
 
         val prompt = """
             Generate a 'System Behavioral Profile' based on the following data.
-            
+
             DATA INPUT:
             $statsSummary
-            
+
             REPORT STRUCTURE (STRICTLY NO TABLES):
             - **User Classification**: Technical archetype (e.g., 'High-Volume Archivist').
             - **Temporal Analysis**: Watch habit patterns.
             - **Source Integrity**: Distribution across extensions.
             - **Strategic Recommendations**: 3-5 anime titles based on data patterns.
-            
+
             Constraint: Use bullet points. Do NOT use Markdown tables.
         """.trimIndent()
 
@@ -221,7 +227,9 @@ class AiManager(
                 if (it.isSuccessful) {
                     val body = it.body.string()
                     body.contains("\"disabled\": true")
-                } else false
+                } else {
+                    false
+                }
             }
         } catch (e: Exception) {
             false // Default to enabled if network fails
@@ -237,7 +245,7 @@ class AiManager(
     private suspend fun getSanitizedLogs(): String = withIOContext {
         try {
             val logLines = mutableListOf<String>()
-            
+
             // 1. Try Logcat with a hard timeout to prevent hanging
             try {
                 val process = Runtime.getRuntime().exec("logcat -d -b main -t 500 *:W")
@@ -257,13 +265,13 @@ class AiManager(
             if (logLines.size < 10) {
                 val storageManager = Injekt.get<StorageManager>()
                 val internalLogDir = File(context.cacheDir, "logs")
-                val logDir = storageManager.getLogsDirectory() 
+                val logDir = storageManager.getLogsDirectory()
                     ?: UniFile.fromFile(internalLogDir)
-                
+
                 val latestLog = logDir?.listFiles()
                     ?.filter { it.isFile && it.name?.endsWith(".log") == true }
                     ?.maxByOrNull { it.lastModified() }
-                
+
                 if (latestLog != null) {
                     try {
                         latestLog.openInputStream().bufferedReader().useLines { lines ->
@@ -281,25 +289,20 @@ class AiManager(
 
             val pinnedBlocks = mutableListOf<List<String>>()
             val currentBlock = mutableListOf<String>()
-            
-            val packagePattern = "(eu\\.kanade|app\\.anizen|mpv|ffmpeg|AndroidRuntime|libc|DEBUG|System\\.err|XLog|FileUtils|ActivityThread|InputDispatcher)".toRegex()
-            val piiRedaction = "(?i)(?:authorization|cookie|set-cookie):\\s*[^\\n\\r]+|(?<=\\?|&)[^=]+=[^&\\s]*|(?:[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})|(?:auth|token|key|password|secret|sid|session)=[a-zA-Z0-9._-]+".toRegex()
-            
-            // Only trigger analysis on serious events
-            val traceTrigger = "(FATAL EXCEPTION|Native crash|SIGSEGV|SIGABRT|mpv: error|Check failed)".toRegex(RegexOption.IGNORE_CASE)
-            
+
             var lastLine = ""
             var repeatCount = 0
-            
+
             val sanitizedResult = mutableListOf<String>()
             for (line in logLines) {
-                val sanitizedLine = line.replace(piiRedaction, "[REDACTED]")
-                
-                val isTraceLine = sanitizedLine.trimStart().startsWith("at ") || 
-                                 sanitizedLine.contains("Caused by:") || 
-                                 sanitizedLine.contains("#\\d+ pc ".toRegex())
+                val sanitizedLine = line.replace(PII_REDACTION_PATTERN, "[REDACTED]")
 
-                if (sanitizedLine.contains(traceTrigger) || (isTraceLine && currentBlock.isNotEmpty())) {
+                val isTraceLine = sanitizedLine.trimStart().startsWith("at ") ||
+                    sanitizedLine.contains("Caused by:") ||
+                    sanitizedLine.contains(NATIVE_PC_PATTERN)
+
+                // Only trigger analysis on serious events
+                if (sanitizedLine.contains(TRACE_TRIGGER_PATTERN) || (isTraceLine && currentBlock.isNotEmpty())) {
                     currentBlock.add(sanitizedLine)
                     if (currentBlock.size > 80) {
                         pinnedBlocks.add(currentBlock.toList())
@@ -310,8 +313,8 @@ class AiManager(
                         pinnedBlocks.add(currentBlock.toList())
                         currentBlock.clear()
                     }
-                    
-                    if (sanitizedLine.contains(packagePattern)) {
+
+                    if (sanitizedLine.contains(PACKAGE_PATTERN)) {
                         if (sanitizedLine == lastLine) {
                             repeatCount++
                         } else {
@@ -325,7 +328,7 @@ class AiManager(
             }
             if (currentBlock.isNotEmpty()) pinnedBlocks.add(currentBlock.toList())
             if (repeatCount > 0) sanitizedResult.add("... [TRUNCATED] repeated $repeatCount times ...")
-            
+
             val output = StringBuilder()
             if (pinnedBlocks.isNotEmpty()) {
                 output.append("\n### CRITICAL SYSTEM EVENTS (PINNED):\n")
@@ -343,7 +346,9 @@ class AiManager(
         val currentVersion = BuildConfig.VERSION_CODE
         val stalenessWarning = if (currentVersion != MAP_VERSION) {
             "[STALENESS_WARNING]: Navigation map version ($MAP_VERSION) differs from App Version ($currentVersion). Paths may be shifted.\n"
-        } else ""
+        } else {
+            ""
+        }
 
         return stalenessWarning + """
             - General: Settings > General
@@ -372,7 +377,11 @@ class AiManager(
 
     private suspend fun getExtensionStatusSummary(installed: List<eu.kanade.tachiyomi.extension.model.Extension.Installed>): String {
         if (installed.isEmpty()) {
-            val sources = try { sourceManager.getOnlineSources() } catch (e: Exception) { emptyList() }
+            val sources = try {
+                sourceManager.getOnlineSources()
+            } catch (e: Exception) {
+                emptyList()
+            }
             return if (sources.isEmpty()) {
                 "No extensions or sources currently installed in AniZen."
             } else {
@@ -396,7 +405,7 @@ class AiManager(
         val queryLower = lastQuery.lowercase()
         val installed = getInstalledExtensions()
 
-        if (queryLower.contains("""log|error|fail|video|load|setting|where|how|device|black|broke|froze|slow|crash|die|dead|bug|stuck|lag|hang|freeze""".toRegex())) {
+        if (queryLower.contains(DIAGNOSTICS_QUERY_PATTERN)) {
             if (aiPreferences.aiAssistantLogs().get()) {
                 toolContext.append("\n[DIAGNOSTICS_DATA]:\n${getSanitizedLogs()}\n")
             }
@@ -405,14 +414,15 @@ class AiManager(
             toolContext.append("\n[ENVIRONMENT]: ${getDeviceInfo()}\n")
         }
 
-        if (queryLower.contains("""library|anime|watch|collection|have|my|list|recommend""".toRegex())) {
+        if (queryLower.contains(LIBRARY_QUERY_PATTERN)) {
             if (aiPreferences.aiAssistantLibrary().get()) {
                 toolContext.append("\n[USER_LIBRARY_DATA]:\n${getLibrarySummary()}\n")
             }
         }
 
-        if (queryLower.contains("""extension|source|site|domain|mirror|everythingmoe|stream|1080p|dub|sub|quality|down|dead|alive|link|recommend|best|working|broken""".toRegex()) ||
-            queryLower.contains("""log|error|fail|video|load|black|broke|froze|slow|crash|die|dead|bug|stuck""".toRegex())) {
+        if (queryLower.contains(EXTENSION_QUERY_PATTERN) ||
+            queryLower.contains(DIAGNOSTICS_QUERY_PATTERN)
+        ) {
             if (aiPreferences.aiAssistantEverythingMoe().get()) {
                 val intel = everythingMoeScraper.getIntelligenceContext(lastQuery, installed)
                 if (intel.isNotBlank()) {
@@ -440,13 +450,13 @@ class AiManager(
             if (logLines.isEmpty()) {
                 val storageManager = Injekt.get<StorageManager>()
                 val internalLogDir = File(context.cacheDir, "logs")
-                val logDir = storageManager.getLogsDirectory() 
+                val logDir = storageManager.getLogsDirectory()
                     ?: UniFile.fromFile(internalLogDir)
-                
+
                 val latestLog = logDir?.listFiles()
                     ?.filter { it.isFile && it.name?.endsWith(".log") == true }
                     ?.maxByOrNull { it.lastModified() }
-                
+
                 if (latestLog != null) {
                     try {
                         latestLog.openInputStream().bufferedReader().useLines { lines ->
@@ -461,21 +471,23 @@ class AiManager(
             var count = 0
             // Only count CRITICAL failures that affect the user experience
             val criticalPatterns = listOf("FATAL EXCEPTION", "OutOfMemoryError", "Native crash", "SIGSEGV", "mpv: error", "Check failed")
-            
+
             for (line in logLines) {
                 if (criticalPatterns.any { line.contains(it, ignoreCase = true) }) {
                     count++
                 }
             }
             count
-        } catch (e: Exception) { 0 }
+        } catch (e: Exception) {
+            0
+        }
     }
 
     private suspend fun callGeminiStream(
-        messages: List<ChatMessage>, 
-        apiKey: String, 
+        messages: List<ChatMessage>,
+        apiKey: String,
         systemInstruction: String? = null,
-        withTools: Boolean = false
+        withTools: Boolean = false,
     ): Flow<String> = flow {
         val rawKeys = apiKey.split(",").map { it.trim() }.filter { it.isNotBlank() }
         val healthyKeys = rawKeys.sortedBy { keyFailures[it] ?: 0L }
@@ -499,14 +511,14 @@ class AiManager(
             GeminiContent(parts = listOf(GeminiPart(text = msg.content)), role = if (msg.role == "user") "user" else "model")
         }
         val requestBody = GeminiRequest(
-            contents = geminiContents, 
+            contents = geminiContents,
             systemInstruction = systemInstruction?.let { GeminiContent(parts = listOf(GeminiPart(text = it))) },
             safetySettings = listOf(
                 GeminiSafetySetting("HARM_CATEGORY_HARASSMENT", "BLOCK_NONE"),
                 GeminiSafetySetting("HARM_CATEGORY_HATE_SPEECH", "BLOCK_NONE"),
                 GeminiSafetySetting("HARM_CATEGORY_SEXUALLY_EXPLICIT", "BLOCK_NONE"),
-                GeminiSafetySetting("HARM_CATEGORY_DANGEROUS_CONTENT", "BLOCK_NONE")
-            )
+                GeminiSafetySetting("HARM_CATEGORY_DANGEROUS_CONTENT", "BLOCK_NONE"),
+            ),
         )
 
         var streamEmitted = false
@@ -524,7 +536,7 @@ class AiManager(
                         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                         .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                         .build()
-                    
+
                     var emittedInAttempt = false
                     timedClient.newCall(request).execute().use { response ->
                         if (!response.isSuccessful) {
@@ -652,7 +664,7 @@ class AiManager(
         messages: List<ChatMessage>,
         apiKey: String,
         systemInstruction: String? = null,
-        withTools: Boolean = false
+        withTools: Boolean = false,
     ): Flow<String> = flow {
         val finalMessages = prepareFinalMessages(messages, systemInstruction, withTools)
         val requestBody = GroqRequest(messages = finalMessages, model = modelName, stream = true)
@@ -698,43 +710,45 @@ class AiManager(
                 }
                 answer
             }
-        } catch (e: Exception) { "Groq Connection Exception: ${e.message}" }
+        } catch (e: Exception) {
+            "Groq Connection Exception: ${e.message}"
+        }
     }
 
-        private suspend fun callGroqStream(
-            messages: List<ChatMessage>,
-            apiKey: String,
-            systemInstruction: String? = null,
-            withTools: Boolean = false
-        ): Flow<String> = flow {
-            val finalMessages = if (withTools) {
-                val lastQuery = messages.last().content
-                val toolContext = buildToolContext(lastQuery)
-                messages.dropLast(1) + ChatMessage("user", messages.last().content + if (toolContext.isNotBlank()) "\n\n$toolContext" else "")
-            } else {
-                messages
-            }
-    
-            val groqMessages = mutableListOf<GroqMessage>()
-            if (systemInstruction != null) groqMessages.add(GroqMessage(role = "system", content = systemInstruction))
-            finalMessages.forEach { msg -> groqMessages.add(GroqMessage(role = if (msg.role == "user") "user" else "assistant", content = msg.content)) }
-            
-            val model = aiPreferences.groqModel().get().ifBlank { "llama-3.3-70b-versatile" }
-            val requestBody = GroqRequest(messages = groqMessages, model = model, stream = true)
-            val request = Request.Builder()
-                .url("https://api.groq.com/openai/v1/chat/completions")
-                .header("Authorization", "Bearer $apiKey")
-                .header("Content-Type", "application/json")
-                .post(json.encodeToString(GroqRequest.serializer(), requestBody).toRequestBody(jsonMediaType))
+    private suspend fun callGroqStream(
+        messages: List<ChatMessage>,
+        apiKey: String,
+        systemInstruction: String? = null,
+        withTools: Boolean = false,
+    ): Flow<String> = flow {
+        val finalMessages = if (withTools) {
+            val lastQuery = messages.last().content
+            val toolContext = buildToolContext(lastQuery)
+            messages.dropLast(1) + ChatMessage("user", messages.last().content + if (toolContext.isNotBlank()) "\n\n$toolContext" else "")
+        } else {
+            messages
+        }
+
+        val groqMessages = mutableListOf<GroqMessage>()
+        if (systemInstruction != null) groqMessages.add(GroqMessage(role = "system", content = systemInstruction))
+        finalMessages.forEach { msg -> groqMessages.add(GroqMessage(role = if (msg.role == "user") "user" else "assistant", content = msg.content)) }
+
+        val model = aiPreferences.groqModel().get().ifBlank { "llama-3.3-70b-versatile" }
+        val requestBody = GroqRequest(messages = groqMessages, model = model, stream = true)
+        val request = Request.Builder()
+            .url("https://api.groq.com/openai/v1/chat/completions")
+            .header("Authorization", "Bearer $apiKey")
+            .header("Content-Type", "application/json")
+            .post(json.encodeToString(GroqRequest.serializer(), requestBody).toRequestBody(jsonMediaType))
+            .build()
+
+        try {
+            val timedClient = networkHelper.client.newBuilder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
-    
-            try {
-                val timedClient = networkHelper.client.newBuilder()
-                    .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                    .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                    .build()
-                
-                timedClient.newCall(request).execute().use { response ->
+
+            timedClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     emit("Groq Error ${response.code}")
                     return@flow
@@ -755,16 +769,16 @@ class AiManager(
                     }
                 }
             }
-            } catch (e: Exception) {
-                emit("Groq Exception: ${e.message}")
-            }
+        } catch (e: Exception) {
+            emit("Groq Exception: ${e.message}")
         }
+    }
 
     private suspend fun callOpenAiStream(
         messages: List<ChatMessage>,
         apiKey: String,
         systemInstruction: String? = null,
-        withTools: Boolean = false
+        withTools: Boolean = false,
     ): Flow<String> = flow {
         val finalMessages = prepareFinalMessages(messages, systemInstruction, withTools)
         val model = aiPreferences.openaiModel().get().ifBlank { "gpt-4o-mini" }
@@ -782,7 +796,7 @@ class AiManager(
         messages: List<ChatMessage>,
         apiKey: String,
         systemInstruction: String? = null,
-        withTools: Boolean = false
+        withTools: Boolean = false,
     ): Flow<String> = flow {
         val contextMessages = if (withTools) {
             val lastQuery = messages.last().content
@@ -799,7 +813,7 @@ class AiManager(
             model = model,
             system = systemInstruction,
             messages = anthropicMessages,
-            stream = true
+            stream = true,
         )
         val request = Request.Builder()
             .url("https://api.anthropic.com/v1/messages")
@@ -845,7 +859,7 @@ class AiManager(
         messages: List<ChatMessage>,
         apiKey: String,
         systemInstruction: String? = null,
-        withTools: Boolean = false
+        withTools: Boolean = false,
     ): Flow<String> = flow {
         val finalMessages = prepareFinalMessages(messages, systemInstruction, withTools)
         val model = aiPreferences.openrouterModel().get().ifBlank { "openai/gpt-4o-mini" }
@@ -865,7 +879,7 @@ class AiManager(
         messages: List<ChatMessage>,
         apiKey: String,
         systemInstruction: String? = null,
-        withTools: Boolean = false
+        withTools: Boolean = false,
     ): Flow<String> = flow {
         val finalMessages = prepareFinalMessages(messages, systemInstruction, withTools)
         val model = aiPreferences.togetherModel().get().ifBlank { "meta-llama/Llama-3.3-70B-Instruct-Turbo" }
@@ -882,7 +896,7 @@ class AiManager(
     private suspend fun prepareFinalMessages(
         messages: List<ChatMessage>,
         systemInstruction: String?,
-        withTools: Boolean
+        withTools: Boolean,
     ): List<GroqMessage> {
         val contextMessages = if (withTools) {
             val lastQuery = messages.last().content
@@ -930,90 +944,90 @@ class AiManager(
             emit("API Exception: ${e.message}")
         }
     }
-    
-        @Serializable
-        data class ChatMessage(val role: String, val content: String)
-    
-        @Serializable
-        private data class GeminiRequest(
-            val contents: List<GeminiContent>, 
-            @kotlinx.serialization.SerialName("system_instruction") val systemInstruction: GeminiContent? = null,
-            val safetySettings: List<GeminiSafetySetting>? = null
-        )
-    
-        @Serializable
-        private data class GeminiSafetySetting(
-            val category: String,
-            val threshold: String
-        )
-    
-        @Serializable
-        private data class GeminiContent(val parts: List<GeminiPart>, val role: String? = null)
-    
-        @Serializable
-        private data class GeminiPart(val text: String)
-    
-        @Serializable
-        private data class GeminiResponse(val candidates: List<GeminiCandidate>)
-    
-        @Serializable
-        private data class GeminiCandidate(val content: GeminiContent)
-    
-        @Serializable
-        private data class GroqRequest(
-            val messages: List<GroqMessage>, 
-            val model: String,
-            val stream: Boolean = false
-        )
-    
-        @Serializable
-        private data class GroqMessage(val role: String, val content: String)
-    
-        @Serializable
-        private data class GroqResponse(val choices: List<GroqChoice>)
-    
-        @Serializable
-        private data class GroqChoice(val message: GroqMessage)
-    
-        @Serializable
-        private data class GroqStreamResponse(val choices: List<GroqStreamChoice>)
-    
-        @Serializable
-        private data class GroqStreamChoice(val delta: GroqStreamDelta)
-    
-        @Serializable
-        private data class GroqStreamDelta(val content: String? = null)
 
-        @Serializable
-        private data class AnthropicRequest(
-            val model: String = "claude-3-5-sonnet-20241022",
-            val max_tokens: Int = 1024,
-            val system: String? = null,
-            val messages: List<AnthropicMessage>,
-            val stream: Boolean = true
-        )
+    @Serializable
+    data class ChatMessage(val role: String, val content: String)
 
-        @Serializable
-        private data class AnthropicMessage(val role: String, val content: String)
+    @Serializable
+    private data class GeminiRequest(
+        val contents: List<GeminiContent>,
+        @kotlinx.serialization.SerialName("system_instruction") val systemInstruction: GeminiContent? = null,
+        val safetySettings: List<GeminiSafetySetting>? = null,
+    )
 
-        @Serializable
-        private data class AnthropicStreamResponse(
-            val type: String? = null,
-            val delta: AnthropicDelta? = null
-        )
+    @Serializable
+    private data class GeminiSafetySetting(
+        val category: String,
+        val threshold: String,
+    )
 
-        @Serializable
-        private data class AnthropicDelta(val text: String? = null)
+    @Serializable
+    private data class GeminiContent(val parts: List<GeminiPart>, val role: String? = null)
 
-        @Serializable
-        private data class GeminiModelsListResponse(val models: List<GeminiModelItem>)
+    @Serializable
+    private data class GeminiPart(val text: String)
 
-        @Serializable
-        private data class GeminiModelItem(val name: String)
+    @Serializable
+    private data class GeminiResponse(val candidates: List<GeminiCandidate>)
 
-        @Serializable
-        private data class OpenAiModelsListResponse(val data: List<OpenAiModelItem>)
+    @Serializable
+    private data class GeminiCandidate(val content: GeminiContent)
 
-        @Serializable
-        private data class OpenAiModelItem(val id: String)
-    }
+    @Serializable
+    private data class GroqRequest(
+        val messages: List<GroqMessage>,
+        val model: String,
+        val stream: Boolean = false,
+    )
+
+    @Serializable
+    private data class GroqMessage(val role: String, val content: String)
+
+    @Serializable
+    private data class GroqResponse(val choices: List<GroqChoice>)
+
+    @Serializable
+    private data class GroqChoice(val message: GroqMessage)
+
+    @Serializable
+    private data class GroqStreamResponse(val choices: List<GroqStreamChoice>)
+
+    @Serializable
+    private data class GroqStreamChoice(val delta: GroqStreamDelta)
+
+    @Serializable
+    private data class GroqStreamDelta(val content: String? = null)
+
+    @Serializable
+    private data class AnthropicRequest(
+        val model: String = "claude-3-5-sonnet-20241022",
+        val max_tokens: Int = 1024,
+        val system: String? = null,
+        val messages: List<AnthropicMessage>,
+        val stream: Boolean = true,
+    )
+
+    @Serializable
+    private data class AnthropicMessage(val role: String, val content: String)
+
+    @Serializable
+    private data class AnthropicStreamResponse(
+        val type: String? = null,
+        val delta: AnthropicDelta? = null,
+    )
+
+    @Serializable
+    private data class AnthropicDelta(val text: String? = null)
+
+    @Serializable
+    private data class GeminiModelsListResponse(val models: List<GeminiModelItem>)
+
+    @Serializable
+    private data class GeminiModelItem(val name: String)
+
+    @Serializable
+    private data class OpenAiModelsListResponse(val data: List<OpenAiModelItem>)
+
+    @Serializable
+    private data class OpenAiModelItem(val id: String)
+}

@@ -33,7 +33,7 @@ class PlayerSettingsLayoutScreenModel(
             LayoutRegion.Portrait -> playerPreferences.portraitBottomControls().get()
         }
         val buttons = parseButtons(buttonsCsv)
-        
+
         val disabledButtons = if (region == LayoutRegion.Portrait) {
             emptySet<PlayerButton>()
         } else {
@@ -49,12 +49,12 @@ class PlayerSettingsLayoutScreenModel(
             }
             otherButtons.toSet()
         }
-        
-        mutableState.update { 
+
+        mutableState.update {
             it.copy(
                 buttons = buttons.toImmutableList(),
-                disabledButtons = disabledButtons.toImmutableList()
-            ) 
+                disabledButtons = disabledButtons.toImmutableList(),
+            )
         }
     }
 

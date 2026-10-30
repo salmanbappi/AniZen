@@ -8,8 +8,8 @@ import eu.kanade.tachiyomi.torrentServer.model.TorrentRequest
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.jsoup.Jsoup
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
 import java.io.InputStream
@@ -100,16 +100,21 @@ object TorrentServerApi {
         data: String,
         save: Boolean,
     ): Torrent {
-        val resp =
-            Jsoup.connect("$hostUrl/torrent/upload")
-                .data("title", title)
-                .data("poster", poster)
-                .data("data", data)
-                .data("save", save.toString())
-                .data("file1", "filename", file)
-                .ignoreContentType(true)
-                .ignoreHttpErrors(true)
-                .post()
-        return Json.decodeFromString(Torrent.serializer(), resp.body().text())
+        val fileBytes = file.readBytes()
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("title", title)
+            .addFormDataPart("poster", poster)
+            .addFormDataPart("data", data)
+            .addFormDataPart("save", save.toString())
+            .addFormDataPart(
+                "file1",
+                "filename",
+                fileBytes.toRequestBody("application/x-bittorrent".toMediaTypeOrNull()),
+            )
+            .build()
+        val request = POST("$hostUrl/torrent/upload", body = body)
+        val response = client.newCall(request).execute()
+        return Json.decodeFromString(Torrent.serializer(), response.body.string())
     }
 }

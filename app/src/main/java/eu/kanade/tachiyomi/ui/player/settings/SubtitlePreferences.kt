@@ -19,6 +19,7 @@ class SubtitlePreferences(
     fun subtitleWhitelist() = preferenceStore.getString("pref_subtitle_whitelist", "")
     fun subtitleBlacklist() = preferenceStore.getString("pref_subtitle_blacklist", "")
     fun disableAutoSubtitles() = preferenceStore.getBoolean("pref_disable_auto_subtitles", false)
+
     // ANZ -->
     fun subtitleSystemFonts() = preferenceStore.getBoolean("pref_subtitle_system_fonts", false)
     fun subtitleBlackBars() = preferenceStore.getBoolean("pref_subtitle_black_bars", false)

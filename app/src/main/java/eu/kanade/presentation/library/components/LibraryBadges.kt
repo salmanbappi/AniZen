@@ -20,7 +20,6 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import com.murgupluoglu.flagkit.FlagKit
 import eu.kanade.domain.source.model.icon
-import eu.kanade.presentation.browse.components.SourceIcon
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import tachiyomi.domain.source.model.Source
 import tachiyomi.presentation.core.components.Badge

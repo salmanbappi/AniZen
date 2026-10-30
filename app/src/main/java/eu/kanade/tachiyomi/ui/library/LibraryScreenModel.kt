@@ -16,19 +16,16 @@ import eu.kanade.core.preference.asState
 import eu.kanade.core.util.fastFilterNot
 import eu.kanade.core.util.fastPartition
 import eu.kanade.domain.anime.interactor.UpdateAnime
-import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
-import eu.kanade.domain.track.model.toDomainTrack
-import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.episode.interactor.SetSeenStatus
+import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
+import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.presentation.anime.DownloadAction
 import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
 import eu.kanade.presentation.library.components.LibraryToolbarTitle
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadCache
-import eu.kanade.tachiyomi.ui.player.loader.EpisodeLoader
-import eu.kanade.tachiyomi.ui.player.loader.HosterLoader
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.track.TrackStatus
 import eu.kanade.tachiyomi.data.track.TrackerManager
@@ -53,7 +50,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.runBlocking
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
@@ -251,19 +247,19 @@ class LibraryScreenModel(
             libraryPreferences.libraryFolders().changes(),
             getCategories.subscribe(),
         ) { folderSet, categories ->
-            val folders = folderSet.mapNotNull { 
+            val folders = folderSet.mapNotNull {
                 val parts = it.split("|")
                 if (parts.size >= 3) {
                     val id = parts[0].toLongOrNull() ?: return@mapNotNull null
                     val categoryName = parts.subList(1, parts.size - 1).joinToString("|")
                     val name = parts.last()
-                    
+
                     val category = categories.find { c -> c.name == categoryName }
                     if (category != null) {
                         tachiyomi.domain.library.model.LibraryFolder(
                             id = id,
                             categoryId = category.id,
-                            name = name
+                            name = name,
                         )
                     } else {
                         // fallback for old format: id|categoryId|name
@@ -272,11 +268,15 @@ class LibraryScreenModel(
                             tachiyomi.domain.library.model.LibraryFolder(
                                 id = id,
                                 categoryId = categoryId,
-                                name = parts[2]
+                                name = parts[2],
                             )
-                        } else null
+                        } else {
+                            null
+                        }
                     }
-                } else null
+                } else {
+                    null
+                }
             }
             folders
         }
@@ -322,7 +322,7 @@ class LibraryScreenModel(
                 ).any { it != TriState.DISABLED } ||
                 // ANZ -->
                 prefs.filterCategories
-                // ANZ <--
+            // ANZ <--
         }
             .distinctUntilChanged()
             .onEach {
@@ -448,7 +448,7 @@ class LibraryScreenModel(
                 filterFnTracking(it) &&
                 // ANZ -->
                 filterFnCategories(it)
-                // ANZ <--
+            // ANZ <--
         }
 
         return this
@@ -885,8 +885,6 @@ class LibraryScreenModel(
                     )
                 }
                 updateAnime.awaitAll(toDelete)
-
-
             }
 
             if (deleteEpisodes) {
@@ -1119,7 +1117,7 @@ class LibraryScreenModel(
     ): AnimeLibraryMap {
         val context = preferences.context
         val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000L)
-        
+
         return when (groupType) {
             LibraryGroup.BY_TRACK_STATUS -> {
                 libraryAnime.groupBy { item ->
@@ -1127,9 +1125,9 @@ class LibraryScreenModel(
                         TrackStatus.parseTrackerStatus(track.trackerId, track.status)
                     } ?: TrackStatus.OTHER
 
-                    val isStale = item.libraryAnime.hasStarted && 
-                                 item.libraryAnime.lastSeen < thirtyDaysAgo && 
-                                 item.libraryAnime.unseenCount > 0
+                    val isStale = item.libraryAnime.hasStarted &&
+                        item.libraryAnime.lastSeen < thirtyDaysAgo &&
+                        item.libraryAnime.unseenCount > 0
 
                     val status = when {
                         trackStatus == TrackStatus.WATCHING && isStale && item.libraryAnime.anime.favorite -> TrackStatus.PAUSED
@@ -1301,11 +1299,11 @@ class LibraryScreenModel(
             for (animeId in animeIds) {
                 val anime = getAnime.await(animeId) ?: continue
                 val keyPrefix = "${anime.source}|${anime.url}|"
-                
+
                 // remove existing mapping for this anime
                 val existing = map.find { it.startsWith(keyPrefix) } ?: map.find { it.startsWith("$animeId|") }
                 if (existing != null) map.remove(existing)
-                
+
                 if (folderId != null) {
                     map.add("$keyPrefix$folderId")
                 }
@@ -1355,7 +1353,7 @@ class LibraryScreenModel(
         val showEmptyCategoriesSearch: Boolean = true,
         // KMK <--
         // SY -->
-        val groupType: Int = LibraryGroup.BY_DEFAULT,        // SY <--
+        val groupType: Int = LibraryGroup.BY_DEFAULT, // SY <--
         val folders: List<tachiyomi.domain.library.model.LibraryFolder> = emptyList(),
         val openFolderId: Long? = null,
     ) {

@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.network.interceptor
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -147,7 +146,7 @@ class CloudflareInterceptor(
                 layoutParams = android.view.ViewGroup.LayoutParams(1080, 1920)
                 measure(
                     android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY),
-                    android.view.View.MeasureSpec.makeMeasureSpec(1920, android.view.View.MeasureSpec.EXACTLY)
+                    android.view.View.MeasureSpec.makeMeasureSpec(1920, android.view.View.MeasureSpec.EXACTLY),
                 )
                 layout(0, 0, 1080, 1920)
 
@@ -215,7 +214,7 @@ class CloudflareInterceptor(
                             });
                         } catch (e) {}
                         """.trimIndent(),
-                        null
+                        null,
                     )
                 }
 
@@ -300,24 +299,25 @@ class CloudflareInterceptor(
         }
 
         val pollTimer = java.util.Timer()
-        pollTimer.schedule(object : java.util.TimerTask() {
-            override fun run() {
-                val currentCookie = cookieManager.get(origRequestUrl.toHttpUrl())
-                    .firstOrNull { it.name == "cf_clearance" }
-                if (currentCookie != null && currentCookie != oldCookie) {
-                    cloudflareBypassed = true
-                    // ANZ -->
-                    NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
-                    NetworkHelper.rememberSolveUa(origRequestUrl.toHttpUrl().host, cleanUserAgent)
-                    // ANZ <--
-                    latch.countDown()
-                    pollTimer.cancel()
-                    return
-                }
+        pollTimer.schedule(
+            object : java.util.TimerTask() {
+                override fun run() {
+                    val currentCookie = cookieManager.get(origRequestUrl.toHttpUrl())
+                        .firstOrNull { it.name == "cf_clearance" }
+                    if (currentCookie != null && currentCookie != oldCookie) {
+                        cloudflareBypassed = true
+                        // ANZ -->
+                        NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
+                        NetworkHelper.rememberSolveUa(origRequestUrl.toHttpUrl().host, cleanUserAgent)
+                        // ANZ <--
+                        latch.countDown()
+                        pollTimer.cancel()
+                        return
+                    }
 
-                executor.execute {
-                    webview?.evaluateJavascript(
-                        """
+                    executor.execute {
+                        webview?.evaluateJavascript(
+                            """
                         (function() {
                             try {
                                 var href = (document.location && document.location.href) || '';
@@ -333,25 +333,28 @@ class CloudflareInterceptor(
                                 return 'ok';
                             } catch (e) { return 'wait'; }
                         })()
-                        """.trimIndent()
-                    ) { state ->
-                        if (state == "\"ok\"") {
-                            val current = cookieManager.get(origRequestUrl.toHttpUrl())
-                                .firstOrNull { it.name == "cf_clearance" }
-                            if (current != null && current != oldCookie) {
-                                cloudflareBypassed = true
-                                // ANZ -->
-                                NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
-                                NetworkHelper.rememberSolveUa(origRequestUrl.toHttpUrl().host, cleanUserAgent)
-                                // ANZ <--
-                                latch.countDown()
-                                pollTimer.cancel()
+                            """.trimIndent(),
+                        ) { state ->
+                            if (state == "\"ok\"") {
+                                val current = cookieManager.get(origRequestUrl.toHttpUrl())
+                                    .firstOrNull { it.name == "cf_clearance" }
+                                if (current != null && current != oldCookie) {
+                                    cloudflareBypassed = true
+                                    // ANZ -->
+                                    NetworkHelper.lastSolveAtMs = System.currentTimeMillis()
+                                    NetworkHelper.rememberSolveUa(origRequestUrl.toHttpUrl().host, cleanUserAgent)
+                                    // ANZ <--
+                                    latch.countDown()
+                                    pollTimer.cancel()
+                                }
                             }
                         }
                     }
                 }
-            }
-        }, 0L, 1000L)
+            },
+            0L,
+            1000L,
+        )
 
         try {
             latch.awaitFor30Seconds()
@@ -391,6 +394,7 @@ class CloudflareInterceptor(
 private val ERROR_CODES = listOf(403, 503)
 private val SERVER_CHECK = arrayOf("cloudflare-nginx", "cloudflare")
 private val COOKIE_NAMES = listOf("cf_clearance")
+
 // ANZ -->
 private const val SOLVE_GRACE_MS = 90_000L // ANZ
 // ANZ <--

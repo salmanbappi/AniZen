@@ -5,5 +5,5 @@ data class ChatMessage(
     val sessionId: Long,
     val role: String,
     val content: String,
-    val createdAt: Long
+    val createdAt: Long,
 )

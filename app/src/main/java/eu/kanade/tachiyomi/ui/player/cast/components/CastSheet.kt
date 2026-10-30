@@ -82,7 +82,7 @@ fun CastSheet(
                 ) {
                     itemsIndexed(
                         items = devices,
-                        key = { index, it -> "cast-device-${it.id}-$index" }
+                        key = { index, it -> "cast-device-${it.id}-$index" },
                     ) { _, device ->
                         ListItem(
                             headlineContent = {
@@ -158,7 +158,7 @@ fun CastSheet(
                         ) {
                             itemsIndexed(
                                 items = queueItems,
-                                key = { index, it -> "cast-sheet-${it.itemId}-$index" }
+                                key = { index, it -> "cast-sheet-${it.itemId}-$index" },
                             ) { _, item ->
                                 QueueItemRow(item = item, castManager = castManager)
                             }

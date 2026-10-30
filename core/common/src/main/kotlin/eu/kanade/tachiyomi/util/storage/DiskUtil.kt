@@ -119,7 +119,7 @@ object DiskUtil {
                 sb.append('_')
             }
         }
-        
+
         val result = sb.toString()
         if (result.toByteArray(Charsets.UTF_8).size <= MAX_FILE_NAME_BYTES) {
             return result

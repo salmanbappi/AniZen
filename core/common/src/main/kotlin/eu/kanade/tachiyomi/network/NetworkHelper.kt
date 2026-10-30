@@ -10,7 +10,6 @@ import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import okhttp3.brotli.BrotliInterceptor
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.File
@@ -103,12 +102,19 @@ open /* SY <-- */ class NetworkHelper(
             .addNetworkInterceptor(IgnoreGzipInterceptor())
             .addNetworkInterceptor(BrotliInterceptor)
 
-        if (isDebugBuild) {
+        // ANZ -->
+        if (isDebugBuild || preferences.verboseLogging().get()) {
             val httpLoggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
+                if (preferences.redactSensitiveHeaders().get()) {
+                    redactHeader("Authorization")
+                    redactHeader("Auth")
+                    redactHeader("Cookie")
+                }
             }
             builder.addNetworkInterceptor(httpLoggingInterceptor)
         }
+        // ANZ <--
 
         builder.addInterceptor(
             CloudflareInterceptor(context, cookieJar, ::defaultUserAgentProvider),

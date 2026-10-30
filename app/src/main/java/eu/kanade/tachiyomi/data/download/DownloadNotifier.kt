@@ -46,7 +46,7 @@ internal class DownloadNotifier(private val context: Context) {
      * Status of download. Used for correct notification icon.
      */
     private var isDownloading = false
-    
+
     private var lastNotificationTime = 0L
 
     /**
@@ -105,12 +105,12 @@ internal class DownloadNotifier(private val context: Context) {
             setOnlyAlertOnce(true)
             setSmallIcon(android.R.drawable.stat_sys_download)
             setGroup(Notifications.GROUP_DOWNLOADER)
-            
+
             // Open download manager when clicked
             setContentIntent(
                 NotificationHandler.openAnimeDownloadManagerPendingActivity(context),
             )
-            
+
             // Actions
             addAction(
                 R.drawable.ic_pause_24dp,
@@ -131,7 +131,7 @@ internal class DownloadNotifier(private val context: Context) {
                 val speed = download.speed
                 val eta = download.eta
                 val progress = if (download.progress > 0) "${download.progress}%" else "0%"
-                
+
                 buildString {
                     val statePrefix = when (download.status) {
                         Download.State.MERGING -> "Merging: "
@@ -141,7 +141,7 @@ internal class DownloadNotifier(private val context: Context) {
                     }
                     append(statePrefix)
                     append(progress)
-                    
+
                     if (download.status == Download.State.DOWNLOADING) {
                         if (size.isNotEmpty()) append(" | ").append(size)
                         if (speed.isNotEmpty()) append(" | ").append(speed)
@@ -163,7 +163,7 @@ internal class DownloadNotifier(private val context: Context) {
                 setContentTitle("$title - $episode".chop(30))
                 setContentText(downloadingProgressText)
             }
-            
+
             if (download.progress <= 0) {
                 setProgress(100, 0, true)
             } else {
@@ -173,7 +173,7 @@ internal class DownloadNotifier(private val context: Context) {
 
             show(notificationId)
         }
-        
+
         // Show summary notification
         showSummaryNotification()
     }

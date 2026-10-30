@@ -2,7 +2,6 @@ package eu.kanade.presentation.more.settings.screen.player
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
@@ -11,7 +10,6 @@ import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import kotlinx.collections.immutable.toImmutableMap
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -30,11 +28,6 @@ object PlayerSettingsDecoderScreen : SearchableSettings {
         val debanding = decoderPreferences.videoDebanding()
         val yuv420p = decoderPreferences.useYUV420P()
         val highQualityScaling = decoderPreferences.highQualityScaling()
-        val smoothMotion = decoderPreferences.smoothMotion()
-        val smoothMotionValue by smoothMotion.collectAsState()
-        val interpolationMode = decoderPreferences.interpolationMode()
-        val interpolationFPSLimit = decoderPreferences.interpolationFPSLimit()
-        val interpolationFPSLimitValue by interpolationFPSLimit.collectAsState()
         val adaptiveScaling = decoderPreferences.adaptiveShaderScaling()
 
         return listOf(
@@ -58,32 +51,6 @@ object PlayerSettingsDecoderScreen : SearchableSettings {
                 pref = highQualityScaling,
                 title = stringResource(MR.strings.pref_high_quality_scaling),
                 subtitle = stringResource(MR.strings.pref_high_quality_scaling_summary),
-            ),
-            Preference.PreferenceItem.SwitchPreference(
-                pref = smoothMotion,
-                title = stringResource(MR.strings.pref_interpolation),
-                subtitle = stringResource(MR.strings.pref_interpolation_summary),
-            ),
-            Preference.PreferenceItem.ListPreference(
-                pref = interpolationMode,
-                title = "Smooth Motion Mode",
-                subtitle = "Select the algorithm used for smoothness",
-                entries = eu.kanade.tachiyomi.ui.player.settings.InterpolationMode.entries.associateWith {
-                    it.title
-                }.toImmutableMap(),
-                enabled = smoothMotionValue,
-            ),
-            Preference.PreferenceItem.SliderPreference(
-                value = interpolationFPSLimitValue,
-                min = 0,
-                max = 144,
-                title = "Smooth Motion FPS Limit",
-                subtitle = if (interpolationFPSLimitValue == 0) "Auto (Matches Display)" else "$interpolationFPSLimitValue FPS",
-                enabled = smoothMotionValue,
-                onValueChanged = {
-                    interpolationFPSLimit.set(it)
-                    true
-                },
             ),
             Preference.PreferenceItem.SwitchPreference(
                 pref = adaptiveScaling,

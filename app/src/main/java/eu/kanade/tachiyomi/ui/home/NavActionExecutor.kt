@@ -1,27 +1,29 @@
 package eu.kanade.tachiyomi.ui.home
 
 import android.content.Context
+import android.util.Log
 import cafe.adriel.voyager.navigator.Navigator
-import tachiyomi.domain.history.interactor.RemoveHistory
+import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.NavAction
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import android.util.Log
-import eu.kanade.domain.ui.UiPreferences
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import tachiyomi.domain.history.interactor.RemoveHistory
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 sealed interface ActionResult {
     @Serializable
     data object Success : ActionResult
+
     @Serializable
     data class Blocked(val reason: String) : ActionResult
+
     @Serializable
     data class Cooldown(val remainingMs: Long) : ActionResult
 }
@@ -31,14 +33,14 @@ data class ActionTrace(
     val actionName: String,
     val tabId: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
-    val result: String // Simplification for easier storage
+    val result: String, // Simplification for easier storage
 )
 
 class NavActionExecutor(
     private val context: Context,
     private val scope: CoroutineScope,
     private val navigator: Navigator,
-    private val uiPreferences: UiPreferences = Injekt.get()
+    private val uiPreferences: UiPreferences = Injekt.get(),
 ) {
     companion object {
         private val lastExecutionMap = mutableMapOf<String, Long>()
@@ -63,7 +65,7 @@ class NavActionExecutor(
                 val currentHistory = getHistory().toMutableList()
                 currentHistory.add(0, trace)
                 if (currentHistory.size > MAX_HISTORY) currentHistory.removeAt(currentHistory.size - 1)
-                
+
                 val serialized = Json.encodeToString(currentHistory)
                 uiPreferences.navActionHistory().set(serialized)
                 Log.d("NavTelemetry", "Action: ${trace.actionName} | Tab: ${trace.tabId} | Persisted")
@@ -78,7 +80,7 @@ class NavActionExecutor(
         val key = action.javaClass.simpleName
         val last = lastExecutionMap[key] ?: 0L
         val elapsed = now - last
-        
+
         return if (elapsed < action.cooldownMs) {
             ActionResult.Cooldown(action.cooldownMs - elapsed)
         } else {
@@ -89,22 +91,26 @@ class NavActionExecutor(
 
     fun logClick(tabId: String) {
         if (!uiPreferences.adaptiveTelemetryEnabled().get()) return
-        logTrace(ActionTrace(
-            actionName = "TabClick",
-            tabId = tabId,
-            result = "Success"
-        ))
+        logTrace(
+            ActionTrace(
+                actionName = "TabClick",
+                tabId = tabId,
+                result = "Success",
+            ),
+        )
     }
 
     fun execute(action: NavAction, tabId: String? = null) {
         if (action is NavAction.Default) return
-        
+
         val result = checkCooldown(action)
-        logTrace(ActionTrace(
-            actionName = action.javaClass.simpleName,
-            tabId = tabId,
-            result = result.javaClass.simpleName
-        ))
+        logTrace(
+            ActionTrace(
+                actionName = action.javaClass.simpleName,
+                tabId = tabId,
+                result = result.javaClass.simpleName,
+            ),
+        )
 
         if (result is ActionResult.Cooldown) {
             context.toast("Please wait ${result.remainingMs / 1000 + 1}s")
