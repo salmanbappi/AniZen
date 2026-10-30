@@ -21,10 +21,11 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.ColorPainter
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import coil3.compose.AsyncImage
 import eu.kanade.domain.source.model.icon
@@ -108,9 +109,8 @@ fun ExtensionIcon(
                 )
                 // ANZ -->
                 is Result.Error -> {
-                    val defaultBitmap = defaultSourceBitmap ?: ImageBitmap.imageResource(id = R.mipmap.ic_default_source).also {
-                        defaultSourceBitmap = it
-                    }
+                    val context = LocalContext.current
+                    val defaultBitmap = remember(context) { getDefaultSourceBitmap(context) } // ANZ
                     Image(
                         bitmap = defaultBitmap,
                         contentDescription = null,
@@ -136,14 +136,20 @@ private val iconCache = androidx.collection.LruCache<String, Result<ImageBitmap>
 @Volatile
 private var defaultSourceBitmap: ImageBitmap? = null
 
+private fun getDefaultSourceBitmap(context: Context): ImageBitmap { // ANZ
+    return defaultSourceBitmap ?: synchronized(iconCache) {
+        defaultSourceBitmap ?: ContextCompat.getDrawable(context, R.mipmap.ic_default_source)!!
+            .toBitmap()
+            .asImageBitmap()
+            .also { defaultSourceBitmap = it }
+    }
+}
+
 @Composable
 private fun Extension.getIcon(density: Int = DisplayMetrics.DENSITY_DEFAULT): State<Result<ImageBitmap>> {
-    val cached = iconCache[pkgName]
-    if (cached != null) {
-        return remember(pkgName) { androidx.compose.runtime.mutableStateOf(cached) }
-    }
     val context = LocalContext.current
-    return produceState<Result<ImageBitmap>>(initialValue = Result.Loading, this) {
+    return produceState<Result<ImageBitmap>>(initialValue = iconCache[pkgName] ?: Result.Loading, pkgName) { // ANZ
+        if (value !is Result.Loading) return@produceState
         withIOContext {
             val fromCache = iconCache[pkgName]
             if (fromCache != null) {
