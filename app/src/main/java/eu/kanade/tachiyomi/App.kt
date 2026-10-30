@@ -50,10 +50,6 @@ import eu.kanade.tachiyomi.data.coil.AnimeCoverFetcher
 import eu.kanade.tachiyomi.data.coil.AnimeCoverKeyer
 import eu.kanade.tachiyomi.data.coil.AnimeKeyer
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
-import eu.kanade.tachiyomi.data.coil.CoverRequestInterceptor
-import eu.kanade.tachiyomi.data.coil.ExtensionIconFetcher
-import eu.kanade.tachiyomi.data.coil.InstalledExtensionIconKeyer
-import eu.kanade.tachiyomi.data.coil.InstalledSourceIconKeyer
 import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -66,6 +62,7 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
+import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.cancelNotification
@@ -292,7 +289,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this).apply {
             val callFactoryLazy = lazy { Injekt.get<NetworkHelper>().client }
-            val extensionManagerLazy = lazy { Injekt.get<ExtensionManager>() }
             components {
                 add(OkHttpNetworkFetcherFactory(callFactoryLazy::value))
                 add(TachiyomiImageDecoder.Factory())
@@ -300,23 +296,14 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(AnimeCoverFetcher.AnimeCoverFactory(callFactoryLazy))
                 add(AnimeCoverFetcher.AnimeFactory(callFactoryLazy))
                 add(AnimeCoverFetcher.AnimeBackgroundFactory(callFactoryLazy))
-                // ANZ -->
-                add(ExtensionIconFetcher.ExtensionFactory(context)) // ANZ
-                add(ExtensionIconFetcher.SourceFactory(context, extensionManagerLazy)) // ANZ
-                // ANZ <--
                 add(AnimeCoverKeyer())
                 add(AnimeBackgroundKeyer())
                 add(AnimeKeyer())
-                // ANZ -->
-                add(InstalledExtensionIconKeyer()) // ANZ
-                add(InstalledSourceIconKeyer()) // ANZ
-                add(CoverRequestInterceptor()) // ANZ
-                // ANZ <--
             }
 
             // ANZ -->
-            crossfade(false)
-            allowRgb565(true)
+            crossfade((300 * this@App.animatorDurationScale).toInt()) // ANZ
+            allowRgb565(true) // ANZ
             // ANZ <--
             if (networkPreferences.verboseLogging().get()) logger(DebugLogger())
 
@@ -333,8 +320,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             }
 
             // ANZ -->
-            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(4))
-            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(2))
+            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(8)) // ANZ
+            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(3)) // ANZ
             // ANZ <--
         }.build()
     }

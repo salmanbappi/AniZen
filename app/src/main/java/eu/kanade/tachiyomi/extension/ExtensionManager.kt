@@ -169,26 +169,6 @@ class ExtensionManager(
             .associate { it.extension.pkgName to it.extension }
 
         _isInitialized.value = true
-
-        // ANZ -->
-        // Pre-warm installed extension icons into Coil MemoryCache so first browse scroll never hits Binder IPC
-        try { // ANZ
-            val imageLoader = coil3.SingletonImageLoader.get(context)
-            installedExtensionsMapFlow.value.values.forEach { ext ->
-                val request = coil3.request.ImageRequest.Builder(context)
-                    .data(
-                        eu.kanade.tachiyomi.data.coil.InstalledExtensionIcon(
-                            ext.pkgName,
-                            ext.versionCode,
-                            android.util.DisplayMetrics.DENSITY_DEFAULT,
-                        ),
-                    )
-                    .build()
-                imageLoader.enqueue(request)
-            }
-        } catch (_: Throwable) {
-        }
-        // ANZ <--
     }
 
     /**

@@ -35,8 +35,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import kotlinx.coroutines.launch
@@ -145,12 +143,7 @@ enum class AnimeCover(val ratio: Float) {
         ) {
             AsyncImage(
                 // ANZ -->
-                model = remember(data) {
-                    ImageRequest.Builder(context)
-                        .data(data)
-                        .crossfade(false)
-                        .build()
-                },
+                model = data, // ANZ
                 // ANZ <--
                 contentDescription = contentDescription,
                 modifier = Modifier
@@ -270,12 +263,7 @@ enum class AnimeCover(val ratio: Float) {
 
             AsyncImage(
                 // ANZ -->
-                model = remember(data) {
-                    ImageRequest.Builder(context)
-                        .data(data)
-                        .crossfade(false)
-                        .build()
-                },
+                model = data, // ANZ
                 // ANZ <--
                 contentDescription = contentDescription,
                 modifier = Modifier

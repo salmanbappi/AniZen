@@ -56,6 +56,7 @@ import eu.kanade.presentation.browse.components.BaseBrowseItem
 import eu.kanade.presentation.browse.components.ExtensionIcon
 import eu.kanade.presentation.components.WarningBanner
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
+import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.presentation.util.rememberRequestPackageInstallsPermissionState
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
@@ -257,14 +258,20 @@ private fun ExtensionContent(
                             }
                         ExtensionHeader(
                             textRes = header.textRes,
-                            modifier = Modifier,
+                            // KMK -->
+                            modifier = Modifier
+                                .padding(end = MaterialTheme.padding.small)
+                                .animateItemFastScroll(),
+                            // KMK <--
                             action = action,
                         )
                     }
                     is ExtensionUiModel.Header.Text -> {
                         ExtensionHeader(
                             text = header.text,
-                            modifier = Modifier,
+                            // KMK -->
+                            modifier = Modifier.animateItemFastScroll(),
+                            // KMK <--
                         )
                     }
                 }
@@ -272,10 +279,16 @@ private fun ExtensionContent(
 
             itemsIndexed(
                 items = items,
-                key = { _, item -> "extension-${item.extension.pkgName}-${item.extension.versionCode}-${item.repoName}" },
+                // ANZ -->
+                key = { _, item ->
+                    when (item.extension) {
+                        is Extension.Untrusted -> "extension-untrusted-${item.hashCode()}"
+                        is Extension.Installed -> "extension-installed-${item.hashCode()}"
+                        is Extension.Available -> "extension-available-${item.hashCode()}"
+                    }
+                }, // ANZ
                 contentType = { _, _ -> "extension_item" },
             ) { index, item ->
-                // ANZ -->
                 val itemModifier = if (useContainer) {
                     val isFirst = index == 0
                     val isLast = index == items.lastIndex
@@ -296,7 +309,7 @@ private fun ExtensionContent(
                     Modifier
                 } // ANZ
                 ExtensionItem(
-                    modifier = itemModifier,
+                    modifier = itemModifier.animateItemFastScroll(),
                     item = item,
                     onClickItem = handleItemClick,
                     onLongClickItem = onLongClickItem,
