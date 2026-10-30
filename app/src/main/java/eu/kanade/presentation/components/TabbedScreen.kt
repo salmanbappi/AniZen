@@ -103,12 +103,13 @@ fun TabbedScreen(
                 }
             }
 
+            // ANZ -->
             HorizontalPager(
                 modifier = Modifier.fillMaxSize(),
                 state = state,
                 verticalAlignment = Alignment.Top,
-                beyondViewportPageCount = 1,
-            ) { page ->
+            ) { page -> // ANZ
+            // ANZ <--
                 tabs[page].content(
                     PaddingValues(bottom = contentPadding.calculateBottomPadding()),
                     snackbarHostState,

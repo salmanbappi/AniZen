@@ -273,49 +273,39 @@ private fun ExtensionContent(
 
             itemsIndexed(
                 items = items,
-                key = { _, item -> "extension-${item.extension.pkgName}-${item.repoName}" },
+                key = { _, item -> "extension-${item.extension.pkgName}-${item.extension.versionCode}-${item.repoName}" },
                 contentType = { _, _ -> "extension_item" },
             ) { index, item ->
-                if (useContainer) {
+                // ANZ -->
+                val itemModifier = if (useContainer) {
                     val isFirst = index == 0
                     val isLast = index == items.lastIndex
-                    // ANZ -->
-                    val containerShape = when { // ANZ
+                    val containerShape = when {
                         isFirst && isLast -> fullContainerShape
                         isFirst -> topContainerShape
                         isLast -> bottomContainerShape
                         else -> middleContainerShape
                     }
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        shape = containerShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        tonalElevation = 2.dp,
-                    ) {
-                        ExtensionItem(
-                            modifier = Modifier,
-                            item = item,
-                            onClickItem = handleItemClick,
-                            onLongClickItem = onLongClickItem,
-                            onClickItemSecondaryAction = handleItemSecondaryAction,
-                            onClickItemCancel = onClickItemCancel,
-                            onClickItemAction = handleItemAction,
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = containerShape,
                         )
-                    }
-                    // ANZ <--
                 } else {
-                    ExtensionItem(
-                        modifier = Modifier,
-                        item = item,
-                        onClickItem = handleItemClick,
-                        onLongClickItem = onLongClickItem,
-                        onClickItemSecondaryAction = handleItemSecondaryAction,
-                        onClickItemCancel = onClickItemCancel,
-                        onClickItemAction = handleItemAction,
-                    )
-                }
+                    Modifier
+                } // ANZ
+                ExtensionItem(
+                    modifier = itemModifier,
+                    item = item,
+                    onClickItem = handleItemClick,
+                    onLongClickItem = onLongClickItem,
+                    onClickItemSecondaryAction = handleItemSecondaryAction,
+                    onClickItemCancel = onClickItemCancel,
+                    onClickItemAction = handleItemAction,
+                )
+                // ANZ <--
             }
         }
     }
@@ -349,11 +339,12 @@ private fun ExtensionItem(
     modifier: Modifier = Modifier,
 ) {
     val (extension, installStep) = item
-    val onItemClick = remember(onClickItem, extension.pkgName) { { onClickItem(extension) } }
-    val onItemLongClick = remember(onLongClickItem, extension.pkgName) { { onLongClickItem(extension) } }
-
-    val iconContent: @Composable RowScope.() -> Unit = remember(extension.pkgName, installStep) {
-        {
+    // ANZ -->
+    BaseBrowseItem(
+        modifier = modifier,
+        onClickItem = { onClickItem(extension) }, // ANZ
+        onLongClickItem = { onLongClickItem(extension) },
+        icon = {
             Box(
                 modifier = Modifier.size(40.dp),
                 contentAlignment = Alignment.Center,
@@ -374,11 +365,8 @@ private fun ExtensionItem(
                         .padding(padding),
                 )
             }
-        }
-    }
-
-    val actionContent: @Composable RowScope.() -> Unit = remember(extension, installStep, onClickItemCancel, onClickItemAction, onClickItemSecondaryAction) {
-        {
+        },
+        action = {
             ExtensionItemActions(
                 extension = extension,
                 installStep = installStep,
@@ -386,28 +374,17 @@ private fun ExtensionItem(
                 onClickItemAction = onClickItemAction,
                 onClickItemSecondaryAction = onClickItemSecondaryAction,
             )
-        }
-    }
-
-    val contentBlock: @Composable RowScope.() -> Unit = remember(extension, installStep, item.repoName) {
-        {
+        },
+        content = {
             ExtensionItemContent(
                 extension = extension,
                 installStep = installStep,
                 repoName = item.repoName,
                 modifier = Modifier.weight(1f),
             )
-        }
-    }
-
-    BaseBrowseItem(
-        modifier = modifier,
-        onClickItem = onItemClick,
-        onLongClickItem = onItemLongClick,
-        icon = iconContent,
-        action = actionContent,
-        content = contentBlock,
+        },
     )
+    // ANZ <--
 }
 
 @Composable
@@ -439,13 +416,13 @@ private fun ExtensionItemContent(
             )
         }
 
-        // Won't look good but it's not like we can ellipsize overflowing content
-        FlowRow(
+        // ANZ -->
+        Row(
             modifier = Modifier.secondaryItemAlpha(),
             horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-        ) {
+            verticalAlignment = Alignment.CenterVertically,
+        ) { // ANZ
             ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
-                // ANZ -->
                 val langText = if (extension is Extension.Installed && extension.lang.isNotEmpty()) {
                     LocaleHelper.getSourceDisplayName(
                         extension.lang,

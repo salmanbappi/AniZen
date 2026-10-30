@@ -50,6 +50,7 @@ import eu.kanade.tachiyomi.data.coil.AnimeCoverFetcher
 import eu.kanade.tachiyomi.data.coil.AnimeCoverKeyer
 import eu.kanade.tachiyomi.data.coil.AnimeKeyer
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
+import eu.kanade.tachiyomi.data.coil.CoverRequestInterceptor
 import eu.kanade.tachiyomi.data.coil.ExtensionIconFetcher
 import eu.kanade.tachiyomi.data.coil.InstalledExtensionIconKeyer
 import eu.kanade.tachiyomi.data.coil.InstalledSourceIconKeyer
@@ -309,6 +310,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 // ANZ -->
                 add(InstalledExtensionIconKeyer()) // ANZ
                 add(InstalledSourceIconKeyer()) // ANZ
+                add(CoverRequestInterceptor()) // ANZ
                 // ANZ <--
             }
 
