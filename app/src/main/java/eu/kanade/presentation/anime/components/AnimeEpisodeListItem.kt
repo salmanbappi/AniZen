@@ -89,8 +89,22 @@ fun AnimeEpisodeListItem(
     modifier: Modifier = Modifier,
 ) {
     val downloadState = downloadStateProvider()
-    val fillermarkIcon = ImageVector.vectorResource(id = R.drawable.ic_fillermark_24dp)
-    val fillermarkBorderIcon = ImageVector.vectorResource(id = R.drawable.ic_fillermark_border_24dp)
+    // ANZ -->
+    val fillermarkIcon = if (episodeSwipeStartAction == LibraryPreferences.EpisodeSwipeAction.ToggleFillermark ||
+        episodeSwipeEndAction == LibraryPreferences.EpisodeSwipeAction.ToggleFillermark
+    ) {
+        ImageVector.vectorResource(id = R.drawable.ic_fillermark_24dp) // ANZ
+    } else {
+        null
+    }
+    val fillermarkBorderIcon = if (episodeSwipeStartAction == LibraryPreferences.EpisodeSwipeAction.ToggleFillermark ||
+        episodeSwipeEndAction == LibraryPreferences.EpisodeSwipeAction.ToggleFillermark
+    ) {
+        ImageVector.vectorResource(id = R.drawable.ic_fillermark_border_24dp) // ANZ
+    } else {
+        null
+    }
+    // ANZ <--
     // Hoist @Composable color read out of remember lambdas
     val swipeBackground = MaterialTheme.colorScheme.primaryContainer
 
@@ -528,8 +542,10 @@ private fun getSwipeAction(
     downloadState: Download.State,
     background: Color,
     onSwipe: () -> Unit,
-    fillermarkIcon: ImageVector,
-    fillermarkBorderIcon: ImageVector,
+    // ANZ -->
+    fillermarkIcon: ImageVector? = null,
+    fillermarkBorderIcon: ImageVector? = null,
+    // ANZ <--
 ): me.saket.swipe.SwipeAction? {
     return when (action) {
         LibraryPreferences.EpisodeSwipeAction.ToggleSeen -> swipeAction(
@@ -546,7 +562,13 @@ private fun getSwipeAction(
         )
         // AM (FILLERMARK) -->
         LibraryPreferences.EpisodeSwipeAction.ToggleFillermark -> {
-            val icon = if (!fillermark) fillermarkIcon else fillermarkBorderIcon
+            // ANZ -->
+            val icon = if (!fillermark) {
+                fillermarkIcon ?: Icons.Outlined.Bookmark
+            } else {
+                fillermarkBorderIcon ?: Icons.Outlined.Bookmark
+            } // ANZ
+            // ANZ <--
             swipeAction(
                 icon = icon,
                 background = background,
