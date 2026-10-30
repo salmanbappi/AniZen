@@ -142,7 +142,8 @@ private fun HistoryScreenContent(
             items(
                 items = history,
                 // ANZ -->
-                key = { // ANZ
+                key = {
+                    // ANZ
                     when (it) {
                         is HistoryUiModel.Header -> "history-header-${it.date}"
                         is HistoryUiModel.Item -> "history-item-${it.item.id}"
@@ -190,7 +191,8 @@ private fun HistoryScreenContent(
             items(
                 items = history,
                 // ANZ -->
-                key = { // ANZ
+                key = {
+                    // ANZ
                     when (it) {
                         is HistoryUiModel.Header -> "history-header-${it.date}"
                         is HistoryUiModel.Item -> "history-item-${it.item.id}"

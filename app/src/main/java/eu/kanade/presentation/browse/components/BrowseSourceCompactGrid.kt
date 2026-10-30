@@ -61,7 +61,7 @@ fun BrowseSourceCompactGrid(
             key = animeList.itemKey { it.value.id },
             contentType = animeList.itemContentType { "anime" },
         ) { index ->
-        // ANZ <--
+            // ANZ <--
             val animeFlow = animeList[index] ?: return@items
             val anime = animeFlow.value
             onBatchIncrement(index)

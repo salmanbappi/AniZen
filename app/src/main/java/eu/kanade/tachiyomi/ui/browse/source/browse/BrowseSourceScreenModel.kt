@@ -193,7 +193,7 @@ class BrowseSourceScreenModel(
                     enablePlaceholders = false,
                 ),
             ) {
-            // ANZ <--
+                // ANZ <--
                 getRemoteAnime.subscribe(sourceId, listing.query ?: "", listing.filters)
             }.flow.map { pagingData ->
                 pagingData.map {
