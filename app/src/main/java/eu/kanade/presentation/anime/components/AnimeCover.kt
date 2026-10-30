@@ -272,7 +272,8 @@ enum class AnimeCover(val ratio: Float) {
 
             AsyncImage(
                 // ANZ -->
-                model = remember(data) { // ANZ
+                model = remember(data) {
+                    // ANZ
                     ImageRequest.Builder(context)
                         .data(data)
                         .precision(coil3.size.Precision.INEXACT)

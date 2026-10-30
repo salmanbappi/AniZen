@@ -1,5 +1,6 @@
 package eu.kanade.presentation.browse.components
 
+import android.content.Context
 import android.util.DisplayMetrics
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -21,7 +22,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.ColorPainter
-import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -148,7 +148,8 @@ private fun getDefaultSourceBitmap(context: Context): ImageBitmap { // ANZ
 @Composable
 private fun Extension.getIcon(density: Int = DisplayMetrics.DENSITY_DEFAULT): State<Result<ImageBitmap>> {
     val context = LocalContext.current
-    return produceState<Result<ImageBitmap>>(initialValue = iconCache[pkgName] ?: Result.Loading, pkgName) { // ANZ
+    return produceState<Result<ImageBitmap>>(initialValue = iconCache[pkgName] ?: Result.Loading, pkgName) {
+        // ANZ
         if (value !is Result.Loading) return@produceState
         withIOContext {
             val fromCache = iconCache[pkgName]
