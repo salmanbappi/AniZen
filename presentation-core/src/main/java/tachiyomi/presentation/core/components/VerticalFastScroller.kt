@@ -200,7 +200,9 @@ private fun ListFastScrollThumb(
                 val totalItems = info.totalItemsCount
                 if (totalItems == 0) return@collectLatest
 
-                val targetIndex = (proportion * (totalItems - 1)).roundToInt().coerceIn(0, totalItems - 1)
+                val visibleCount = info.visibleItemsInfo.size // ANZ
+                val scrollableItems = (totalItems - visibleCount).coerceAtLeast(1)
+                val targetIndex = (proportion * scrollableItems).roundToInt().coerceIn(0, totalItems - 1)
                 if (targetIndex != lastScrolledIndex) {
                     lastScrolledIndex = targetIndex
                     listState.scrollToItem(targetIndex, 0)
@@ -401,7 +403,14 @@ private fun GridFastScrollThumb(
 
                 val cols = columnCount.coerceAtLeast(1)
                 val totalRows = (totalItems + cols - 1) / cols
-                val targetRow = (proportion * (totalRows - 1)).roundToInt().coerceIn(0, totalRows - 1)
+                val visibleItems = info.visibleItemsInfo
+                val visibleRows = if (visibleItems.isNotEmpty()) {
+                    (visibleItems.last().index / cols - visibleItems.first().index / cols + 1)
+                } else {
+                    1
+                }
+                val scrollableRows = (totalRows - visibleRows).coerceAtLeast(1)
+                val targetRow = (proportion * scrollableRows).roundToInt().coerceIn(0, totalRows - 1)
                 val targetIndex = (targetRow * cols).coerceIn(0, totalItems - 1)
 
                 if (targetIndex != lastScrolledIndex) {

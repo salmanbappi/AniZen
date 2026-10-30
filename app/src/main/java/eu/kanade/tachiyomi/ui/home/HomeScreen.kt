@@ -184,19 +184,20 @@ object HomeScreen : Screen() {
                     },
                     // ANZ -->
                     bottomBar = {
-                        if (!isTabletUi()) {
+                        if (!isTabletUi() && isCurrentTabVisible) { // ANZ
                             LaunchedEffect(Unit) {
                                 showBottomNavEvent.receiveAsFlow().collectLatest { bottomNavVisible = it }
                             }
 
                             val enterExitFraction by animateFloatAsState( // ANZ
-                                targetValue = if (bottomNavVisible && isCurrentTabVisible) 1f else 0f,
+                                targetValue = if (bottomNavVisible) 1f else 0f,
                                 animationSpec = tween(durationMillis = 200),
                                 label = "bottomNavAnim",
                             )
 
                             NavigationBar(
                                 modifier = Modifier.graphicsLayer {
+                                    alpha = enterExitFraction
                                     translationY = size.height * (1f - enterExitFraction)
                                 },
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,

@@ -203,6 +203,15 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             if (packageName != process) WebView.setDataDirectorySuffix(process)
         }
 
+        // ANZ -->
+        try { // ANZ
+            WebViewUtil.supportsWebView(this)
+        } catch (_: Throwable) {
+        } finally {
+            chromiumInitialized = true
+        }
+        // ANZ <--
+
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
 
         val scope = ProcessLifecycleOwner.get().lifecycleScope

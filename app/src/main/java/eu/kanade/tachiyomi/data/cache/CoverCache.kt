@@ -31,6 +31,7 @@ class CoverCache(private val context: Context) {
 
     // ANZ -->
     private val customCoverFiles = java.util.concurrent.ConcurrentHashMap.newKeySet<String>().apply {
+        customCoverCacheDir.mkdirs() // ANZ
         customCoverCacheDir.list()?.let { addAll(it) }
     }
 
