@@ -146,6 +146,12 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
         // Startup Optimization: Initialize non-critical components on background thread
         ProcessLifecycleOwner.get().lifecycleScope.launch(Dispatchers.IO) {
+            // KMK -->
+            // Warm the cover color/ratio cache so the first library scroll is already
+            // smooth instead of extracting + measuring on the fly.
+            CoverColorObserver.load() // KMK
+            // KMK <--
+
             setupNotificationChannels()
             if (!WorkManager.isInitialized()) {
                 WorkManager.initialize(this@App, Configuration.Builder().build())
@@ -174,10 +180,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             } catch (_: Throwable) {
             }
             // ANZ <--
-
-            // Warm the cover color/ratio cache so the first library scroll is already
-            // smooth instead of extracting + measuring on the fly (KMK).
-            CoverColorObserver.load()
 
             // Dismiss stuck downloader notifications
             val downloadManager = Injekt.get<DownloadManager>()

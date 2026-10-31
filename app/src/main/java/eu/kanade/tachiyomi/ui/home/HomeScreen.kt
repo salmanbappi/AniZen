@@ -3,12 +3,15 @@ package eu.kanade.tachiyomi.ui.home
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -184,27 +187,23 @@ object HomeScreen : Screen() {
                     },
                     // ANZ -->
                     bottomBar = {
-                        if (!isTabletUi() && isCurrentTabVisible) { // ANZ
+                        if (!isTabletUi() && isCurrentTabVisible) {
                             LaunchedEffect(Unit) {
                                 showBottomNavEvent.receiveAsFlow().collectLatest { bottomNavVisible = it }
                             }
 
-                            val enterExitFraction by animateFloatAsState( // ANZ
-                                targetValue = if (bottomNavVisible) 1f else 0f,
-                                animationSpec = tween(durationMillis = 200),
-                                label = "bottomNavAnim",
-                            )
-
-                            NavigationBar(
-                                modifier = Modifier.graphicsLayer {
-                                    alpha = enterExitFraction
-                                    translationY = size.height * (1f - enterExitFraction)
-                                },
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            AnimatedVisibility(
+                                visible = bottomNavVisible, // ANZ
+                                enter = expandVertically(),
+                                exit = shrinkVertically(),
                             ) {
-                                for (navItem in visibleNavItems) {
-                                    key(navItem.id) {
-                                        HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
+                                NavigationBar(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                ) {
+                                    for (navItem in visibleNavItems) {
+                                        key(navItem.id) {
+                                            HomeNavigationBarItem(this, tabNavigator, navItem, navLabelVisibility, adaptiveDecision, updatesCount, extensionUpdatesCount, behaviorMap, executor)
+                                        }
                                     }
                                 }
                             }
