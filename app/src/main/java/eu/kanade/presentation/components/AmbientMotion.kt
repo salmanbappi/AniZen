@@ -60,7 +60,7 @@ private const val TwoPi = 6.2831855f
 private const val MinStepNanos = 12_000_000L
 
 // How much of the page the cover mosaic covers (the rest is the dark coloured base showing through).
-private const val MosaicAlpha = 0.88f
+private const val MosaicAlpha = 0.80f
 
 /** The backdrop is painted at 1/3 of the screen resolution and stretched back: 9x fewer pixels to shade. */
 private const val LowRes = 3
