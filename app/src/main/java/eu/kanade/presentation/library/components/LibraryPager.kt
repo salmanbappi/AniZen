@@ -63,6 +63,12 @@ fun LibraryPager(
             key = { categories.getOrNull(it)?.id ?: it.toLong() },
             verticalAlignment = Alignment.Top,
         ) { page ->
+            // ANK -->
+            if (page !in ((state.currentPage - 1)..(state.currentPage + 1))) { // ANK
+                // To make sure only one offscreen page is being composed
+                return@HorizontalPager
+            }
+            // ANK <--
             val category = categories.getOrNull(page) ?: return@HorizontalPager
             val library = getLibraryForPage(page)
 
