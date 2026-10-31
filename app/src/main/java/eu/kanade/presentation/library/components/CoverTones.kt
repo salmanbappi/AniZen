@@ -23,9 +23,13 @@ import kotlinx.coroutines.withContext
 import tachiyomi.domain.anime.model.AnimeCover
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 // ANZ -->
@@ -39,7 +43,7 @@ import kotlin.math.sqrt
  *
  * [presence] is the share of the cover that really has colour (0..1): grey covers get calmer lights.
  *
- * [mosaic] is a tiny, smooth, vivid picture of the cover (24x36 px) that the backdrop stretches over the whole
+ * [mosaic] is a tiny, smooth, vivid picture of the cover (27x60 px) that the backdrop stretches over the whole
  * screen: it is like a blurred copy of the artwork, so every part of the page takes the colour of the part of the
  * cover it sits next to.
  */
@@ -175,7 +179,7 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
         vividColor(main.hue, main.sat, main.value),
         vividColor(picked[1].hue, picked[1].sat, picked[1].value),
         vividColor(picked[2].hue, picked[2].sat, picked[2].value),
-        vividColor(main.hue, 0.50f, 1f),
+        vividColor(wrapHue(main.hue - 14f), maxOf(main.sat, 0.75f), 1f),
     )
 
     // the dark base stays in the main hue, leaning a little towards the second one
@@ -192,15 +196,28 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
     )
 }
 
-private const val MosaicCols = 6
-private const val MosaicRows = 9
-private const val MosaicOutW = 24
-private const val MosaicOutH = 36
+private const val MosaicCols = 8
+private const val MosaicRows = 12
+private const val MosaicOutW = 27
+private const val MosaicOutH = 60
+private const val HueBins = 12
+
+// Where the cover card rests on the Home screen (fractions of the screen height). The mosaic is laid out so that
+// the part of the cover next to the card gets the colour of that part; above and below the card the colours of the
+// first and last rows simply go on.
+private const val CardTop = 0.22f
+private const val CardBottom = 0.80f
+
+// The mosaic never gets brighter than this (relative luminance), so white text stays easy to read over it.
+private const val MosaicMaxLuma = 0.16f
 
 /**
- * The cover as a 6x9 grid of colours, made vivid and dark enough to sit behind text, then smoothed up to 24x36.
- * Each cell averages its pixels weighting the colourful ones, so black bars, white paper and grey areas hardly
- * count; a cell without any colour borrows from its neighbours (no black patches).
+ * The cover as an 8x12 grid of colours, smoothed up to 27x60 and laid out like the screen.
+ *
+ * Every cell takes the colour that is really in it (its dominant hue, not an average: teal and pink must not
+ * average into grey), made vivid; its brightness follows the artwork (white sleeves are the light parts of the
+ * backdrop, never white). A cell with no colour (black bars, white paper, grey) borrows the hue of its most
+ * colourful neighbour. The smoothing blends hues along the colour wheel, so it never passes through grey.
  */
 private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
     val bw = bitmap.width
@@ -217,116 +234,120 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
     val pixels = IntArray(bw * bh)
     bitmap.getPixels(pixels, 0, bw, 0, 0, bw, bh)
     val cells = MosaicCols * MosaicRows
-    val sumR = FloatArray(cells)
-    val sumG = FloatArray(cells)
-    val sumB = FloatArray(cells)
-    val sumW = FloatArray(cells)
-    val sumColourful = FloatArray(cells)
+    val binW = FloatArray(cells * HueBins)
+    val binS = FloatArray(cells * HueBins)
+    val binX = FloatArray(cells * HueBins)
+    val binY = FloatArray(cells * HueBins)
+    val sumV = FloatArray(cells)
     val count = IntArray(cells)
+    val hsv = FloatArray(3)
+    val degToRad = PI.toFloat() / 180f
     for (y in y0 until y1) {
         val row = ((y - y0) * MosaicRows / ch).coerceAtMost(MosaicRows - 1)
         for (x in x0 until x1) {
             val col = ((x - x0) * MosaicCols / cw).coerceAtMost(MosaicCols - 1)
-            val p = pixels[y * bw + x]
-            val r = ((p shr 16) and 0xFF) / 255f
-            val g = ((p shr 8) and 0xFF) / 255f
-            val b = (p and 0xFF) / 255f
-            val mx = maxOf(r, maxOf(g, b))
-            val mn = minOf(r, minOf(g, b))
-            val colourful = if (mx > 0f) (mx - mn) / mx * mx else 0f
-            val w = 0.04f + colourful
+            android.graphics.Color.colorToHSV(pixels[y * bw + x], hsv)
             val i = row * MosaicCols + col
-            sumR[i] += r * w
-            sumG[i] += g * w
-            sumB[i] += b * w
-            sumW[i] += w
-            sumColourful[i] += colourful
+            sumV[i] += hsv[2]
             count[i]++
+            // only pixels with real colour vote for the hue (greys, whites and blacks do not)
+            val wc = ramp(0.12f, 0.40f, hsv[1]) * ramp(0.10f, 0.35f, hsv[2])
+            if (wc > 0f) {
+                val k = i * HueBins + (hsv[0] / 30f).toInt().coerceIn(0, HueBins - 1)
+                val rad = hsv[0] * degToRad
+                binW[k] += wc
+                binS[k] += wc * hsv[1]
+                binX[k] += wc * cos(rad)
+                binY[k] += wc * sin(rad)
+            }
         }
     }
-    var cr = FloatArray(cells)
-    var cg = FloatArray(cells)
-    var cb = FloatArray(cells)
-    var valid = BooleanArray(cells)
-    var anyValid = false
-    for (i in 0 until cells) {
-        if (count[i] > 0 && sumW[i] > 0f) {
-            cr[i] = sumR[i] / sumW[i]
-            cg[i] = sumG[i] / sumW[i]
-            cb[i] = sumB[i] / sumW[i]
-            valid[i] = sumColourful[i] / count[i] >= 0.06f
-            if (valid[i]) anyValid = true
-        }
-    }
-    if (!anyValid) return null
 
-    // cells with no colour take the average of their coloured neighbours, a ring at a time
-    for (pass in 0 until 12) {
+    var cellHue = FloatArray(cells)
+    var cellSat = FloatArray(cells)
+    var cellScore = FloatArray(cells)
+    var valid = BooleanArray(cells)
+    for (i in 0 until cells) {
+        if (count[i] == 0) continue
+        var best = -1f
+        var bestBin = 0
+        for (b in 0 until HueBins) {
+            val prev = (b + HueBins - 1) % HueBins
+            val next = (b + 1) % HueBins
+            val score = binW[i * HueBins + b] + 0.5f * (binW[i * HueBins + prev] + binW[i * HueBins + next])
+            if (score > best) {
+                best = score
+                bestBin = b
+            }
+        }
+        cellScore[i] = best / count[i]
+        if (best <= 0f || cellScore[i] < 0.06f) continue
+        var w = 0f
+        var s = 0f
+        var x = 0f
+        var y = 0f
+        for (d in -1..1) {
+            val k = i * HueBins + (bestBin + d + HueBins) % HueBins
+            w += binW[k]
+            s += binS[k]
+            x += binX[k]
+            y += binY[k]
+        }
+        if (w <= 0f) continue
+        cellHue[i] = wrapHue(atan2(y, x) / degToRad)
+        cellSat[i] = s / w
+        valid[i] = true
+    }
+    if (valid.none { it }) return null
+
+    // cells with no colour copy the hue of their most colourful neighbour, a ring at a time (no mixing, no grey)
+    for (pass in 0 until 16) {
         if (valid.all { it }) break
-        val nr = cr.copyOf()
-        val ng = cg.copyOf()
-        val nb = cb.copyOf()
+        val nh = cellHue.copyOf()
+        val ns = cellSat.copyOf()
         val nv = valid.copyOf()
         for (row in 0 until MosaicRows) {
             for (col in 0 until MosaicCols) {
                 val i = row * MosaicCols + col
                 if (valid[i]) continue
-                var sr = 0f
-                var sg = 0f
-                var sb = 0f
-                var n = 0
+                var bestJ = -1
+                var bestScore = -1f
                 for (k in 0 until 4) {
                     val rr = row + (if (k == 0) 1 else if (k == 1) -1 else 0)
                     val cc = col + (if (k == 2) 1 else if (k == 3) -1 else 0)
                     if (rr < 0 || rr >= MosaicRows || cc < 0 || cc >= MosaicCols) continue
                     val j = rr * MosaicCols + cc
-                    if (!valid[j]) continue
-                    sr += cr[j]
-                    sg += cg[j]
-                    sb += cb[j]
-                    n++
+                    if (valid[j] && cellScore[j] > bestScore) {
+                        bestScore = cellScore[j]
+                        bestJ = j
+                    }
                 }
-                if (n > 0) {
-                    nr[i] = sr / n
-                    ng[i] = sg / n
-                    nb[i] = sb / n
+                if (bestJ >= 0) {
+                    nh[i] = cellHue[bestJ]
+                    ns[i] = cellSat[bestJ]
                     nv[i] = true
                 }
             }
         }
-        cr = nr
-        cg = ng
-        cb = nb
+        cellHue = nh
+        cellSat = ns
         valid = nv
     }
 
-    // vivid, but dark enough for white text: more saturation, value squeezed into 0.20..0.50
-    val hsv = FloatArray(3)
+    // vivid and never grey; brightness follows the artwork but stays in 0.20..0.54
+    val cellVal = FloatArray(cells)
     for (i in 0 until cells) {
-        if (!valid[i]) {
-            // (cannot really happen: at least one cell was valid and the rings reach every cell)
-            cr[i] = 0.2f
-            cg[i] = 0.2f
-            cb[i] = 0.2f
-        }
-        android.graphics.Color.RGBToHSV(
-            (cr[i] * 255f + 0.5f).toInt().coerceIn(0, 255),
-            (cg[i] * 255f + 0.5f).toInt().coerceIn(0, 255),
-            (cb[i] * 255f + 0.5f).toInt().coerceIn(0, 255),
-            hsv,
-        )
-        if (hsv[1] >= 0.12f) hsv[1] = minOf(0.95f, hsv[1] * 1.35f + 0.06f)
-        hsv[2] = (0.14f + 0.40f * hsv[2]).coerceIn(0.20f, 0.50f)
-        val c = android.graphics.Color.HSVToColor(hsv)
-        cr[i] = android.graphics.Color.red(c) / 255f
-        cg[i] = android.graphics.Color.green(c) / 255f
-        cb[i] = android.graphics.Color.blue(c) / 255f
+        val mean = if (count[i] > 0) sumV[i] / count[i] else 0.3f
+        cellSat[i] = (cellSat[i] * 1.2f + 0.10f).coerceIn(0.58f, 0.95f)
+        cellVal[i] = 0.20f + 0.34f * mean.coerceIn(0f, 1f)
     }
 
-    // smooth up-sampling (smoothstep weights): no creases along the grid lines when it is stretched on screen
+    // smooth up-sampling, hue going the short way round the colour wheel; rows follow the card position on screen
     val out = IntArray(MosaicOutW * MosaicOutH)
     for (oy in 0 until MosaicOutH) {
-        val gy = (oy + 0.5f) / MosaicOutH * MosaicRows - 0.5f
+        val screenY = (oy + 0.5f) / MosaicOutH
+        val t = ((screenY - CardTop) / (CardBottom - CardTop)).coerceIn(0f, 1f)
+        val gy = t * MosaicRows - 0.5f
         val fy = floor(gy)
         val ty = smooth(gy - fy)
         val ya = fy.toInt().coerceIn(0, MosaicRows - 1)
@@ -341,20 +362,30 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
             val i01 = ya * MosaicCols + xb
             val i10 = yb * MosaicCols + xa
             val i11 = yb * MosaicCols + xb
-            val r = (cr[i00] * (1 - tx) + cr[i01] * tx) * (1 - ty) + (cr[i10] * (1 - tx) + cr[i11] * tx) * ty
-            val g = (cg[i00] * (1 - tx) + cg[i01] * tx) * (1 - ty) + (cg[i10] * (1 - tx) + cg[i11] * tx) * ty
-            val b = (cb[i00] * (1 - tx) + cb[i01] * tx) * (1 - ty) + (cb[i10] * (1 - tx) + cb[i11] * tx) * ty
-            out[oy * MosaicOutW + ox] = android.graphics.Color.rgb(
-                (r * 255f + 0.5f).toInt().coerceIn(0, 255),
-                (g * 255f + 0.5f).toInt().coerceIn(0, 255),
-                (b * 255f + 0.5f).toInt().coerceIn(0, 255),
-            )
+            val h = lerpHue(lerpHue(cellHue[i00], cellHue[i01], tx), lerpHue(cellHue[i10], cellHue[i11], tx), ty)
+            val s = (cellSat[i00] * (1 - tx) + cellSat[i01] * tx) * (1 - ty) +
+                (cellSat[i10] * (1 - tx) + cellSat[i11] * tx) * ty
+            var v = (cellVal[i00] * (1 - tx) + cellVal[i01] * tx) * (1 - ty) +
+                (cellVal[i10] * (1 - tx) + cellVal[i11] * tx) * ty
+            var argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s.coerceIn(0f, 1f), v.coerceIn(0f, 1f)))
+            var steps = 0
+            while (relativeLuma(Color(argb)) > MosaicMaxLuma && steps < 8 && v > 0.16f) {
+                v *= 0.94f
+                argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s.coerceIn(0f, 1f), v.coerceIn(0f, 1f)))
+                steps++
+            }
+            out[oy * MosaicOutW + ox] = argb
         }
     }
     return Bitmap.createBitmap(out, MosaicOutW, MosaicOutH, Bitmap.Config.ARGB_8888).asImageBitmap()
 }
 
 private fun smooth(t: Float): Float = t * t * (3f - 2f * t)
+
+private fun ramp(edge0: Float, edge1: Float, x: Float): Float = smooth(((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f))
+
+/** Hue halfway between [a] and [b] along the shorter way round the colour wheel. */
+private fun lerpHue(a: Float, b: Float, t: Float): Float = wrapHue(a + (((b - a + 540f) % 360f) - 180f) * t)
 
 /** Same hue, but saturated and bright enough to glow, and never so bright that white text over it suffers. */
 private fun vividColor(hue: Float, sat: Float, value: Float): Color {
