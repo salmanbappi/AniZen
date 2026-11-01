@@ -1038,7 +1038,7 @@ private fun AmbientBackdrop(
         label = "ambientMosaic",
     )
     val glow by animateFloatAsState(
-        targetValue = glowTarget * (1f - 0.15f * (if (mosaicOn) 1f else 0f)),
+        targetValue = glowTarget,
         animationSpec = tween(durationMillis = 700),
         label = "ambientGlow",
     )

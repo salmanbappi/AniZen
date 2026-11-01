@@ -200,7 +200,7 @@ private const val BlurWide = 8
 private const val BlurFinal = 2
 private const val HuePower = 2f
 private const val HuePrior = 0.6f
-private const val BlurMaxLuma = 0.16f
+private const val BlurMaxLuma = 0.22f
 
 private class Voted(val r: FloatArray, val g: FloatArray, val b: FloatArray, val mass: FloatArray)
 
@@ -280,7 +280,7 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
         }
         sat = (sat * 1.35f + 0.12f).coerceIn(0.50f, 0.95f)
         // brightness follows the artwork (light parts of the cover are the light parts of the backdrop)
-        var value = (0.16f + 0.36f * (vBlur[i] / cBlur[i].coerceAtLeast(1e-6f))).coerceIn(0.22f, 0.46f)
+        var value = (0.18f + 0.46f * (vBlur[i] / cBlur[i].coerceAtLeast(1e-6f))).coerceIn(0.27f, 0.60f)
         var argb = android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value))
         var steps = 0
         while (relativeLuma(Color(argb)) > BlurMaxLuma && steps < 8) {
@@ -420,7 +420,7 @@ private fun vividColor(hue: Float, sat: Float, value: Float): Color {
     return color
 }
 
-private const val MaxLightLuma = 0.22f
+private const val MaxLightLuma = 0.30f
 
 private fun hsvColor(hue: Float, sat: Float, value: Float): Color =
     Color(android.graphics.Color.HSVToColor(floatArrayOf(wrapHue(hue), sat.coerceIn(0f, 1f), value.coerceIn(0f, 1f))))
