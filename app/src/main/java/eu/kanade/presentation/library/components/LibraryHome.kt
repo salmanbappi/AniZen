@@ -752,16 +752,7 @@ private fun LazyListScope.homeShelves(
         delayMillis = stagger(),
     )
     item(key = "see-all", contentType = "footer") {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = ShelfSpacing + 6.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            FilledTonalButton(onClick = { actions.onOpenTab(LibraryHomeTab.All) }) {
-                Text("Ver toda la biblioteca ($total)")
-            }
-        }
+        SeeAllButton(total = total, onClick = { actions.onOpenTab(LibraryHomeTab.All) })
     }
 }
 
@@ -1874,9 +1865,6 @@ private fun PosterCard(
             } else if (entry.isFinished()) {
                 FinishedTag(modifier = Modifier.align(Alignment.TopStart))
             }
-            if (!entry.hasStarted && entry.isRecentlyAdded()) {
-                NewTag(modifier = Modifier.align(Alignment.BottomStart))
-            }
             if (showProgress && entry.hasStarted && entry.totalEpisodes > 0) {
                 SlimProgress(
                     progress = progressOf(entry),
@@ -2038,20 +2026,71 @@ private fun rememberPress(): Pair<MutableInteractionSource, State<Float>> {
     return source to scale
 }
 
+/**
+ * "See the whole library": a wide glass pill. White over a translucent white fill with a light edge, so it reads the same
+ * on any backdrop colour (the page colour changes with every cover).
+ */
 @Composable
-private fun NewTag(modifier: Modifier = Modifier) {
-    Text(
-        text = "NUEVO",
-        modifier = modifier
-            .padding(6.dp)
-            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        color = MaterialTheme.colorScheme.onPrimary,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.6.sp,
-        maxLines = 1,
-    )
+private fun SeeAllButton(total: Int, onClick: () -> Unit) {
+    val (source, scale) = rememberPress()
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = ShelfSpacing + 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                }
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.09f)),
+                    ),
+                )
+                .border(
+                    1.dp,
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.42f), Color.White.copy(alpha = 0.10f)),
+                    ),
+                    shape,
+                )
+                .clickable(interactionSource = source, indication = null, onClick = onClick)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "Ver toda la biblioteca",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = total.toString(),
+                modifier = Modifier
+                    .background(Color.White.copy(alpha = 0.24f), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color.White,
+            )
+        }
+    }
 }
 
 @Composable
