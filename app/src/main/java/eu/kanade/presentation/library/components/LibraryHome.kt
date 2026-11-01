@@ -171,8 +171,8 @@ private val ToolbarFadeDistance = 240.dp
 // ANZ --> dark "floor" under the shelves: covers keep their punch on any backdrop colour
 private val FloorColor = Color(0xFF0B0C10)
 private val FloorLead = 40.dp
-private val FloorRamp = 240.dp
-private const val FloorAlpha = 0.68f
+private val FloorRamp = 320.dp
+private const val FloorAlpha = 0.30f
 // ANZ <--
 
 /** Changes every time the app process starts, so the hero carousel is different on every launch. */
@@ -1847,6 +1847,17 @@ private fun PosterCard(
                 // ANZ -->
                 .drawBehind {
                     val raw = vibrantState.value[animeId]
+                    // soft dark elevation so the cover lifts off even very bright backdrops
+                    val r0 = PosterRadius.toPx()
+                    for (i in 1..3) {
+                        val g = i * 2.5.dp.toPx()
+                        drawRoundRect(
+                            color = Color.Black.copy(alpha = 0.13f),
+                            topLeft = Offset(-g * 0.5f, g * 0.9f),
+                            size = Size(size.width + g, size.height + g * 0.4f),
+                            cornerRadius = CornerRadius(r0 + g),
+                        )
+                    }
                     if (raw == null || glowAlpha <= 0f) return@drawBehind
                     val glow = lerp(Color(raw), Color.White, 0.10f)
                     val bleed = 5.dp.toPx()
@@ -1857,7 +1868,7 @@ private fun PosterCard(
                     drawRoundRect(
                         brush = Brush.verticalGradient(
                             0f to glow.copy(alpha = 0f),
-                            peak to glow.copy(alpha = 0.55f * glowAlpha),
+                            peak to glow.copy(alpha = 0.32f * glowAlpha),
                             1f to glow.copy(alpha = 0f),
                             startY = startY,
                             endY = startY + total,
@@ -1927,7 +1938,13 @@ private fun PosterCard(
             Text(
                 text = anime.title,
                 modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 6.dp),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black.copy(alpha = 0.75f),
+                        offset = Offset(0f, 1.5f),
+                        blurRadius = 6f,
+                    ),
+                ),
                 fontWeight = FontWeight.Medium,
                 minLines = titleLines,
                 maxLines = titleLines,
