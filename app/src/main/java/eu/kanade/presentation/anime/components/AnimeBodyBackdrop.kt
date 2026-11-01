@@ -1,5 +1,6 @@
 package eu.kanade.presentation.anime.components
 
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -33,9 +34,9 @@ private const val BodyStart = 0.66f
 private const val BodyFade = 0.10f
 
 // How solid the surface is (a little of the moving lights still shows through) and how strong the cover colours are.
-private const val BodyOpacity = 0.92f
-private const val BodyMosaic = 0.60f
-private const val BodyVeil = 0.18f
+private const val BodyOpacity = 0.95f
+private const val BodyMosaic = 0.85f
+private const val BodyVeil = 0.05f
 
 /**
  * The part of the details page below the cover (info, genres, cast, episodes) gets its own calm surface in the colours
@@ -51,7 +52,15 @@ fun AnimeBodyBackdrop(
     listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    val mosaic = CoverTonesCache.get(animeId, coverVersion)?.mosaic
+    val tones = CoverTonesCache.get(animeId, coverVersion)
+    val mosaic = tones?.mosaic
+    // a mid-tone of the cover colour (not the near-black page tint): no black patch behind the episodes
+    val base by animateColorAsState(
+        // (a black-and-white cover has no lights and its tones are plain black: use the page tint then)
+        targetValue = tones?.takeIf { it.lights.isNotEmpty() }?.mid ?: ambient.top,
+        animationSpec = tween(durationMillis = 700),
+        label = "bodyBase",
+    )
     val mosaicAlpha by animateFloatAsState(
         targetValue = if (mosaic != null) BodyMosaic else 0f,
         animationSpec = tween(durationMillis = 700),
@@ -94,7 +103,7 @@ fun AnimeBodyBackdrop(
                 if (edge >= h) return@drawBehind
                 val fade = h * BodyFade
 
-                drawRect(color = ambient.deep)
+                drawRect(color = base)
                 val image = mosaic
                 if (image != null && mosaicAlpha > 0.01f) {
                     drawImage(
