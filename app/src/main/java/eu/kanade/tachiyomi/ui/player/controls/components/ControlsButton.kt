@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -67,6 +68,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -219,21 +222,54 @@ fun FilledControlsButton(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    iconOnly: Boolean = false,
 ) {
-    // ANZ --> same size as before, new look: tinted glass pill with an accent border and icon
     val interactionSource = remember { MutableInteractionSource() }
     val clickEvent = LocalPlayerButtonsClickEvent.current
     val accent = MaterialTheme.colorScheme.primary
 
-    Row(
+    Box(
         modifier = modifier
             .tvFocusHighlight(
                 shape = CircleShape,
                 focusedScale = 1.06f,
             )
             .clip(CircleShape)
-            .background(accent.copy(alpha = 0.22f))
-            .border(1.dp, accent.copy(alpha = 0.75f), CircleShape)
+            .then(
+                if (iconOnly) {
+                    Modifier
+                        .background(Color.Black.copy(alpha = 0.30f))
+                        .drawBehind {
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.13f),
+                                        Color.White.copy(alpha = 0.02f),
+                                        accent.copy(alpha = 0.10f),
+                                    ),
+                                ),
+                            )
+                            val edge = 1.dp.toPx()
+                            drawRoundRect(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.40f),
+                                        Color.White.copy(alpha = 0.10f),
+                                        accent.copy(alpha = 0.26f),
+                                    ),
+                                ),
+                                topLeft = Offset(edge / 2f, edge / 2f),
+                                size = Size(size.width - edge, size.height - edge),
+                                cornerRadius = CornerRadius(size.height / 2f),
+                                style = Stroke(width = edge),
+                            )
+                        }
+                } else {
+                    Modifier
+                        .background(accent.copy(alpha = 0.22f))
+                        .border(1.dp, accent.copy(alpha = 0.75f), CircleShape)
+                },
+            )
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = ripple(),
@@ -244,25 +280,43 @@ fun FilledControlsButton(
                 onLongClick = onLongClick,
             )
             .padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.FastForward,
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = text,
-            color = Color.White,
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.SemiBold,
-                fontFeatureSettings = "tnum",
-            ),
-        )
+        // Invisible measurement content retains the exact original pill dimensions.
+        // Clear its semantics so accessibility announces only the visible icon's label.
+        Row(
+            modifier = if (iconOnly) {
+                Modifier.alpha(0f).clearAndSetSemantics { }
+            } else {
+                Modifier
+            },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FastForward,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = text,
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontFeatureSettings = "tnum",
+                ),
+            )
+        }
+        if (iconOnly) {
+            Icon(
+                imageVector = Icons.Rounded.SkipNext,
+                contentDescription = text,
+                tint = Color.White,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
-    // ANZ <--
 }
 
 // ANZ -->
