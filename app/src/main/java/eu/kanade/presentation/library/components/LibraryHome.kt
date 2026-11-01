@@ -91,6 +91,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -173,7 +175,23 @@ private val FloorColor = Color(0xFF0B0C10)
 private val FloorLead = 40.dp
 private val FloorRamp = 320.dp
 private const val FloorAlpha = 0.30f
+
+// Extra vivid lights behind the carousel only (they hang from the hero and never reach the shelves)
+private const val VividAlphaA = 0.46f
+private const val VividAlphaB = 0.38f
+private const val VividAlphaC = 0.30f
 // ANZ <--
+
+/** Bottom edge of the carousel block in px (negative when it is not on screen), read straight from the list. */
+private fun heroBottomPx(state: androidx.compose.foundation.lazy.LazyListState, searching: Boolean): Float {
+    val first = state.layoutInfo.visibleItemsInfo.firstOrNull()
+    return when {
+        searching || first == null -> -1f
+        first.key == "top" -> (first.offset + first.size).toFloat()
+        first.index == 1 -> first.offset.toFloat()
+        else -> -1f
+    }
+}
 
 /** Changes every time the app process starts, so the hero carousel is different on every launch. */
 private val SessionSeed: Long = System.nanoTime()
@@ -600,6 +618,7 @@ internal fun LibraryHome(
     // ANZ --> colourful, slowly moving page backdrop that stays put while the shelves scroll over it
     val auroraPhase = rememberAuroraPhase()
     val revealed = remember { mutableSetOf<Any>() }
+    val heroBottom = remember(listState, searching) { { heroBottomPx(listState, searching) } }
     CompositionLocalProvider(LocalAuroraPhase provides auroraPhase) {
     Box(modifier = modifier.fillMaxSize()) {
         AmbientBackdrop(
@@ -607,6 +626,7 @@ internal fun LibraryHome(
             heroes = shelves.heroes,
             pagerState = heroPager,
             ambientOwner = ambientOwner,
+            heroBottom = heroBottom,
             modifier = Modifier.fillMaxSize(),
         )
         // ANZ --> dark floor: starts where the hero ends and follows the scroll, so the shelves sit on a calm base
@@ -673,7 +693,6 @@ internal fun LibraryHome(
                 if (tab == LibraryHomeTab.Home) {
                     homeShelves(
                         shelves = shelves,
-                        total = flat.size,
                         selectedIds = selectedIds,
                         actions = actions,
                         revealed = revealed,
@@ -700,7 +719,6 @@ internal fun LibraryHome(
 
 private fun LazyListScope.homeShelves(
     shelves: Shelves,
-    total: Int,
     selectedIds: Set<Long>,
     actions: HomeActions,
     revealed: MutableSet<Any>,
@@ -790,7 +808,7 @@ private fun LazyListScope.homeShelves(
         delayMillis = stagger(),
     )
     item(key = "see-all", contentType = "footer") {
-        SeeAllButton(total = total, onClick = { actions.onOpenTab(LibraryHomeTab.All) })
+        SeeAllButton(onClick = { actions.onOpenTab(LibraryHomeTab.All) })
     }
 }
 
@@ -997,6 +1015,7 @@ private fun AmbientBackdrop(
     heroes: ImmutableList<LibraryItem>,
     pagerState: PagerState,
     ambientOwner: Any,
+    heroBottom: () -> Float,
     modifier: Modifier = Modifier,
 ) {
     val vibrant by CoverColorObserver.vibrantColors.collectAsState()
@@ -1088,6 +1107,79 @@ private fun AmbientBackdrop(
         blurPosition = { pagerState.currentPage + pagerState.currentPageOffsetFraction },
         blurReveal = mosaicReveal,
     )
+
+    // ANZ --> more vivid, more saturated light behind the carousel only. It hangs from the hero block, so it
+    // scrolls away with it and never reaches the shelves: the dark floor under them stays exactly as it is.
+    if (tab == LibraryHomeTab.Home) {
+        val phase = LocalAuroraPhase.current
+        Box(
+            modifier = modifier.drawWithCache {
+                val w = size.width
+                val h = size.height
+                val rA = w * 0.95f
+                val rB = w * 0.75f
+                val rC = w * 0.65f
+                val k = glow
+                val brushA = Brush.radialGradient(
+                    colors = listOf(light0.copy(alpha = (VividAlphaA * k).coerceIn(0f, 1f)), light0.copy(alpha = 0f)),
+                    center = Offset.Zero,
+                    radius = rA,
+                )
+                val brushB = Brush.radialGradient(
+                    colors = listOf(light1.copy(alpha = (VividAlphaB * k).coerceIn(0f, 1f)), light1.copy(alpha = 0f)),
+                    center = Offset.Zero,
+                    radius = rB,
+                )
+                val brushC = Brush.radialGradient(
+                    colors = listOf(light2.copy(alpha = (VividAlphaC * k).coerceIn(0f, 1f)), light2.copy(alpha = 0f)),
+                    center = Offset.Zero,
+                    radius = rC,
+                )
+                onDrawBehind {
+                    // where the carousel block ends (the floor starts a little above that)
+                    val reach = minOf(heroBottom() - FloorLead.toPx(), h)
+                    if (reach <= 0f) return@onDrawBehind
+                    // fades out as the carousel scrolls away
+                    val fade = (reach / (h * 0.70f)).coerceIn(0f, 1f)
+                    val t = phase.value
+                    translate(
+                        left = w * (0.28f + 0.24f * auroraCycle(t, 7, 0.05f)),
+                        top = reach * (0.14f + 0.08f * auroraCycle(t, 5, 0.30f)),
+                    ) {
+                        drawCircle(
+                            brush = brushA,
+                            radius = rA,
+                            center = Offset.Zero,
+                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 9, 0.15f)),
+                        )
+                    }
+                    translate(
+                        left = w * (0.86f + 0.16f * auroraCycle(t, 6, 0.36f)),
+                        top = reach * (0.48f + 0.10f * auroraCycle(t, 4, 0.60f)),
+                    ) {
+                        drawCircle(
+                            brush = brushB,
+                            radius = rB,
+                            center = Offset.Zero,
+                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 8, 0.75f)),
+                        )
+                    }
+                    translate(
+                        left = w * (0.62f + 0.20f * auroraCycle(t, 5, 0.50f)),
+                        top = reach * (0.08f + 0.06f * auroraCycle(t, 6, 0.90f)),
+                    ) {
+                        drawCircle(
+                            brush = brushC,
+                            radius = rC,
+                            center = Offset.Zero,
+                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 7, 0.45f)),
+                        )
+                    }
+                }
+            },
+        )
+    }
+    // ANZ <--
 }
 
 private fun hueShift(color: Color, degrees: Float): Color {
@@ -2092,7 +2184,7 @@ private fun rememberPress(): Pair<MutableInteractionSource, State<Float>> {
  * on any backdrop colour (the page colour changes with every cover).
  */
 @Composable
-private fun SeeAllButton(total: Int, onClick: () -> Unit) {
+private fun SeeAllButton(onClick: () -> Unit) {
     val (source, scale) = rememberPress()
     val shape = RoundedCornerShape(22.dp)
     Box(
@@ -2132,23 +2224,6 @@ private fun SeeAllButton(total: Int, onClick: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = total.toString(),
-                modifier = Modifier
-                    .background(Color.White.copy(alpha = 0.24f), RoundedCornerShape(50))
-                    .padding(horizontal = 10.dp, vertical = 3.dp),
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = Color.White,
             )
         }
     }
