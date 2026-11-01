@@ -168,6 +168,13 @@ private val RankZone = 52.dp
 private val RankFont = 112.sp
 private val ToolbarFadeDistance = 240.dp
 
+// ANZ --> dark "floor" under the shelves: covers keep their punch on any backdrop colour
+private val FloorColor = Color(0xFF0B0C10)
+private val FloorLead = 40.dp
+private val FloorRamp = 240.dp
+private const val FloorAlpha = 0.68f
+// ANZ <--
+
 /** Changes every time the app process starts, so the hero carousel is different on every launch. */
 private val SessionSeed: Long = System.nanoTime()
 
@@ -602,6 +609,37 @@ internal fun LibraryHome(
             ambientOwner = ambientOwner,
             modifier = Modifier.fillMaxSize(),
         )
+        // ANZ --> dark floor: starts where the hero ends and follows the scroll, so the shelves sit on a calm base
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val ramp = FloorRamp.toPx()
+                    val first = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                    val anchor = when {
+                        searching || first == null -> -ramp
+                        first.key == "top" -> (first.offset + first.size).toFloat()
+                        first.index == 1 -> first.offset.toFloat()
+                        else -> -ramp
+                    }
+                    val startY = anchor - FloorLead.toPx()
+                    if (startY >= size.height) return@drawBehind
+                    val drawY = startY.coerceAtLeast(0f)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to FloorColor.copy(alpha = 0f),
+                            0.30f to FloorColor.copy(alpha = FloorAlpha * 0.60f),
+                            0.65f to FloorColor.copy(alpha = FloorAlpha * 0.90f),
+                            1f to FloorColor.copy(alpha = FloorAlpha),
+                            startY = startY,
+                            endY = startY + ramp,
+                        ),
+                        topLeft = Offset(0f, drawY),
+                        size = Size(size.width, size.height - drawY),
+                    )
+                },
+        )
+        // ANZ <--
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -1034,8 +1072,8 @@ private fun AmbientBackdrop(
         label = "ambientGlow",
     )
 
-    // Top of the screen: exactly the tint the toolbar uses.
-    SideEffect { LibraryHomeAmbient.publish(ambientOwner, top) }
+    // Top of the screen: the tint the toolbar uses, darkened like the floor that sits under the shelves.
+    SideEffect { LibraryHomeAmbient.publish(ambientOwner, lerp(top, FloorColor, 0.5f)) }
 
     CoverBackdrop(
         top = top,
@@ -1587,7 +1625,13 @@ private fun GenreTileCard(tile: GenreTile, index: Int, onClick: () -> Unit, modi
                 scaleY = pressScale.value
             }
             .clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.06f)),
+                ),
+                shape = shape,
+            )
             .clickable(
                 interactionSource = pressSource,
                 indication = null,
@@ -1833,7 +1877,7 @@ private fun PosterCard(
                         Modifier.border(
                             width = 1.dp,
                             brush = Brush.verticalGradient(
-                                listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.04f)),
+                                listOf(Color.White.copy(alpha = 0.40f), Color.White.copy(alpha = 0.06f)),
                             ),
                             shape = shape,
                         )
