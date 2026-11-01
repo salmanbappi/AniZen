@@ -498,12 +498,10 @@ private fun AnimeScreenSmallImpl(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
         ) {
-            AnimeAmbientBackdrop(ambient = ambient, modifier = Modifier.matchParentSize())
             AnimeBodyBackdrop(
                 animeId = state.anime.id,
                 coverVersion = state.anime.coverLastModified,
                 ambient = ambient,
-                listState = episodeListState,
                 modifier = Modifier.matchParentSize(),
             )
             // ANZ <--
