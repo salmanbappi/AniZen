@@ -95,6 +95,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import eu.kanade.presentation.components.AuroraBackdrop
+import eu.kanade.presentation.library.components.CoverTonesCache
 import eu.kanade.presentation.components.rememberAuroraPhase
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -612,6 +613,7 @@ private fun AnimeAndSourceTitlesLarge(
             onClick = onCoverClick,
             ratio = ratio,
             shouldExtractColor = true,
+            onCoverLoaded = { loaded, result -> CoverTonesCache.request(loaded, result) },
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -706,6 +708,7 @@ private fun AnimeAndSourceTitlesSmall(
                 onClick = onCoverClick,
                 ratio = ratio,
                 shouldExtractColor = true,
+                onCoverLoaded = { loaded, result -> CoverTonesCache.request(loaded, result) },
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
