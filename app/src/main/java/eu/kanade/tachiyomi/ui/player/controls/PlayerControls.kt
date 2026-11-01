@@ -516,6 +516,7 @@ fun PlayerControls(
                                 // ANZ -->
                                 FilledControlsButton(
                                     text = customButtonTitle,
+                                    iconOnly = true,
                                     onClick = { actionButton.execute(viewModel.mpv) },
                                     onLongClick = { actionButton.executeLongPress(viewModel.mpv) },
                                 )
