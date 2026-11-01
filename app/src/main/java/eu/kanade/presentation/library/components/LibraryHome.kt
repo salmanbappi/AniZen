@@ -78,7 +78,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
-import eu.kanade.presentation.components.AuroraBackdrop
+import eu.kanade.presentation.components.CoverBackdrop
 import eu.kanade.presentation.components.LocalAuroraPhase
 import eu.kanade.presentation.components.auroraCycle
 import eu.kanade.presentation.components.auroraLightsFor
@@ -1046,18 +1046,18 @@ private fun AmbientBackdrop(
     // Top of the screen: exactly the tint the toolbar uses.
     SideEffect { LibraryHomeAmbient.publish(ambientOwner, top) }
 
-    AuroraBackdrop(
+    CoverBackdrop(
         top = top,
         mid = mid,
         deep = deep,
-        seed = seedColor,
+        lightA = light0,
+        lightB = light1,
         glow = glow,
         phase = LocalAuroraPhase.current,
         modifier = modifier,
-        palette = listOf(light0, light1, light2, light3),
-        mosaics = mosaics,
-        mosaicPosition = { pagerState.currentPage + pagerState.currentPageOffsetFraction },
-        mosaicReveal = mosaicReveal,
+        blurs = mosaics,
+        blurPosition = { pagerState.currentPage + pagerState.currentPageOffsetFraction },
+        blurReveal = mosaicReveal,
     )
 }
 
