@@ -339,8 +339,8 @@ private fun DrawScope.drawMosaic(image: ImageBitmap, alpha: Float) {
 // Home backdrop built from the cover -->
 private const val CoverBlurAlpha = 0.92f
 private const val CoverOverscan = 1.10f
-private const val CoverOrbAlphaA = 0.40f
-private const val CoverOrbAlphaB = 0.32f
+private const val CoverOrbAlphaA = 0.52f
+private const val CoverOrbAlphaB = 0.42f
 
 /**
  * Backdrop of the Home screen: a dark base, the blurred copy of the cover (see CoverTones) that sways very slowly, and
@@ -410,13 +410,13 @@ fun CoverBackdrop(
                 // lower part calm for the shelves, upper part a little darker under the status bar and the greeting
                 val veilTop = h * 0.30f
                 val veil = Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, deep.copy(alpha = 0.16f)),
+                    colors = listOf(Color.Transparent, deep.copy(alpha = 0.08f)),
                     startY = veilTop,
                     endY = h,
                 )
                 val scrimHeight = h * 0.28f
                 val scrim = Brush.verticalGradient(
-                    colors = listOf(Color.Black.copy(alpha = 0.34f), Color.Transparent),
+                    colors = listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent),
                     startY = 0f,
                     endY = scrimHeight,
                 )
