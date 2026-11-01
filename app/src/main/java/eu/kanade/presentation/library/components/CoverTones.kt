@@ -300,8 +300,12 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
         valid = nv
     }
 
-    // vivid, but dark enough for white text: more saturation, value squeezed into 0.20..0.50
+    // The "white patches": a cell that is an average of opposite colours (or white paper) is grey. Such cells take
+    // the hue of their most colourful neighbour, and then every cell gets strong saturation and a darker value.
     val hsv = FloatArray(3)
+    val cellHue = FloatArray(cells)
+    val cellSat = FloatArray(cells)
+    val cellVal = FloatArray(cells)
     for (i in 0 until cells) {
         if (!valid[i]) {
             // (cannot really happen: at least one cell was valid and the rings reach every cell)
@@ -315,8 +319,34 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
             (cb[i] * 255f + 0.5f).toInt().coerceIn(0, 255),
             hsv,
         )
-        if (hsv[1] >= 0.12f) hsv[1] = minOf(0.95f, hsv[1] * 1.35f + 0.06f)
-        hsv[2] = (0.14f + 0.40f * hsv[2]).coerceIn(0.20f, 0.50f)
+        cellHue[i] = hsv[0]
+        cellSat[i] = hsv[1]
+        cellVal[i] = hsv[2]
+    }
+    val hueFixed = cellHue.copyOf()
+    for (row in 0 until MosaicRows) {
+        for (col in 0 until MosaicCols) {
+            val i = row * MosaicCols + col
+            if (cellSat[i] >= 0.18f) continue
+            var bestJ = -1
+            var bestSat = 0.18f
+            for (k in 0 until 4) {
+                val rr = row + (if (k == 0) 1 else if (k == 1) -1 else 0)
+                val cc = col + (if (k == 2) 1 else if (k == 3) -1 else 0)
+                if (rr < 0 || rr >= MosaicRows || cc < 0 || cc >= MosaicCols) continue
+                val j = rr * MosaicCols + cc
+                if (cellSat[j] > bestSat) {
+                    bestSat = cellSat[j]
+                    bestJ = j
+                }
+            }
+            if (bestJ >= 0) hueFixed[i] = cellHue[bestJ]
+        }
+    }
+    for (i in 0 until cells) {
+        hsv[0] = hueFixed[i]
+        hsv[1] = (cellSat[i] * 1.5f + 0.14f).coerceIn(0.50f, 0.95f)
+        hsv[2] = (0.12f + 0.36f * cellVal[i]).coerceIn(0.18f, 0.46f)
         val c = android.graphics.Color.HSVToColor(hsv)
         cr[i] = android.graphics.Color.red(c) / 255f
         cg[i] = android.graphics.Color.green(c) / 255f
