@@ -336,6 +336,156 @@ private fun DrawScope.drawMosaic(image: ImageBitmap, alpha: Float) {
     )
 }
 
+// Home backdrop built from the cover -->
+private const val CoverBlurAlpha = 0.92f
+private const val CoverOverscan = 1.10f
+private const val CoverOrbAlphaA = 0.40f
+private const val CoverOrbAlphaB = 0.32f
+
+/**
+ * Backdrop of the Home screen: a dark base, the blurred copy of the cover (see CoverTones) that sways very slowly, and
+ * just two big lights drifting over it. Painted at 1/3 of the resolution like [AuroraBackdrop] (cheap), the animation
+ * is only read while drawing (no recomposition), and it stops when the app leaves the screen.
+ *
+ * @param blurs one blurred picture per carousel page (null while it is not read yet); [blurPosition] is the carousel
+ * position in pages (page + drag offset): while swiping, the two neighbouring pictures are cross-faded following the
+ * finger. [blurReveal] 0..1 fades the picture in or out. [glow] 0.6..1 scales the lights.
+ */
+@Composable
+fun CoverBackdrop(
+    top: Color,
+    mid: Color,
+    deep: Color,
+    lightA: Color,
+    lightB: Color,
+    glow: Float,
+    phase: State<Float>,
+    modifier: Modifier = Modifier,
+    blurs: List<ImageBitmap?> = emptyList(),
+    blurPosition: () -> Float = { 0f },
+    blurReveal: Float = 1f,
+) {
+    Box(
+        modifier = modifier
+            .clipToBounds()
+            .layout { measurable, constraints ->
+                val w = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
+                val h = if (constraints.hasBoundedHeight) constraints.maxHeight else constraints.minHeight
+                val placeable = measurable.measure(
+                    Constraints.fixed(
+                        width = maxOf(1, (w + LowRes - 1) / LowRes),
+                        height = maxOf(1, (h + LowRes - 1) / LowRes),
+                    ),
+                )
+                layout(w, h) { placeable.place(0, 0) }
+            }
+            .graphicsLayer {
+                scaleX = LowRes.toFloat()
+                scaleY = LowRes.toFloat()
+                transformOrigin = TransformOrigin(0f, 0f)
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+            .drawWithCache {
+                val w = size.width
+                val h = size.height
+                val base = Brush.verticalGradient(0f to top, 0.45f to mid, 1f to deep)
+                val radiusA = w * 0.75f
+                val radiusB = w * 0.60f
+                val brushA = Brush.radialGradient(
+                    colors = listOf(
+                        lightA.copy(alpha = (CoverOrbAlphaA * glow).coerceIn(0f, 1f)),
+                        lightA.copy(alpha = 0f),
+                    ),
+                    center = Offset.Zero,
+                    radius = radiusA,
+                )
+                val brushB = Brush.radialGradient(
+                    colors = listOf(
+                        lightB.copy(alpha = (CoverOrbAlphaB * glow).coerceIn(0f, 1f)),
+                        lightB.copy(alpha = 0f),
+                    ),
+                    center = Offset.Zero,
+                    radius = radiusB,
+                )
+                // lower part calm for the shelves, upper part a little darker under the status bar and the greeting
+                val veilTop = h * 0.30f
+                val veil = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, deep.copy(alpha = 0.16f)),
+                    startY = veilTop,
+                    endY = h,
+                )
+                val scrimHeight = h * 0.28f
+                val scrim = Brush.verticalGradient(
+                    colors = listOf(Color.Black.copy(alpha = 0.34f), Color.Transparent),
+                    startY = 0f,
+                    endY = scrimHeight,
+                )
+                onDrawBehind {
+                    val t = phase.value
+                    drawRect(brush = base)
+                    if (blurs.isNotEmpty() && blurReveal > 0.01f) {
+                        val pos = blurPosition().coerceIn(0f, (blurs.size - 1).toFloat())
+                        val first = pos.toInt()
+                        val frac = pos - first
+                        val a = blurs[first]
+                        val b = blurs[minOf(first + 1, blurs.size - 1)]
+                        var wa = if (a != null) 1f - frac else 0f
+                        var wb = if (b != null) frac else 0f
+                        val total = wa + wb
+                        if (total > 0.001f) {
+                            wa /= total
+                            wb /= total
+                            val k = CoverBlurAlpha * blurReveal
+                            // the whole picture sways a little: whole turns per loop, so it never jumps
+                            val sx = w * 0.035f * auroraCycle(t, 5, 0f)
+                            val sy = h * 0.020f * auroraCycle(t, 7, 0.30f)
+                            if (a != null && wa > 0.001f) drawCoverBlur(a, k * wa, sx, sy)
+                            if (b != null && wb > 0.001f) drawCoverBlur(b, k * wb, sx, sy)
+                        }
+                    }
+                    val ax = w * (0.25f + 0.30f * auroraCycle(t, 7, 0f))
+                    val ay = h * (0.22f + 0.12f * auroraCycle(t, 5, 0.25f))
+                    translate(left = ax, top = ay) {
+                        drawCircle(
+                            brush = brushA,
+                            radius = radiusA,
+                            center = Offset.Zero,
+                            alpha = 0.85f + 0.15f * auroraCycle(t, 9, 0.10f),
+                        )
+                    }
+                    val bx = w * (0.78f + 0.25f * auroraCycle(t, 6, 0.31f))
+                    val by = h * (0.52f + 0.14f * auroraCycle(t, 4, 0.56f))
+                    translate(left = bx, top = by) {
+                        drawCircle(
+                            brush = brushB,
+                            radius = radiusB,
+                            center = Offset.Zero,
+                            alpha = 0.85f + 0.15f * auroraCycle(t, 8, 0.70f),
+                        )
+                    }
+                    drawRect(brush = veil, topLeft = Offset(0f, veilTop), size = Size(w, h - veilTop))
+                    drawRect(brush = scrim, size = Size(w, scrimHeight))
+                }
+            },
+    )
+}
+
+/** The picture is drawn a little bigger than the screen, so swaying it never shows an edge. */
+private fun DrawScope.drawCoverBlur(image: ImageBitmap, alpha: Float, swayX: Float, swayY: Float) {
+    val dw = size.width * CoverOverscan
+    val dh = size.height * CoverOverscan
+    translate(left = (size.width - dw) / 2f + swayX, top = (size.height - dh) / 2f + swayY) {
+        drawImage(
+            image = image,
+            srcSize = IntSize(image.width, image.height),
+            dstSize = IntSize(dw.roundToInt(), dh.roundToInt()),
+            alpha = alpha,
+            filterQuality = FilterQuality.Low,
+        )
+    }
+}
+// Home backdrop built from the cover <--
+
 private fun auroraHueShift(color: Color, degrees: Float): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
