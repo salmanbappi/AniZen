@@ -77,6 +77,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import eu.kanade.presentation.anime.components.AnimeAmbientBackdrop
+import eu.kanade.presentation.anime.components.AnimeBodyBackdrop
 import eu.kanade.presentation.anime.components.rememberAnimeAmbient
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -498,6 +499,13 @@ private fun AnimeScreenSmallImpl(
                 .background(MaterialTheme.colorScheme.background),
         ) {
             AnimeAmbientBackdrop(ambient = ambient, modifier = Modifier.matchParentSize())
+            AnimeBodyBackdrop(
+                animeId = state.anime.id,
+                coverVersion = state.anime.coverLastModified,
+                ambient = ambient,
+                listState = episodeListState,
+                modifier = Modifier.matchParentSize(),
+            )
             // ANZ <--
             val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
             val isFABVisible = remember(state.anime.fetchType, state.hasUnseenEpisodes, isAnySelected) {
