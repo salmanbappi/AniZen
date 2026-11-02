@@ -8,12 +8,14 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.drawable.toBitmap
 import androidx.palette.graphics.Palette
 import coil3.BitmapImage
 import coil3.Image
 import coil3.asDrawable
 import coil3.compose.AsyncImagePainter
+import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +88,11 @@ internal object CoverTonesCache {
                 if (tones != null) {
                     if (cache.size > 64) cache.clear()
                     cache[id] = tones
+                    // ANZ: remember the real main colour on the phone, so the next app start already
+                    // paints this cover's own colour instead of the one the old extractor saved
+                    tones.lights.firstOrNull()?.let { main ->
+                        CoverColorObserver.update(id, main.toArgb(), version)
+                    }
                 }
             }
         }
