@@ -170,11 +170,12 @@ private fun ribbonStops(a: Color, alphaA: Float, b: Color, alphaB: Float): Array
     }
 
 /** The four lights used for a single [seed] colour: the colour itself and neighbouring hues of it. */
+// ANZ: only close neighbours of the seed, so the start-up lights never invent a colour the cover does not have
 fun auroraLightsFor(seed: Color): List<Color> = listOf(
-    lerp(seed, Color.White, 0.10f),
-    auroraHueShift(seed, 38f),
-    auroraHueShift(seed, -34f),
-    auroraHueShift(seed, 140f),
+    lerp(seed, Color.White, 0.08f),
+    auroraHueShift(seed, 14f),
+    auroraHueShift(seed, -14f),
+    auroraHueShift(seed, 6f),
 )
 
 /**
