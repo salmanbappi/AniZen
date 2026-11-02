@@ -180,6 +180,7 @@ private const val FloorAlpha = 0.30f
 private const val VividAlphaA = 0.46f
 private const val VividAlphaB = 0.38f
 private const val VividAlphaC = 0.30f
+private const val VividBoostMax = 0.40f
 // ANZ <--
 
 /** Bottom edge of the carousel block in px (negative when it is not on screen), read straight from the list. */
@@ -1091,6 +1092,14 @@ private fun AmbientBackdrop(
         label = "ambientGlow",
     )
 
+    // ANZ: extra life behind the carousel only for covers that really are colourful; grey, white or
+    // nearly black covers keep the calm lights (presence = share of the cover that has colour)
+    val vividBoost by animateFloatAsState(
+        targetValue = tones?.let { ((it.presence - 0.25f) / 0.30f).coerceIn(0f, 1f) } ?: 0f,
+        animationSpec = tween(durationMillis = 700),
+        label = "ambientVivid",
+    )
+
     // Top of the screen: the tint the toolbar uses, darkened like the floor that sits under the shelves.
     SideEffect { LibraryHomeAmbient.publish(ambientOwner, lerp(top, FloorColor, 0.5f)) }
 
@@ -1119,7 +1128,7 @@ private fun AmbientBackdrop(
                 val rA = w * 0.95f
                 val rB = w * 0.75f
                 val rC = w * 0.65f
-                val k = glow
+                val k = glow * (1f + VividBoostMax * vividBoost)
                 val brushA = Brush.radialGradient(
                     colors = listOf(light0.copy(alpha = (VividAlphaA * k).coerceIn(0f, 1f)), light0.copy(alpha = 0f)),
                     center = Offset.Zero,
