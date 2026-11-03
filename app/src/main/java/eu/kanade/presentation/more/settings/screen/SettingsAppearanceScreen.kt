@@ -216,11 +216,6 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = stringResource(MR.strings.pref_panorama_cover_summary),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    pref = uiPreferences.autoExpandAnimeDescription(),
-                    title = "Auto-expand details",
-                    subtitle = "Expand anime description by default",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
                     pref = uiPreferences.hazeEnabled(),
                     title = "Glassmorphism (Haze)",
                     subtitle = "Applies blur effect to Top Bar and Bottom Bar (Can cause lag)",

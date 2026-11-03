@@ -360,9 +360,11 @@ fun ExpandableAnimeDescription(
     onCopyTagToClipboard: (tag: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val (expanded, onExpanded) = rememberSaveable {
+    // ANZ -->
+    val (expanded, onExpanded) = rememberSaveable(defaultExpandState) {
         mutableStateOf(defaultExpandState)
     }
+    // ANZ <--
     Column(modifier = modifier) {
         val desc =
             description.takeIf { !it.isNullOrBlank() } ?: stringResource(MR.strings.description_placeholder)

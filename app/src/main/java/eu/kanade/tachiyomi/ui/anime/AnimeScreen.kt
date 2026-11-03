@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,7 +23,6 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.anime.model.hasCustomCover
 import eu.kanade.domain.connections.service.ConnectionsPreferences
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.anime.AnimeScreen
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.anime.EditCoverAction
@@ -82,8 +80,6 @@ import tachiyomi.domain.episode.model.Episode
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
-import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 
@@ -99,8 +95,6 @@ class AnimeScreen(
     @Composable
     @Suppress("MagicNumber", "LongMethod", "CyclomaticComplexMethod")
     override fun Content() {
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
-
         if (!ifSourcesLoaded()) {
             LoadingScreen()
             return
@@ -149,8 +143,6 @@ class AnimeScreen(
                 }
             }
         }
-
-        val autoExpandDescription by uiPreferences.autoExpandAnimeDescription().collectAsState()
 
         val onBackClicked = remember(navigator) {
             {
@@ -243,7 +235,6 @@ class AnimeScreen(
             showNextEpisodeAirTime = screenModel.showNextEpisodeAirTime,
             alwaysUseExternalPlayer = screenModel.alwaysUseExternalPlayer,
             showFileSize = screenModel.showFileSize,
-            autoExpandDescription = autoExpandDescription,
             onBackClicked = onBackClicked,
             onEpisodeClicked = onEpisodeClicked,
             onDownloadEpisode = screenModel::runEpisodeDownloadActions.takeIf { !successState.source.isLocalOrStub() },

@@ -156,7 +156,6 @@ fun AnimeScreen(
     showNextEpisodeAirTime: Boolean,
     alwaysUseExternalPlayer: Boolean,
     showFileSize: Boolean,
-    autoExpandDescription: Boolean,
     onBackClicked: () -> Unit,
     onEpisodeClicked: (episode: Episode, alt: Boolean) -> Unit,
     onDownloadEpisode: ((List<EpisodeList.Item>, EpisodeDownloadAction) -> Unit)?,
@@ -228,7 +227,6 @@ fun AnimeScreen(
             showNextEpisodeAirTime = showNextEpisodeAirTime,
             alwaysUseExternalPlayer = alwaysUseExternalPlayer,
             showFileSize = showFileSize,
-            autoExpandDescription = autoExpandDescription,
             onBackClicked = onBackClicked,
             onEpisodeClicked = onEpisodeClicked,
             onDownloadEpisode = onDownloadEpisode,
@@ -284,7 +282,6 @@ fun AnimeScreen(
             showNextEpisodeAirTime = showNextEpisodeAirTime,
             alwaysUseExternalPlayer = alwaysUseExternalPlayer,
             showFileSize = showFileSize,
-            autoExpandDescription = autoExpandDescription,
             onBackClicked = onBackClicked,
             onEpisodeClicked = onEpisodeClicked,
             onDownloadEpisode = onDownloadEpisode,
@@ -354,7 +351,6 @@ private fun AnimeScreenSmallImpl(
     showNextEpisodeAirTime: Boolean,
     alwaysUseExternalPlayer: Boolean,
     showFileSize: Boolean,
-    autoExpandDescription: Boolean,
     onBackClicked: () -> Unit,
     onEpisodeClicked: (Episode, Boolean) -> Unit,
     onDownloadEpisode: ((List<EpisodeList.Item>, EpisodeDownloadAction) -> Unit)?,
@@ -630,7 +626,9 @@ private fun AnimeScreenSmallImpl(
                             item(key = "description-small", contentType = AnimeScreenItem.DESCRIPTION_WITH_TAG) {
                                 ExpandableAnimeDescription(
                                     modifier = Modifier.padding(bottom = 8.dp),
-                                    defaultExpandState = autoExpandDescription,
+                                    // ANZ -->
+                                    defaultExpandState = state.isFromSource && !state.anime.favorite,
+                                    // ANZ <--
                                     description = state.anime.description,
                                     note = state.anime.note,
                                     tagsProvider = { state.anime.genre },
@@ -861,7 +859,6 @@ fun AnimeScreenLargeImpl(
     showNextEpisodeAirTime: Boolean,
     alwaysUseExternalPlayer: Boolean,
     showFileSize: Boolean,
-    autoExpandDescription: Boolean,
     onBackClicked: () -> Unit,
     onEpisodeClicked: (Episode, Boolean) -> Unit,
     onDownloadEpisode: ((List<EpisodeList.Item>, EpisodeDownloadAction) -> Unit)?,
@@ -1125,7 +1122,9 @@ fun AnimeScreenLargeImpl(
                                     )
 
                                     ExpandableAnimeDescription(
-                                        defaultExpandState = autoExpandDescription,
+                                        // ANZ -->
+                                        defaultExpandState = true,
+                                        // ANZ <--
                                         description = state.anime.description,
                                         note = state.anime.note,
                                         tagsProvider = { state.anime.genre },

@@ -181,8 +181,6 @@ class UiPreferences(
 
     fun dynamicPlayerTheme() = preferenceStore.getBoolean("pref_dynamic_player_theme", true)
 
-    fun autoExpandAnimeDescription() = preferenceStore.getBoolean("pref_auto_expand_anime_description", false)
-
     fun panoramaCover() = preferenceStore.getBoolean("pref_panorama_cover", false)
 
     fun libraryPanoramaMode() = getPanoramaMode("pref_library_panorama_mode", "pref_library_panorama")
