@@ -180,16 +180,13 @@ private const val FloorAlpha = 0.30f
 private const val VividAlphaA = 0.46f
 private const val VividAlphaB = 0.38f
 private const val VividAlphaC = 0.30f
-private const val VividBoostMax = 0.40f
 // ANZ <--
 
 /** Bottom edge of the carousel block in px (negative when it is not on screen), read straight from the list. */
 private fun heroBottomPx(state: androidx.compose.foundation.lazy.LazyListState, searching: Boolean): Float {
     val first = state.layoutInfo.visibleItemsInfo.firstOrNull()
     return when {
-        searching -> -1f
-        // not measured yet (very first frame): the caller treats it as "carousel on screen"
-        first == null -> Float.NaN
+        searching || first == null -> -1f
         first.key == "top" -> (first.offset + first.size).toFloat()
         first.index == 1 -> first.offset.toFloat()
         else -> -1f
@@ -335,7 +332,18 @@ private fun buildShelves(all: List<LibraryItem>, seed: Long): Shelves {
     val finished = all.filter { it.libraryAnime.isFinished() }
 
     // Completely random picks from the whole library (new ones on every app launch).
-    val heroes = all.sortedBy { scramble(it.libraryAnime.id, seed) }.take(HeroCount)
+    val picked = all.sortedBy { scramble(it.libraryAnime.id, seed) }.take(HeroCount)
+    // ANZ --> the first slide is one whose colours are already stored, so the page opens fully lit
+    val ready = picked.indexOfFirst {
+        CoverTonesCache.get(it.libraryAnime.anime.id, it.libraryAnime.anime.coverLastModified)
+            ?.lights?.isNotEmpty() == true
+    }
+    val heroes = if (ready > 0) {
+        listOf(picked[ready]) + picked.filterIndexed { index, _ -> index != ready }
+    } else {
+        picked
+    }
+    // ANZ <--
 
     val byGenre = LinkedHashMap<String, MutableList<LibraryItem>>()
     val names = HashMap<String, String>()
@@ -619,9 +627,7 @@ internal fun LibraryHome(
     val topInset = contentPadding.calculateTopPadding()
 
     // ANZ --> colourful, slowly moving page backdrop that stays put while the shelves scroll over it
-    // ANZ: the lights only move while the hero carousel is actually on screen
-    val heroOnScreen by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
-    val auroraPhase = rememberAuroraPhase(active = heroOnScreen && tab == LibraryHomeTab.Home && !searching)
+    val auroraPhase = rememberAuroraPhase()
     val revealed = remember { mutableSetOf<Any>() }
     val heroBottom = remember(listState, searching) { { heroBottomPx(listState, searching) } }
     CompositionLocalProvider(LocalAuroraPhase provides auroraPhase) {
@@ -1047,19 +1053,9 @@ private fun AmbientBackdrop(
         CoverTonesCache.get(it.libraryAnime.anime.id, it.libraryAnime.anime.coverLastModified)
     }
     val lastTones = remember { arrayOfNulls<CoverTones>(1) }
-    // ANZ: a cover not read yet starts straight away with the modern colours built from its saved colour,
-    // never with the old flat look, so opening the app shows everything at once and nothing jumps later
-    val seedTones = remember(current?.libraryAnime?.id, seed) {
-        if (current != null && seed != null) {
-            coverTonesFromSeed(seed, current.libraryAnime.anime.coverLastModified)
-        } else {
-            null
-        }
-    }
     val tones = when {
         tab != LibraryHomeTab.Home -> null
         raw != null -> raw.takeIf { it.lights.isNotEmpty() }
-        seedTones != null -> seedTones
         current != null -> lastTones[0]
         else -> null
     }
@@ -1077,8 +1073,7 @@ private fun AmbientBackdrop(
     val glowTarget = tones?.let { 0.60f + 0.40f * minOf(1f, it.presence / 0.30f) } ?: legacyGlow
 
     // Everything cross-fades slowly when the carousel moves to another cover.
-    // ANZ: slow, soft start and end, so a light that changes colour blooms in instead of switching on
-    val fade = tween<Color>(durationMillis = 1000, easing = FastOutSlowInEasing)
+    val fade = tween<Color>(durationMillis = 700)
     val top by animateColorAsState(tones?.top ?: legacyTop, fade, label = "ambientTop")
     val mid by animateColorAsState(tones?.mid ?: legacyMid, fade, label = "ambientMid")
     val deep by animateColorAsState(tones?.deep ?: legacyDeep, fade, label = "ambientDeep")
@@ -1098,21 +1093,13 @@ private fun AmbientBackdrop(
     val mosaicOn = mosaics.getOrNull(pagerState.currentPage) != null
     val mosaicReveal by animateFloatAsState(
         targetValue = if (mosaicOn) 1f else 0f,
-        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 700),
         label = "ambientMosaic",
     )
     val glow by animateFloatAsState(
         targetValue = glowTarget,
         animationSpec = tween(durationMillis = 700),
         label = "ambientGlow",
-    )
-
-    // ANZ: extra life behind the carousel only for covers that really are colourful; grey, white or
-    // nearly black covers keep the calm lights (presence = share of the cover that has colour)
-    val vividBoost by animateFloatAsState(
-        targetValue = tones?.let { ((it.presence - 0.25f) / 0.30f).coerceIn(0f, 1f) } ?: 0f,
-        animationSpec = tween(durationMillis = 700),
-        label = "ambientVivid",
     )
 
     // Top of the screen: the tint the toolbar uses, darkened like the floor that sits under the shelves.
@@ -1143,7 +1130,7 @@ private fun AmbientBackdrop(
                 val rA = w * 0.95f
                 val rB = w * 0.75f
                 val rC = w * 0.65f
-                val k = glow * (1f + VividBoostMax * vividBoost)
+                val k = glow
                 val brushA = Brush.radialGradient(
                     colors = listOf(light0.copy(alpha = (VividAlphaA * k).coerceIn(0f, 1f)), light0.copy(alpha = 0f)),
                     center = Offset.Zero,
@@ -1161,10 +1148,7 @@ private fun AmbientBackdrop(
                 )
                 onDrawBehind {
                     // where the carousel block ends (the floor starts a little above that)
-                    // ANZ: before the list is measured (first frame after opening) assume the carousel is on
-                    // screen, so these lights are already on instead of switching on a moment later
-                    val bottom = heroBottom()
-                    val reach = if (bottom.isNaN()) h * 0.62f else minOf(bottom - FloorLead.toPx(), h)
+                    val reach = minOf(heroBottom() - FloorLead.toPx(), h)
                     if (reach <= 0f) return@onDrawBehind
                     // fades out as the carousel scrolls away
                     val fade = (reach / (h * 0.70f)).coerceIn(0f, 1f)
@@ -1177,7 +1161,7 @@ private fun AmbientBackdrop(
                             brush = brushA,
                             radius = rA,
                             center = Offset.Zero,
-                            alpha = fade * (0.75f + 0.25f * auroraCycle(t, 9, 0.15f)),
+                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 9, 0.15f)),
                         )
                     }
                     translate(
@@ -1188,7 +1172,7 @@ private fun AmbientBackdrop(
                             brush = brushB,
                             radius = rB,
                             center = Offset.Zero,
-                            alpha = fade * (0.75f + 0.25f * auroraCycle(t, 8, 0.75f)),
+                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 8, 0.75f)),
                         )
                     }
                     translate(
@@ -1199,7 +1183,7 @@ private fun AmbientBackdrop(
                             brush = brushC,
                             radius = rC,
                             center = Offset.Zero,
-                            alpha = fade * (0.75f + 0.25f * auroraCycle(t, 7, 0.45f)),
+                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 7, 0.45f)),
                         )
                     }
                 }
@@ -2021,6 +2005,8 @@ private fun PosterCard(
                 shape = RectangleShape,
                 // ANZ --> lets the cover colour be extracted (cached, off the main thread) for the glow
                 shouldExtractColor = true,
+                // also stores the page colours of this cover (once), so any of them can open the app fully lit
+                onCoverLoaded = { loaded, result -> CoverTonesCache.request(loaded, result) },
                 // ANZ <--
                 measureRatio = false,
             )

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.drawable.toBitmap
@@ -15,16 +16,19 @@ import coil3.BitmapImage
 import coil3.Image
 import coil3.asDrawable
 import coil3.compose.AsyncImagePainter
-import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tachiyomi.domain.anime.model.AnimeCover
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.File
+import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.pow
@@ -66,72 +70,27 @@ internal object CoverTonesCache {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    // ANZ: the full colours of every cover seen are kept on the phone, so the next app start paints the real
-    // base and all the lights from the very first frame (only the blurred picture is rebuilt, and it fades in)
-    private const val PrefsName = "anizen_cover_tones"
-    private const val MaxSaved = 200
+    // ANZ --> the colours (and the blurred picture) of every cover seen are kept on disk, so the Home page
+    // opens already lit instead of waiting for the cover to load.
+    /** Kept between launches; insertion order = oldest first. Guarded by itself. */
+    private val stored = LinkedHashMap<Long, CoverTones>()
 
-    private val prefs by lazy {
-        Injekt.get<Application>().getSharedPreferences(PrefsName, android.content.Context.MODE_PRIVATE)
-    }
+    private var saveJob: Job? = null
 
     init {
-        try {
-            for ((key, value) in prefs.all) {
-                val id = key.toLongOrNull() ?: continue
-                val tones = (value as? String)?.let(::decode) ?: continue
-                cache[id] = tones
-            }
-        } catch (_: Throwable) {
-        }
+        loadStored()
     }
-
-    private fun encode(t: CoverTones): String =
-        listOf(
-            t.coverVersion.toString(),
-            t.presence.toString(),
-            t.top.toArgb().toString(),
-            t.mid.toArgb().toString(),
-            t.deep.toArgb().toString(),
-            t.lights.joinToString(",") { it.toArgb().toString() },
-        ).joinToString("|")
-
-    private fun decode(raw: String): CoverTones? {
-        val p = raw.split('|')
-        if (p.size != 6) return null
-        val lights = if (p[5].isEmpty()) emptyList() else p[5].split(',').map { Color(it.toIntOrNull() ?: return null) }
-        if (lights.isNotEmpty() && lights.size < 4) return null
-        return CoverTones(
-            coverVersion = p[0].toLongOrNull() ?: return null,
-            presence = p[1].toFloatOrNull() ?: return null,
-            top = Color(p[2].toIntOrNull() ?: return null),
-            mid = Color(p[3].toIntOrNull() ?: return null),
-            deep = Color(p[4].toIntOrNull() ?: return null),
-            lights = lights,
-        )
-    }
-
-    private fun save(id: Long, tones: CoverTones) {
-        val value = encode(tones)
-        scope.launch {
-            try {
-                val editor = prefs.edit()
-                if (prefs.all.size > MaxSaved) editor.clear()
-                editor.putString(id.toString(), value).apply()
-            } catch (_: Throwable) {
-            }
-        }
-    }
+    // ANZ <--
 
     fun get(animeId: Long, coverVersion: Long): CoverTones? =
         cache[animeId]?.takeIf { it.coverVersion == coverVersion }
+            ?: synchronized(stored) { stored[animeId] }?.takeIf { it.coverVersion == coverVersion }
 
     /** Reads the colours of a cover that has just loaded, once per cover version. Call it on the main thread. */
     fun request(cover: AnimeCover, result: AsyncImagePainter.State.Success) {
         val id = cover.animeId
         val version = cover.lastModified
-        // a cover restored from the phone has its colours but not its blurred picture yet: read it again once
-        if (get(id, version)?.mosaic != null || !inFlight.add(id)) return
+        if (get(id, version) != null || !inFlight.add(id)) return
         val image = result.result.image
         scope.launch {
             val tones = try {
@@ -144,17 +103,118 @@ internal object CoverTonesCache {
             withContext(Dispatchers.Main) {
                 inFlight.remove(id)
                 if (tones != null) {
+                    if (cache.size > 64) cache.clear()
                     cache[id] = tones
-                    save(id, tones)
-                    // ANZ: remember the real main colour on the phone, so the next app start already
-                    // paints this cover's own colour instead of the one the old extractor saved
-                    tones.lights.firstOrNull()?.let { main ->
-                        CoverColorObserver.update(id, main.toArgb(), version)
-                    }
+                    keep(id, tones)
                 }
             }
         }
     }
+
+    // ANZ -->
+    /** Remembers [tones] for the next launch (saved a few seconds after the last change). Main thread only. */
+    private fun keep(id: Long, tones: CoverTones) {
+        synchronized(stored) {
+            stored.remove(id)
+            stored[id] = tones
+            while (stored.size > MaxStored) {
+                val eldest = stored.keys.iterator()
+                eldest.next()
+                eldest.remove()
+            }
+        }
+        saveJob?.cancel()
+        saveJob = scope.launch {
+            delay(2500)
+            save()
+        }
+    }
+
+    private fun loadStored() {
+        try {
+            val file = File(Injekt.get<Application>().filesDir, StoreFile)
+            if (!file.exists()) return
+            val buf = ByteBuffer.wrap(file.readBytes())
+            if (buf.remaining() < 12 || buf.getInt() != StoreMagic || buf.getInt() != StoreFormat) return
+            val count = buf.getInt()
+            val loaded = LinkedHashMap<Long, CoverTones>()
+            for (n in 0 until count) {
+                val id = buf.getLong()
+                val version = buf.getLong()
+                val presence = buf.getFloat()
+                val top = Color(buf.getInt())
+                val mid = Color(buf.getInt())
+                val deep = Color(buf.getInt())
+                val lightCount = buf.getInt()
+                if (lightCount !in 0..8) return
+                val lights = List(lightCount) { Color(buf.getInt()) }
+                var mosaic: ImageBitmap? = null
+                if (buf.getInt() == 1) {
+                    val pixels = IntArray(BlurCols * BlurRows)
+                    for (i in pixels.indices) pixels[i] = buf.getInt()
+                    mosaic = Bitmap.createBitmap(pixels, BlurCols, BlurRows, Bitmap.Config.ARGB_8888).asImageBitmap()
+                }
+                loaded[id] = CoverTones(version, presence, top, mid, deep, lights, mosaic)
+            }
+            synchronized(stored) { stored.putAll(loaded) }
+        } catch (_: Throwable) {
+            // a damaged file only means the colours are read again from the covers
+        }
+    }
+
+    @Synchronized
+    private fun save() {
+        try {
+            val entries = synchronized(stored) { stored.map { it.key to it.value } }
+            if (entries.isEmpty()) return
+            val pixels = entries.map { pixelsOf(it.second.mosaic) }
+            var size = 12
+            for (i in entries.indices) {
+                size += 8 + 8 + 4 + 12 + 4 + 4 * entries[i].second.lights.size + 4 + 4 * (pixels[i]?.size ?: 0)
+            }
+            val buf = ByteBuffer.allocate(size)
+            buf.putInt(StoreMagic)
+            buf.putInt(StoreFormat)
+            buf.putInt(entries.size)
+            for (i in entries.indices) {
+                val (id, tones) = entries[i]
+                buf.putLong(id)
+                buf.putLong(tones.coverVersion)
+                buf.putFloat(tones.presence)
+                buf.putInt(tones.top.toArgb())
+                buf.putInt(tones.mid.toArgb())
+                buf.putInt(tones.deep.toArgb())
+                buf.putInt(tones.lights.size)
+                for (light in tones.lights) buf.putInt(light.toArgb())
+                val px = pixels[i]
+                if (px == null) {
+                    buf.putInt(0)
+                } else {
+                    buf.putInt(1)
+                    for (p in px) buf.putInt(p)
+                }
+            }
+            val dir = Injekt.get<Application>().filesDir
+            val tmp = File(dir, "$StoreFile.tmp")
+            tmp.writeBytes(buf.array())
+            val target = File(dir, StoreFile)
+            if (!tmp.renameTo(target)) {
+                target.delete()
+                tmp.renameTo(target)
+            }
+        } catch (_: Throwable) {
+            // not saving only costs the instant start next time
+        }
+    }
+
+    private fun pixelsOf(image: ImageBitmap?): IntArray? {
+        val bitmap = image?.asAndroidBitmap() ?: return null
+        if (bitmap.width != BlurCols || bitmap.height != BlurRows) return null
+        val out = IntArray(BlurCols * BlurRows)
+        bitmap.getPixels(out, 0, BlurCols, 0, 0, BlurCols, BlurRows)
+        return out
+    }
+    // ANZ <--
 
     private fun extract(image: Image, version: Long): CoverTones? {
         val context = Injekt.get<Application>()
@@ -245,17 +305,24 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
 
     // the dark base stays in the main hue, leaning a little towards the second one
     val delta = (((picked[1].hue - main.hue + 540f) % 360f) - 180f).coerceIn(-60f, 60f)
-    val sat = (main.sat * 1.1f).coerceIn(0.60f, 0.90f)
+    val sat = (main.sat * 1.15f).coerceIn(0.70f, 0.95f)
     return CoverTones(
         coverVersion = version,
         presence = presence.coerceIn(0f, 1f),
-        top = hsvColor(main.hue, sat, 0.56f),
+        top = hsvColor(main.hue, sat, 0.60f),
         mid = hsvColor(wrapHue(main.hue + 0.35f * delta), sat * 0.95f, 0.42f),
         deep = hsvColor(wrapHue(main.hue + 0.60f * delta), (sat * 0.9f).coerceIn(0.50f, 0.85f), 0.32f),
         lights = lights,
         mosaic = mosaic,
     )
 }
+
+// ANZ --> file where the colours are kept; raise StoreFormat whenever the colour formulas change, so old data is dropped
+private const val StoreFile = "cover_tones.bin"
+private const val StoreMagic = 0x414E5A54
+private const val StoreFormat = 2
+private const val MaxStored = 48
+// ANZ <--
 
 private const val BlurCols = 32
 private const val BlurRows = 48
@@ -265,7 +332,7 @@ private const val BlurWide = 8
 private const val BlurFinal = 2
 private const val HuePower = 2f
 private const val HuePrior = 0.6f
-private const val BlurMaxLuma = 0.22f
+private const val BlurMaxLuma = 0.25f
 
 private class Voted(val r: FloatArray, val g: FloatArray, val b: FloatArray, val mass: FloatArray)
 
@@ -343,9 +410,9 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
             hue = hsvWide[0]
             sat = maxOf(sat, hsvWide[1])
         }
-        sat = (sat * 1.35f + 0.12f).coerceIn(0.50f, 0.95f)
+        sat = (sat * 1.5f + 0.18f).coerceIn(0.66f, 1.0f)
         // brightness follows the artwork (light parts of the cover are the light parts of the backdrop)
-        var value = (0.18f + 0.46f * (vBlur[i] / cBlur[i].coerceAtLeast(1e-6f))).coerceIn(0.27f, 0.60f)
+        var value = (0.20f + 0.50f * (vBlur[i] / cBlur[i].coerceAtLeast(1e-6f))).coerceIn(0.30f, 0.64f)
         var argb = android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value))
         var steps = 0
         while (relativeLuma(Color(argb)) > BlurMaxLuma && steps < 8) {
@@ -470,35 +537,6 @@ private fun rgbToHsv(r: Float, g: Float, b: Float, out: FloatArray) {
 private fun smooth(t: Float): Float = t * t * (3f - 2f * t)
 
 private fun ramp(edge0: Float, edge1: Float, x: Float): Float = smooth(((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f))
-
-// ANZ -->
-/**
- * Start-up colours for a cover whose full colours are not read yet: the same modern formula as [extract], built from
- * the single colour already saved on the phone. So the page opens with today's look at once (never the old flat one)
- * and, when the cover is read, the real colours only refine it softly.
- */
-internal fun coverTonesFromSeed(seed: Color, version: Long): CoverTones {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(seed.toArgb(), hsv)
-    val hue = hsv[0]
-    val s = hsv[1]
-    val v = hsv[2]
-    val sat = (s * 1.1f).coerceIn(0.60f, 0.90f)
-    return CoverTones(
-        coverVersion = version,
-        presence = if (s < 0.15f) 0.15f else 0.35f,
-        top = hsvColor(hue, sat, 0.56f),
-        mid = hsvColor(wrapHue(hue + 6f), sat * 0.95f, 0.42f),
-        deep = hsvColor(wrapHue(hue + 10f), (sat * 0.9f).coerceIn(0.50f, 0.85f), 0.32f),
-        lights = listOf(
-            vividColor(hue, s, v),
-            vividColor(wrapHue(hue + 24f), s, v),
-            vividColor(wrapHue(hue - 24f), s, v),
-            vividColor(wrapHue(hue - 14f), maxOf(s, 0.75f), 1f),
-        ),
-    )
-}
-// ANZ <--
 
 /** Same hue, but saturated and bright enough to glow, and never so bright that white text over it suffers. */
 private fun vividColor(hue: Float, sat: Float, value: Float): Color {
