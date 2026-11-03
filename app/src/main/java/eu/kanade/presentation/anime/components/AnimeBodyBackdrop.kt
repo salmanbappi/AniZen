@@ -4,7 +4,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import eu.kanade.presentation.components.CoverBackdrop
@@ -45,6 +47,12 @@ fun AnimeBodyBackdrop(
         animationSpec = tween(durationMillis = 700),
         label = "coverGlow",
     )
+    // ANZ: same lights and colours, just moving twice as fast (whole turns, so it never jumps). The clock already
+    // stops when the app is in the background, and it is only read while drawing (no recomposition per frame).
+    val basePhase = rememberAuroraPhase()
+    val phase = remember(basePhase) {
+        derivedStateOf { (basePhase.value * MotionSpeed) % 1f }
+    }
     CoverBackdrop(
         top = top,
         mid = mid,
@@ -52,10 +60,11 @@ fun AnimeBodyBackdrop(
         lightA = lightA,
         lightB = lightB,
         glow = glow,
-        phase = rememberAuroraPhase(),
+        phase = phase,
         modifier = modifier,
         blurs = listOf(blur),
         blurReveal = reveal,
     )
 }
+private const val MotionSpeed = 2
 // ANZ <--
