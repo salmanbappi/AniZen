@@ -66,6 +66,63 @@ internal object CoverTonesCache {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // ANZ: the full colours of every cover seen are kept on the phone, so the next app start paints the real
+    // base and all the lights from the very first frame (only the blurred picture is rebuilt, and it fades in)
+    private const val PrefsName = "anizen_cover_tones"
+    private const val MaxSaved = 200
+
+    private val prefs by lazy {
+        Injekt.get<Application>().getSharedPreferences(PrefsName, android.content.Context.MODE_PRIVATE)
+    }
+
+    init {
+        try {
+            for ((key, value) in prefs.all) {
+                val id = key.toLongOrNull() ?: continue
+                val tones = (value as? String)?.let(::decode) ?: continue
+                cache[id] = tones
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun encode(t: CoverTones): String =
+        listOf(
+            t.coverVersion.toString(),
+            t.presence.toString(),
+            t.top.toArgb().toString(),
+            t.mid.toArgb().toString(),
+            t.deep.toArgb().toString(),
+            t.lights.joinToString(",") { it.toArgb().toString() },
+        ).joinToString("|")
+
+    private fun decode(raw: String): CoverTones? {
+        val p = raw.split('|')
+        if (p.size != 6) return null
+        val lights = if (p[5].isEmpty()) emptyList() else p[5].split(',').map { Color(it.toIntOrNull() ?: return null) }
+        if (lights.isNotEmpty() && lights.size < 4) return null
+        return CoverTones(
+            coverVersion = p[0].toLongOrNull() ?: return null,
+            presence = p[1].toFloatOrNull() ?: return null,
+            top = Color(p[2].toIntOrNull() ?: return null),
+            mid = Color(p[3].toIntOrNull() ?: return null),
+            deep = Color(p[4].toIntOrNull() ?: return null),
+            lights = lights,
+        )
+    }
+
+    private fun save(id: Long, tones: CoverTones) {
+        val value = encode(tones)
+        scope.launch {
+            try {
+                val editor = prefs.edit()
+                if (prefs.all.size > MaxSaved) editor.clear()
+                editor.putString(id.toString(), value).apply()
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
     fun get(animeId: Long, coverVersion: Long): CoverTones? =
         cache[animeId]?.takeIf { it.coverVersion == coverVersion }
 
@@ -73,7 +130,8 @@ internal object CoverTonesCache {
     fun request(cover: AnimeCover, result: AsyncImagePainter.State.Success) {
         val id = cover.animeId
         val version = cover.lastModified
-        if (get(id, version) != null || !inFlight.add(id)) return
+        // a cover restored from the phone has its colours but not its blurred picture yet: read it again once
+        if (get(id, version)?.mosaic != null || !inFlight.add(id)) return
         val image = result.result.image
         scope.launch {
             val tones = try {
@@ -86,8 +144,8 @@ internal object CoverTonesCache {
             withContext(Dispatchers.Main) {
                 inFlight.remove(id)
                 if (tones != null) {
-                    if (cache.size > 64) cache.clear()
                     cache[id] = tones
+                    save(id, tones)
                     // ANZ: remember the real main colour on the phone, so the next app start already
                     // paints this cover's own colour instead of the one the old extractor saved
                     tones.lights.firstOrNull()?.let { main ->

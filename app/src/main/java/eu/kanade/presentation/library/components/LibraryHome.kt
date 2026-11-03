@@ -617,7 +617,9 @@ internal fun LibraryHome(
     val topInset = contentPadding.calculateTopPadding()
 
     // ANZ --> colourful, slowly moving page backdrop that stays put while the shelves scroll over it
-    val auroraPhase = rememberAuroraPhase()
+    // ANZ: the lights only move while the hero carousel is actually on screen
+    val heroOnScreen by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    val auroraPhase = rememberAuroraPhase(active = heroOnScreen && tab == LibraryHomeTab.Home && !searching)
     val revealed = remember { mutableSetOf<Any>() }
     val heroBottom = remember(listState, searching) { { heroBottomPx(listState, searching) } }
     CompositionLocalProvider(LocalAuroraPhase provides auroraPhase) {
@@ -1063,7 +1065,8 @@ private fun AmbientBackdrop(
     val glowTarget = tones?.let { 0.60f + 0.40f * minOf(1f, it.presence / 0.30f) } ?: legacyGlow
 
     // Everything cross-fades slowly when the carousel moves to another cover.
-    val fade = tween<Color>(durationMillis = 700)
+    // ANZ: slow, soft start and end, so a light that changes colour blooms in instead of switching on
+    val fade = tween<Color>(durationMillis = 1000, easing = FastOutSlowInEasing)
     val top by animateColorAsState(tones?.top ?: legacyTop, fade, label = "ambientTop")
     val mid by animateColorAsState(tones?.mid ?: legacyMid, fade, label = "ambientMid")
     val deep by animateColorAsState(tones?.deep ?: legacyDeep, fade, label = "ambientDeep")
@@ -1083,7 +1086,7 @@ private fun AmbientBackdrop(
     val mosaicOn = mosaics.getOrNull(pagerState.currentPage) != null
     val mosaicReveal by animateFloatAsState(
         targetValue = if (mosaicOn) 1f else 0f,
-        animationSpec = tween(durationMillis = 700),
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
         label = "ambientMosaic",
     )
     val glow by animateFloatAsState(
@@ -1159,7 +1162,7 @@ private fun AmbientBackdrop(
                             brush = brushA,
                             radius = rA,
                             center = Offset.Zero,
-                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 9, 0.15f)),
+                            alpha = fade * (0.75f + 0.25f * auroraCycle(t, 9, 0.15f)),
                         )
                     }
                     translate(
@@ -1170,7 +1173,7 @@ private fun AmbientBackdrop(
                             brush = brushB,
                             radius = rB,
                             center = Offset.Zero,
-                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 8, 0.75f)),
+                            alpha = fade * (0.75f + 0.25f * auroraCycle(t, 8, 0.75f)),
                         )
                     }
                     translate(
@@ -1181,7 +1184,7 @@ private fun AmbientBackdrop(
                             brush = brushC,
                             radius = rC,
                             center = Offset.Zero,
-                            alpha = fade * (0.90f + 0.10f * auroraCycle(t, 7, 0.45f)),
+                            alpha = fade * (0.75f + 0.25f * auroraCycle(t, 7, 0.45f)),
                         )
                     }
                 }
