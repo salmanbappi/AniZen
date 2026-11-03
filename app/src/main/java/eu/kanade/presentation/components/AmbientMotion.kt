@@ -53,7 +53,7 @@ import kotlin.math.sin
  * and every consumer reads it in the DRAW phase only, so nothing recomposes per frame.
  */
 
-private const val AuroraLoopSeconds = 120f
+private const val AuroraLoopSeconds = 70f
 private const val TwoPi = 6.2831855f
 
 // A slow drift does not need more than ~45-60 updates per second: on 90/120 Hz screens every other frame is skipped.
@@ -74,7 +74,7 @@ val LocalAuroraPhase = staticCompositionLocalOf<State<Float>> { mutableFloatStat
  * animation-scale setting, so the colours keep moving even if the phone has animations turned down.
  */
 @Composable
-fun rememberAuroraPhase(): State<Float> {
+fun rememberAuroraPhase(active: Boolean = true): State<Float> {
     val lifecycleOwner = LocalLifecycleOwner.current
     val phase = remember { mutableFloatStateOf(0f) }
     var started by remember {
@@ -91,8 +91,9 @@ fun rememberAuroraPhase(): State<Float> {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(started) {
-        if (!started) return@LaunchedEffect
+    // ANZ: also paused while the hero is off screen, so no frames are spent where nobody sees them
+    LaunchedEffect(started, active) {
+        if (!started || !active) return@LaunchedEffect
         var last = withFrameNanos { it }
         while (true) {
             val now = withFrameNanos { it }
@@ -339,7 +340,7 @@ private fun DrawScope.drawMosaic(image: ImageBitmap, alpha: Float) {
 
 // Home backdrop built from the cover -->
 private const val CoverBlurAlpha = 0.92f
-private const val CoverOverscan = 1.10f
+private const val CoverOverscan = 1.16f
 private const val CoverOrbAlphaA = 0.52f
 private const val CoverOrbAlphaB = 0.42f
 
@@ -438,8 +439,8 @@ fun CoverBackdrop(
                             wb /= total
                             val k = CoverBlurAlpha * blurReveal
                             // the whole picture sways a little: whole turns per loop, so it never jumps
-                            val sx = w * 0.035f * auroraCycle(t, 5, 0f)
-                            val sy = h * 0.020f * auroraCycle(t, 7, 0.30f)
+                            val sx = w * 0.060f * auroraCycle(t, 3, 0f)
+                            val sy = h * 0.035f * auroraCycle(t, 4, 0.30f)
                             if (a != null && wa > 0.001f) drawCoverBlur(a, k * wa, sx, sy)
                             if (b != null && wb > 0.001f) drawCoverBlur(b, k * wb, sx, sy)
                         }
@@ -451,7 +452,7 @@ fun CoverBackdrop(
                             brush = brushA,
                             radius = radiusA,
                             center = Offset.Zero,
-                            alpha = 0.85f + 0.15f * auroraCycle(t, 9, 0.10f),
+                            alpha = 0.72f + 0.28f * auroraCycle(t, 5, 0.10f),
                         )
                     }
                     val bx = w * (0.78f + 0.25f * auroraCycle(t, 6, 0.31f))
@@ -461,7 +462,7 @@ fun CoverBackdrop(
                             brush = brushB,
                             radius = radiusB,
                             center = Offset.Zero,
-                            alpha = 0.85f + 0.15f * auroraCycle(t, 8, 0.70f),
+                            alpha = 0.72f + 0.28f * auroraCycle(t, 4, 0.70f),
                         )
                     }
                     drawRect(brush = veil, topLeft = Offset(0f, veilTop), size = Size(w, h - veilTop))
