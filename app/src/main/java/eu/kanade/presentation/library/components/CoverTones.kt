@@ -471,6 +471,35 @@ private fun smooth(t: Float): Float = t * t * (3f - 2f * t)
 
 private fun ramp(edge0: Float, edge1: Float, x: Float): Float = smooth(((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f))
 
+// ANZ -->
+/**
+ * Start-up colours for a cover whose full colours are not read yet: the same modern formula as [extract], built from
+ * the single colour already saved on the phone. So the page opens with today's look at once (never the old flat one)
+ * and, when the cover is read, the real colours only refine it softly.
+ */
+internal fun coverTonesFromSeed(seed: Color, version: Long): CoverTones {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(seed.toArgb(), hsv)
+    val hue = hsv[0]
+    val s = hsv[1]
+    val v = hsv[2]
+    val sat = (s * 1.1f).coerceIn(0.60f, 0.90f)
+    return CoverTones(
+        coverVersion = version,
+        presence = if (s < 0.15f) 0.15f else 0.35f,
+        top = hsvColor(hue, sat, 0.56f),
+        mid = hsvColor(wrapHue(hue + 6f), sat * 0.95f, 0.42f),
+        deep = hsvColor(wrapHue(hue + 10f), (sat * 0.9f).coerceIn(0.50f, 0.85f), 0.32f),
+        lights = listOf(
+            vividColor(hue, s, v),
+            vividColor(wrapHue(hue + 24f), s, v),
+            vividColor(wrapHue(hue - 24f), s, v),
+            vividColor(wrapHue(hue - 14f), maxOf(s, 0.75f), 1f),
+        ),
+    )
+}
+// ANZ <--
+
 /** Same hue, but saturated and bright enough to glow, and never so bright that white text over it suffers. */
 private fun vividColor(hue: Float, sat: Float, value: Float): Color {
     val s = (sat * 1.1f).coerceIn(0.62f, 1f)

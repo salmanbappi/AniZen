@@ -187,7 +187,9 @@ private const val VividBoostMax = 0.40f
 private fun heroBottomPx(state: androidx.compose.foundation.lazy.LazyListState, searching: Boolean): Float {
     val first = state.layoutInfo.visibleItemsInfo.firstOrNull()
     return when {
-        searching || first == null -> -1f
+        searching -> -1f
+        // not measured yet (very first frame): the caller treats it as "carousel on screen"
+        first == null -> Float.NaN
         first.key == "top" -> (first.offset + first.size).toFloat()
         first.index == 1 -> first.offset.toFloat()
         else -> -1f
@@ -1045,9 +1047,19 @@ private fun AmbientBackdrop(
         CoverTonesCache.get(it.libraryAnime.anime.id, it.libraryAnime.anime.coverLastModified)
     }
     val lastTones = remember { arrayOfNulls<CoverTones>(1) }
+    // ANZ: a cover not read yet starts straight away with the modern colours built from its saved colour,
+    // never with the old flat look, so opening the app shows everything at once and nothing jumps later
+    val seedTones = remember(current?.libraryAnime?.id, seed) {
+        if (current != null && seed != null) {
+            coverTonesFromSeed(seed, current.libraryAnime.anime.coverLastModified)
+        } else {
+            null
+        }
+    }
     val tones = when {
         tab != LibraryHomeTab.Home -> null
         raw != null -> raw.takeIf { it.lights.isNotEmpty() }
+        seedTones != null -> seedTones
         current != null -> lastTones[0]
         else -> null
     }
@@ -1149,7 +1161,10 @@ private fun AmbientBackdrop(
                 )
                 onDrawBehind {
                     // where the carousel block ends (the floor starts a little above that)
-                    val reach = minOf(heroBottom() - FloorLead.toPx(), h)
+                    // ANZ: before the list is measured (first frame after opening) assume the carousel is on
+                    // screen, so these lights are already on instead of switching on a moment later
+                    val bottom = heroBottom()
+                    val reach = if (bottom.isNaN()) h * 0.62f else minOf(bottom - FloorLead.toPx(), h)
                     if (reach <= 0f) return@onDrawBehind
                     // fades out as the carousel scrolls away
                     val fade = (reach / (h * 0.70f)).coerceIn(0f, 1f)
