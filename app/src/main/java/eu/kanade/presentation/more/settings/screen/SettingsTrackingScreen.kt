@@ -156,6 +156,17 @@ object SettingsTrackingScreen : SearchableSettings {
                 pref = trackPreferences.trackOnAddingToLibrary(),
                 title = stringResource(MR.strings.pref_track_on_add_library),
             ),
+            // ANZ -->
+            Preference.PreferenceItem.SwitchPreference( // ANZ
+                pref = trackPreferences.autoAddTrack(),
+                title = stringResource(MR.strings.pref_auto_track_on_add_library),
+            ),
+            Preference.PreferenceItem.SwitchPreference(
+                pref = trackPreferences.autoTrackWhenWatching(),
+                title = stringResource(MR.strings.pref_auto_track_when_watching),
+                subtitle = stringResource(MR.strings.pref_auto_track_when_watching_summary),
+            ),
+            // ANZ <--
             Preference.PreferenceItem.SwitchPreference(
                 pref = trackPreferences.showNextEpisodeAiringTime(),
                 title = stringResource(MR.strings.pref_show_next_episode_airing_time),

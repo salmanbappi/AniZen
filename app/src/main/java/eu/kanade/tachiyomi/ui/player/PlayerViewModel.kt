@@ -271,6 +271,9 @@ class PlayerViewModel @JvmOverloads constructor(
     val externalAudioTracks = _externalAudioTracks.asStateFlow()
 
     val isCasting = MutableStateFlow(false)
+    // ANZ -->
+    private var hasTriggeredWatching = false
+    // ANZ <--
     // ANK -->
     private var castPos: Int = 0
     // ANK <--
@@ -1770,6 +1773,9 @@ class PlayerViewModel @JvmOverloads constructor(
                 val episode = currentPlaylist.value.first { it.id == episodeId }
 
                 _currentEpisode.update { _ -> episode }
+                // ANZ -->
+                hasTriggeredWatching = false
+                // ANZ <--
                 _currentSource.update { _ -> source }
 
                 updateEpisode(episode)
@@ -2285,6 +2291,9 @@ class PlayerViewModel @JvmOverloads constructor(
         val chosenEpisode = currentPlaylist.value.firstOrNull { ep -> ep.id == episodeId } ?: return null
 
         _currentEpisode.update { _ -> chosenEpisode }
+        // ANZ -->
+        hasTriggeredWatching = false
+        // ANZ <--
         updateEpisode(chosenEpisode)
         // ANZ -->
         _hasPreviousEpisode.update { _ -> getCurrentEpisodeIndex() != 0 }
@@ -2345,6 +2354,18 @@ class PlayerViewModel @JvmOverloads constructor(
         currentEp.total_seconds = totalSeconds
 
         episodePosition = seconds
+
+        // ANZ -->
+        if (position > 15L && !hasTriggeredWatching && !incognitoMode && trackPreferences.autoTrackWhenWatching().get()) { // ANZ
+            hasTriggeredWatching = true
+            val anime = currentAnime.value
+            if (anime != null) {
+                viewModelScope.launchNonCancellable {
+                    trackEpisode.trackStatus(Injekt.get<Application>(), anime.id, eu.kanade.tachiyomi.data.track.local.LocalTracker.WATCHING)
+                }
+            }
+        }
+        // ANZ <--
 
         // ANK -->
         if (!incognitoMode) {

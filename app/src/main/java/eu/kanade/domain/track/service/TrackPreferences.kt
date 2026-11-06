@@ -44,6 +44,12 @@ class TrackPreferences(
 
     fun trackOnAddingToLibrary() = preferenceStore.getBoolean("track_on_adding_to_library", true)
 
+    // ANZ -->
+    fun autoAddTrack() = preferenceStore.getBoolean("auto_add_track", false)
+
+    fun autoTrackWhenWatching() = preferenceStore.getBoolean("pref_auto_track_when_watching", true)
+    // ANZ <--
+
     fun showNextEpisodeAiringTime() = preferenceStore.getBoolean(
         "show_next_episode_airing_time",
         true,

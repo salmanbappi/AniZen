@@ -237,6 +237,9 @@ fun AnimeActionRow(
     onEditCategory: (() -> Unit)?,
     onContinueWatching: () -> Unit,
     isWatching: Boolean,
+    // ANZ -->
+    onLocalScoreClicked: (() -> Unit)? = null,
+    // ANZ <--
     mainTrackItem: eu.kanade.tachiyomi.ui.anime.track.TrackItem? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -335,6 +338,9 @@ fun AnimeActionRow(
                     },
                     color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
                     onClick = onTrackingClicked,
+                    // ANZ -->
+                    onLongClick = onLocalScoreClicked,
+                    // ANZ <--
                 )
                 if (onWebViewClicked != null) {
                     AnimeActionButton(

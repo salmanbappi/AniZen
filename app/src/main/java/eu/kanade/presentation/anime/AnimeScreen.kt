@@ -189,6 +189,9 @@ fun AnimeScreen(
     onEpisodeSelected: (EpisodeList.Item, Boolean, Boolean, Boolean) -> Unit,
     onAllEpisodeSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
+    // ANZ -->
+    onLocalScoreClicked: (() -> Unit)? = null,
+    // ANZ <--
     onEditIntervalClicked: (() -> Unit)?,
     onToggleDiscoveryExpansion: () -> Unit,
     onSettingsClicked: (() -> Unit)?,
@@ -266,6 +269,9 @@ fun AnimeScreen(
             onEpisodeSelected = onEpisodeSelected,
             onAllEpisodeSelected = onAllEpisodeSelected,
             onInvertSelection = onInvertSelection,
+            // ANZ -->
+            onLocalScoreClicked = onLocalScoreClicked,
+            // ANZ <--
             onSettingsClicked = onSettingsClicked,
             onMergeClicked = onMergeClicked,
             onEditIntervalClicked = onEditIntervalClicked,
@@ -323,6 +329,9 @@ fun AnimeScreen(
             onEpisodeSelected = onEpisodeSelected,
             onAllEpisodeSelected = onAllEpisodeSelected,
             onInvertSelection = onInvertSelection,
+            // ANZ -->
+            onLocalScoreClicked = onLocalScoreClicked,
+            // ANZ <--
             onEditIntervalClicked = onEditIntervalClicked,
             onToggleDiscoveryExpansion = onToggleDiscoveryExpansion,
             onSettingsClicked = onSettingsClicked,
@@ -390,6 +399,9 @@ private fun AnimeScreenSmallImpl(
     onEpisodeSelected: (EpisodeList.Item, Boolean, Boolean, Boolean) -> Unit,
     onAllEpisodeSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
+    // ANZ -->
+    onLocalScoreClicked: (() -> Unit)? = null,
+    // ANZ <--
     onEditIntervalClicked: (() -> Unit)?,
     onToggleDiscoveryExpansion: () -> Unit,
     onSeasonSelected: (String?) -> Unit,
@@ -623,7 +635,10 @@ private fun AnimeScreenSmallImpl(
                                     onEditCategory = onEditCategoryClicked,
                                     onContinueWatching = { onContinueWatching(null) },
                                     isWatching = isWatching,
-                                    mainTrackItem = remember(state.trackItems) { state.trackItems.firstOrNull() },
+                                    // ANZ -->
+                                    onLocalScoreClicked = onLocalScoreClicked,
+                                    mainTrackItem = remember(state.trackItems) { state.trackItems.find { it.tracker.id == 999L } ?: state.trackItems.firstOrNull() }, // ANZ
+                                    // ANZ <--
                                 )
                             }
 
@@ -897,6 +912,9 @@ fun AnimeScreenLargeImpl(
     onEpisodeSelected: (EpisodeList.Item, Boolean, Boolean, Boolean) -> Unit,
     onAllEpisodeSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
+    // ANZ -->
+    onLocalScoreClicked: (() -> Unit)? = null,
+    // ANZ <--
     onEditIntervalClicked: (() -> Unit)?,
     onToggleDiscoveryExpansion: () -> Unit,
     onSeasonSelected: (String?) -> Unit,
@@ -1121,7 +1139,10 @@ fun AnimeScreenLargeImpl(
                                         onEditCategory = onEditCategoryClicked,
                                         onContinueWatching = { onContinueWatching(null) },
                                         isWatching = isWatching,
-                                        mainTrackItem = remember(state.trackItems) { state.trackItems.firstOrNull() },
+                                        // ANZ -->
+                                        onLocalScoreClicked = onLocalScoreClicked,
+                                        mainTrackItem = remember(state.trackItems) { state.trackItems.find { it.tracker.id == 999L } ?: state.trackItems.firstOrNull() },
+                                        // ANZ <--
                                     )
 
                                     ExpandableAnimeDescription(

@@ -278,6 +278,9 @@ class AnimeScreen(
             onEpisodeSelected = screenModel::toggleSelection,
             onAllEpisodeSelected = screenModel::toggleAllSelection,
             onInvertSelection = screenModel::invertSelection,
+            // ANZ -->
+            onLocalScoreClicked = screenModel::showLocalScoreDialog,
+            // ANZ <--
             onEditIntervalClicked = screenModel::showSetAnimeFetchIntervalDialog.takeIf { successState.anime.favorite },
             onToggleDiscoveryExpansion = screenModel::toggleDiscoveryExpansion,
             onSettingsClicked = onSettingsClicked,
@@ -431,6 +434,19 @@ class AnimeScreen(
                     },
                 )
             }
+
+            // ANZ -->
+            is AnimeScreenModel.Dialog.LocalScorePicker -> { // ANZ
+                LocalScoreDialog(
+                    score = dialog.score,
+                    status = dialog.status,
+                    onDismissRequest = screenModel::dismissDialog,
+                    onConfirm = { newScore, newStatus ->
+                        screenModel.setLocalTrack(score = newScore, status = newStatus)
+                    },
+                )
+            }
+            // ANZ <--
 
             is AnimeScreenModel.Dialog.EditMergedAnimeSettings -> {
                 EditMergedSettingsDialog(

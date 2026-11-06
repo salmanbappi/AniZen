@@ -1050,6 +1050,29 @@ class AnimeScreenModel(
         }
     }
 
+    // ANZ -->
+    fun setLocalTrack(score: Double, status: Long) { // ANZ
+        val state = successState ?: return
+        val anime = state.anime
+        screenModelScope.launchIO {
+            val tracks = getTracks.await(anime.id)
+            val existingTrack = tracks.find { it.trackerId == TrackerManager.LOCAL }
+
+            if (existingTrack != null) {
+                insertTrack.await(existingTrack.copy(status = status, score = score))
+            } else {
+                val dbTrack = eu.kanade.tachiyomi.data.database.models.Track.create(TrackerManager.LOCAL).apply {
+                    anime_id = anime.id
+                    this.title = anime.title.ifBlank { anime.ogTitle }
+                    this.status = status
+                    this.score = score
+                }
+                insertTrack.await(dbTrack.toDomainTrack(idRequired = false)!!)
+            }
+        }
+    }
+    // ANZ <--
+
     fun updateAnimeInfo(
         title: String?,
         author: String?,
@@ -1136,6 +1159,24 @@ class AnimeScreenModel(
             val anime = state.anime
             if (isFavorited) {
                 if (updateAnime.awaitUpdateFavorite(anime.id, false)) {
+                    // ANZ -->
+                    if (trackPreferences.autoTrackWhenWatching().get()) {
+                        val tracks = getTracks.await(anime.id)
+                        val localTrack = tracks.find { it.trackerId == TrackerManager.LOCAL }
+                        if (localTrack != null) {
+                            when {
+                                // If never started, delete track to keep history clean
+                                localTrack.lastEpisodeSeen == 0.0 -> {
+                                    deleteTrack.await(anime.id, TrackerManager.LOCAL)
+                                }
+                                // If already completed, leave it as completed
+                                localTrack.status == eu.kanade.tachiyomi.data.track.local.LocalTracker.COMPLETED -> {}
+                                // Otherwise, mark as dropped (including movies with progress)
+                                else -> insertTrack.await(localTrack.copy(status = eu.kanade.tachiyomi.data.track.local.LocalTracker.DROPPED))
+                            }
+                        }
+                    }
+                    // ANZ <--
                     if (anime.removeCovers() != anime) {
                         updateAnime.awaitUpdateCoverLastModified(anime.id)
                     }
@@ -1165,8 +1206,32 @@ class AnimeScreenModel(
                     }
                 }
 
-                if (trackPreferences.trackOnAddingToLibrary().get()) {
+                if (trackPreferences.trackOnAddingToLibrary().get() || trackPreferences.autoAddTrack().get()) {
                     addTracks.bindEnhancedTrackers(anime, state.source)
+
+                    // ANZ -->
+                    val tracks = getTracks.await(anime.id)
+                    var localTrack = tracks.find { it.trackerId == TrackerManager.LOCAL }
+                    if (localTrack == null) {
+                        val episodes = getAnimeAndEpisodesAndSeasons.awaitEpisodes(anime.id)
+                        val seenCount = episodes.count { it.seen }
+                        val dbTrack = eu.kanade.tachiyomi.data.database.models.Track.create(TrackerManager.LOCAL).apply {
+                            this.anime_id = anime.id
+                            this.title = anime.title
+                            this.last_episode_seen = seenCount.toDouble()
+                            this.total_episodes = episodes.size.toLong()
+                            this.status = when {
+                                episodes.isNotEmpty() && (seenCount == episodes.size) -> eu.kanade.tachiyomi.data.track.local.LocalTracker.COMPLETED
+                                seenCount > 0 -> eu.kanade.tachiyomi.data.track.local.LocalTracker.WATCHING
+                                else -> eu.kanade.tachiyomi.data.track.local.LocalTracker.PLAN_TO_WATCH
+                            }
+                        }
+                        localTrack = dbTrack.toDomainTrack(idRequired = false)
+                    } else if (localTrack.status == eu.kanade.tachiyomi.data.track.local.LocalTracker.DROPPED) {
+                        localTrack = localTrack.copy(status = eu.kanade.tachiyomi.data.track.local.LocalTracker.PLAN_TO_WATCH)
+                    }
+                    localTrack?.let { insertTrack.await(it) }
+                    // ANZ <--
                 }
 
                 syncAnimeOnAdd(anime)
@@ -2021,6 +2086,11 @@ class AnimeScreenModel(
         data class SetAnimeFetchInterval(val anime: Anime) : Dialog
         data class ShowQualities(val episode: Episode, val anime: Anime, val source: Source) : Dialog
         data class EditAnimeInfo(val anime: Anime) : Dialog
+
+        // ANZ -->
+        data class LocalScorePicker(val score: Double, val status: Long) : Dialog
+
+        // ANZ <--
         data class EditMergedAnimeSettings(val data: MergedAnimeData) : Dialog
         data object ChangeAnimeSkipIntro : Dialog
         data object ClearAnime : Dialog
@@ -2052,6 +2122,16 @@ class AnimeScreenModel(
     fun showTrackDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.TrackSheet) }
     fun showCoverDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.FullCover) }
     fun showEditAnimeInfoDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.EditAnimeInfo(it.anime)) }
+
+    // ANZ -->
+    fun showLocalScoreDialog() {
+        val state = successState ?: return
+        val localTrack = state.trackItems.find { it.tracker.id == TrackerManager.LOCAL }?.track
+        val currentScore = localTrack?.score ?: 0.0
+        val currentStatus = localTrack?.status ?: eu.kanade.tachiyomi.data.track.local.LocalTracker.WATCHING
+        updateSuccessState { it.copySuccess(dialog = Dialog.LocalScorePicker(currentScore, currentStatus)) }
+    }
+    // ANZ <--
 
     fun toggleExcludedScanlator(scanlator: String) {
         val state = successState ?: return
@@ -2456,7 +2536,10 @@ class AnimeScreenModel(
                 }
             }
             val totalScore: Double? by lazy {
-                anime.score ?: trackItems.mapNotNull { item ->
+                // ANZ -->
+                val localTrackScore = trackItems.find { it.tracker.id == 999L }?.track?.score?.takeIf { it > 0 }
+                localTrackScore ?: anime.score ?: trackItems.mapNotNull { item ->
+                    // ANZ <--
                     item.track?.let { item.tracker.animeService.get10PointScore(it) }
                 }.filter { it > 0 }.average().takeIf { !it.isNaN() }
             }
