@@ -25,6 +25,7 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.TrackEpisode
 import eu.kanade.domain.track.model.AutoTrackState
+import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.presentation.anime.DownloadAction
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction

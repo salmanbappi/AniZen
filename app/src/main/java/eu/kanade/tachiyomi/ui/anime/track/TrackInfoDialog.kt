@@ -46,6 +46,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.track.interactor.RefreshTracks
 import eu.kanade.domain.track.model.toDbTrack
+import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.track.TrackDateSelector
 import eu.kanade.presentation.track.TrackInfoDialogHome
@@ -81,6 +82,7 @@ import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.DeleteTrack
 import tachiyomi.domain.track.interactor.GetTracks
+import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.domain.track.model.Track
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.LabeledCheckbox
