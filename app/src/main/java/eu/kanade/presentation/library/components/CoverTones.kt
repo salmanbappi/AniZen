@@ -268,15 +268,28 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
     val hsv = FloatArray(3)
     val candidates = ArrayList<Candidate>()
     var presence = 0f
+    var pale = 0f
+    val paleCandidates = ArrayList<Candidate>()
     for (swatch in swatches) {
         android.graphics.Color.colorToHSV(swatch.rgb, hsv)
-        // greys, blacks and whites carry no hue
-        if (hsv[1] < 0.22f || hsv[2] < 0.12f) continue
+        if (hsv[2] < 0.12f) continue
         val share = swatch.population.toFloat() / total
-        presence += share
         // area counts (its square root, so small bright details still get a say), and so does colourfulness
         val score = sqrt(share) * (0.35f + hsv[1]) * (0.70f + 0.30f * hsv[2])
-        candidates.add(Candidate(hsv[0], hsv[1], hsv[2], score))
+        if (hsv[1] >= 0.22f) {
+            presence += share
+            candidates.add(Candidate(hsv[0], hsv[1], hsv[2], score))
+        } else if (hsv[1] >= 0.14f) {
+            // very pale tints: only used when the cover has almost no real colour (see below)
+            pale += share
+            paleCandidates.add(Candidate(hsv[0], hsv[1], hsv[2], score))
+        }
+        // greys, blacks and whites carry no hue
+    }
+    // A pale cover whose only vivid spots are a few letters or details: the pale tint of the artwork leads instead
+    if (presence < 0.12f && paleCandidates.isNotEmpty()) {
+        candidates.addAll(paleCandidates)
+        presence += 0.5f * pale
     }
     if (candidates.isEmpty()) {
         return CoverTones(version, 0f, Color.Black, Color.Black, Color.Black, emptyList())
@@ -300,12 +313,13 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
         vividColor(main.hue, main.sat, main.value),
         vividColor(picked[1].hue, picked[1].sat, picked[1].value),
         vividColor(picked[2].hue, picked[2].sat, picked[2].value),
-        vividColor(wrapHue(main.hue - 14f), maxOf(main.sat, 0.75f), 1f),
+        vividColor(wrapHue(main.hue - 14f), maxOf(main.sat, 0.58f + 0.17f * ramp(0.16f, 0.26f, main.sat)), 1f),
     )
 
     // the dark base stays in the main hue, leaning a little towards the second one
     val delta = (((picked[1].hue - main.hue + 540f) % 360f) - 180f).coerceIn(-60f, 60f)
-    val sat = (main.sat * 1.15f).coerceIn(0.70f, 0.95f)
+    val satFloor = 0.54f + 0.16f * ramp(0.16f, 0.26f, main.sat)
+    val sat = (main.sat * 1.15f).coerceIn(satFloor, 0.95f)
     return CoverTones(
         coverVersion = version,
         presence = presence.coerceIn(0f, 1f),
@@ -320,7 +334,7 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
 // ANZ --> file where the colours are kept; raise StoreFormat whenever the colour formulas change, so old data is dropped
 private const val StoreFile = "cover_tones.bin"
 private const val StoreMagic = 0x414E5A54
-private const val StoreFormat = 2
+private const val StoreFormat = 3
 private const val MaxStored = 48
 // ANZ <--
 
@@ -333,6 +347,58 @@ private const val BlurFinal = 2
 private const val HuePower = 2f
 private const val HuePrior = 0.6f
 private const val BlurMaxLuma = 0.25f
+private const val OpenRadius = 2
+private const val HaloCols = 48
+private const val HaloRows = 72
+private const val HaloLight = 1.35f
+
+/**
+ * The glow that sits around the hero card: the blurred cover colours (a little brighter), stretched over the card plus a
+ * margin and fading out towards its edges, so the card seems to float in its own light. [fx] and [fy] are the margin as
+ * a fraction of the whole width / height.
+ */
+internal fun buildHalo(mosaic: ImageBitmap, fx: Float, fy: Float): ImageBitmap? {
+    val source = mosaic.asAndroidBitmap()
+    if (source.width != BlurCols || source.height != BlurRows) return null
+    val px = IntArray(BlurCols * BlurRows)
+    source.getPixels(px, 0, BlurCols, 0, 0, BlurCols, BlurRows)
+    val out = IntArray(HaloCols * HaloRows)
+    for (y in 0 until HaloRows) {
+        val v = (y + 0.5f) / HaloRows
+        val sy = (v * BlurRows - 0.5f).coerceIn(0f, BlurRows - 1f)
+        val y0 = sy.toInt()
+        val y1 = minOf(y0 + 1, BlurRows - 1)
+        val ty = sy - y0
+        val edgeY = smooth((minOf(v, 1f - v) / fy.coerceAtLeast(0.01f)).coerceIn(0f, 1f))
+        for (x in 0 until HaloCols) {
+            val u = (x + 0.5f) / HaloCols
+            val sx = (u * BlurCols - 0.5f).coerceIn(0f, BlurCols - 1f)
+            val x0 = sx.toInt()
+            val x1 = minOf(x0 + 1, BlurCols - 1)
+            val tx = sx - x0
+            val edgeX = smooth((minOf(u, 1f - u) / fx.coerceAtLeast(0.01f)).coerceIn(0f, 1f))
+            var r = 0f
+            var g = 0f
+            var b = 0f
+            for (k in 0 until 4) {
+                val xx = if ((k and 1) == 0) x0 else x1
+                val yy = if ((k and 2) == 0) y0 else y1
+                val wx = if ((k and 1) == 0) 1f - tx else tx
+                val wy = if ((k and 2) == 0) 1f - ty else ty
+                val p = px[yy * BlurCols + xx]
+                r += wx * wy * ((p shr 16) and 0xFF)
+                g += wx * wy * ((p shr 8) and 0xFF)
+                b += wx * wy * (p and 0xFF)
+            }
+            val ri = (r * HaloLight).toInt().coerceIn(0, 255)
+            val gi = (g * HaloLight).toInt().coerceIn(0, 255)
+            val bi = (b * HaloLight).toInt().coerceIn(0, 255)
+            val ai = ((edgeX * edgeY) * 255f + 0.5f).toInt().coerceIn(0, 255)
+            out[y * HaloCols + x] = (ai shl 24) or (ri shl 16) or (gi shl 8) or bi
+        }
+    }
+    return Bitmap.createBitmap(out, HaloCols, HaloRows, Bitmap.Config.ARGB_8888).asImageBitmap()
+}
 
 private class Voted(val r: FloatArray, val g: FloatArray, val b: FloatArray, val mass: FloatArray)
 
@@ -364,6 +430,10 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
     val sumV = FloatArray(cells)
     val count = FloatArray(cells)
     val hsv = FloatArray(3)
+    // Pass 1: the weight and the hue family of every pixel in the middle of the artwork
+    val area = cw * ch
+    val weight = FloatArray(area)
+    val family = IntArray(area) { -1 }
     for (y in y0 until y1) {
         val row = ((y - y0) * BlurRows / ch).coerceAtMost(BlurRows - 1)
         for (x in x0 until x1) {
@@ -376,12 +446,41 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
             // only pixels with real colour vote for a hue (greys, whites and blacks hardly do)
             val w = ramp(0.10f, 0.35f, hsv[1]) * ramp(0.04f, 0.20f, hsv[2])
             if (w > 0f) {
-                val k = (hsv[0] / 30f).toInt().coerceIn(0, HueBins - 1) * cells + cell
-                binW[k] += w
-                binR[k] += w * ((p shr 16) and 0xFF) / 255f
-                binG[k] += w * ((p shr 8) and 0xFF) / 255f
-                binB[k] += w * (p and 0xFF) / 255f
+                val at = (y - y0) * cw + (x - x0)
+                weight[at] = w
+                family[at] = (hsv[0] / 30f).toInt().coerceIn(0, HueBins - 1)
             }
+        }
+    }
+    // Thin strokes (letters, logos, outlines) are not areas of colour: a hue only counts where it forms a patch wider
+    // than a few pixels, so a handful of bright letters cannot colour the whole page.
+    val kept = FloatArray(area)
+    val layer = FloatArray(area)
+    for (f in 0 until HueBins) {
+        var any = false
+        for (i in 0 until area) {
+            val v = if (family[i] == f) weight[i] else 0f
+            layer[i] = v
+            if (v > 0f) any = true
+        }
+        if (!any) continue
+        val opened = openMap(layer, cw, ch, OpenRadius)
+        for (i in 0 until area) if (family[i] == f) kept[i] = opened[i]
+    }
+    // Pass 2: what survives votes
+    for (y in y0 until y1) {
+        val row = ((y - y0) * BlurRows / ch).coerceAtMost(BlurRows - 1)
+        for (x in x0 until x1) {
+            val at = (y - y0) * cw + (x - x0)
+            val w = kept[at]
+            if (w <= 0f) continue
+            val col = ((x - x0) * BlurCols / cw).coerceAtMost(BlurCols - 1)
+            val p = pixels[y * bw + x]
+            val k = family[at] * cells + row * BlurCols + col
+            binW[k] += w
+            binR[k] += w * ((p shr 16) and 0xFF) / 255f
+            binG[k] += w * ((p shr 8) and 0xFF) / 255f
+            binB[k] += w * (p and 0xFF) / 255f
         }
     }
 
@@ -410,7 +509,9 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
             hue = hsvWide[0]
             sat = maxOf(sat, hsvWide[1])
         }
-        sat = (sat * 1.5f + 0.18f).coerceIn(0.66f, 1.0f)
+        // pastel parts keep a calmer floor, so a pale cover turns into a clean tint and not into neon
+        val satFloor = 0.56f + 0.10f * ramp(0.14f, 0.30f, sat)
+        sat = (sat * 1.5f + 0.18f).coerceIn(satFloor, 1.0f)
         // brightness follows the artwork (light parts of the cover are the light parts of the backdrop)
         var value = (0.20f + 0.50f * (vBlur[i] / cBlur[i].coerceAtLeast(1e-6f))).coerceIn(0.30f, 0.64f)
         var argb = android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value))
@@ -437,6 +538,36 @@ private fun buildMosaic(bitmap: Bitmap): ImageBitmap? {
         )
     }
     return Bitmap.createBitmap(out, BlurCols, BlurRows, Bitmap.Config.ARGB_8888).asImageBitmap()
+}
+
+/** Morphological opening (shrink, then grow, square window of [radius]): keeps only shapes wider than the window. */
+private fun openMap(src: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
+    val a = FloatArray(src.size)
+    val b = FloatArray(src.size)
+    slide(src, a, w, h, radius, horizontal = true, takeMin = true)
+    slide(a, b, w, h, radius, horizontal = false, takeMin = true)
+    slide(b, a, w, h, radius, horizontal = true, takeMin = false)
+    slide(a, b, w, h, radius, horizontal = false, takeMin = false)
+    return b
+}
+
+private fun slide(src: FloatArray, dst: FloatArray, w: Int, h: Int, radius: Int, horizontal: Boolean, takeMin: Boolean) {
+    for (y in 0 until h) {
+        for (x in 0 until w) {
+            var best = if (takeMin) Float.MAX_VALUE else -Float.MAX_VALUE
+            for (d in -radius..radius) {
+                val xx = if (horizontal) (x + d).coerceIn(0, w - 1) else x
+                val yy = if (horizontal) y else (y + d).coerceIn(0, h - 1)
+                val v = src[yy * w + xx]
+                if (takeMin) {
+                    if (v < best) best = v
+                } else {
+                    if (v > best) best = v
+                }
+            }
+            dst[y * w + x] = best
+        }
+    }
 }
 
 /** For every cell, the colour of the winning hue around it (blurred by [radius] cells) and how much colour is there. */
