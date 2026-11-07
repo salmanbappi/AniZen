@@ -108,10 +108,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.anime.components.AnimeCover
@@ -119,7 +116,6 @@ import eu.kanade.tachiyomi.ui.library.LibraryDisplayItem
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import kotlin.math.absoluteValue
-import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -177,9 +173,6 @@ private val ToolbarFadeDistance = 240.dp
 // ANZ --> dark "floor" under the shelves: covers keep their punch on any backdrop colour
 private val FloorColor = Color(0xFF0B0C10)
 private val FloorLead = 40.dp
-
-// How far the glow around the hero card reaches above and below it (the pager lets 30 dp overflow)
-private val HaloVertical = 26.dp
 private val FloorRamp = 320.dp
 private const val FloorAlpha = 0.30f
 
@@ -1354,9 +1347,6 @@ private fun HeroCard(
     val shape = RoundedCornerShape(HeroRadius)
     val (pressSource, pressScale) = rememberPress()
     val auroraPhase = LocalAuroraPhase.current
-    // ANZ --> the cover's own colours, used for the glow around the card (it floats in its own light)
-    val haloSource = CoverTonesCache.get(anime.id, anime.coverLastModified)?.mosaic
-    // ANZ <--
 
     Box(
         modifier = modifier
@@ -1365,32 +1355,6 @@ private fun HeroCard(
                 scaleX = pressScale.value
                 scaleY = pressScale.value
             }
-            // ANZ --> glow around the card, drawn behind it (the pager lets a little overflow above and below)
-            .drawWithCache {
-                val sideMargin = minOf(HeroSpacing.toPx(), size.width * 0.075f)
-                val verticalMargin = minOf(HaloVertical.toPx(), size.height * 0.06f)
-                val halo = haloSource?.let {
-                    buildHalo(
-                        it,
-                        sideMargin / (size.width + 2f * sideMargin),
-                        verticalMargin / (size.height + 2f * verticalMargin),
-                    )
-                }
-                onDrawBehind {
-                    if (halo != null) {
-                        drawImage(
-                            image = halo,
-                            dstOffset = IntOffset((-sideMargin).roundToInt(), (-verticalMargin).roundToInt()),
-                            dstSize = IntSize(
-                                (size.width + 2f * sideMargin).roundToInt(),
-                                (size.height + 2f * verticalMargin).roundToInt(),
-                            ),
-                            filterQuality = FilterQuality.Low,
-                        )
-                    }
-                }
-            }
-            // ANZ <--
             .clip(shape)
             .then(
                 if (isSelected) {
