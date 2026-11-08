@@ -239,6 +239,32 @@ internal object CoverTonesCache {
         } else {
             software
         }
+        // The colour engine (see CoverColorEngine) does the work; the palette below is only the fallback for a cover
+        // the engine cannot read.
+        val engine = try {
+            val px = IntArray(small.width * small.height)
+            small.getPixels(px, 0, small.width, 0, 0, small.width, small.height)
+            CoverColorEngine.analyze(px, small.width, small.height)
+        } catch (_: Throwable) {
+            null
+        }
+        if (engine != null) {
+            val image = Bitmap.createBitmap(
+                engine.mosaic,
+                CoverColorEngine.Cols,
+                CoverColorEngine.Rows,
+                Bitmap.Config.ARGB_8888,
+            ).asImageBitmap()
+            return CoverTones(
+                coverVersion = version,
+                presence = engine.presence,
+                top = Color(engine.top),
+                mid = Color(engine.mid),
+                deep = Color(engine.deep),
+                lights = engine.lights.map { Color(it) },
+                mosaic = image,
+            )
+        }
         val builder = Palette.from(small).maximumColorCount(24)
         if (small.width >= 10 && small.height >= 10) {
             // Only the middle of the artwork: poster frames, black bars at the sides and the title strip at the
@@ -334,7 +360,7 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
 // ANZ --> file where the colours are kept; raise StoreFormat whenever the colour formulas change, so old data is dropped
 private const val StoreFile = "cover_tones.bin"
 private const val StoreMagic = 0x414E5A54
-private const val StoreFormat = 3
+private const val StoreFormat = 5
 private const val MaxStored = 48
 // ANZ <--
 
