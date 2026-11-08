@@ -63,8 +63,21 @@ internal object CoverColorEngine {
 
     // how much of the sRGB gamut a colour may use. 1.0 is the electric edge (pure red with no green or blue in it).
     // Reds, crimsons and magentas are the loudest colours on a dark page, so they stop earlier than blues and greens.
-    private val SatHue = floatArrayOf(0f, 0.78f, 30f, 0.78f, 60f, 0.86f, 100f, 0.90f, 150f, 0.95f, 200f, 0.95f, 260f, 0.95f, 300f, 0.90f, 330f, 0.84f, 360f, 0.78f)
+    private val SatHue = floatArrayOf(0f, 0.78f, 30f, 0.78f, 60f, 0.90f, 100f, 0.90f, 150f, 0.95f, 200f, 0.95f, 260f, 0.95f, 300f, 0.90f, 330f, 0.84f, 360f, 0.78f)
     private const val FillSoften = 0.25f
+    private const val RedAccentSat = 0.93f
+    // Where each light takes its colour from: the margin of the cover on the side where the light sits. Three rectangles
+    // per side (left, top, right, bottom as fractions of the analysed area), each one reaching further in: when the
+    // outer margin is white, grey or black the scan moves inwards to the first real colour.
+    // Order: top-left, right, top-right, left, top band.
+    private val EdgeRects = arrayOf(
+        floatArrayOf(0f, 0f, 0.55f, 0.32f, 0f, 0f, 0.62f, 0.48f, 0f, 0f, 0.75f, 0.65f),
+        floatArrayOf(0.62f, 0.22f, 1f, 0.78f, 0.50f, 0.15f, 1f, 0.85f, 0.35f, 0.10f, 1f, 0.90f),
+        floatArrayOf(0.45f, 0f, 1f, 0.32f, 0.38f, 0f, 1f, 0.48f, 0.25f, 0f, 1f, 0.65f),
+        floatArrayOf(0f, 0.22f, 0.38f, 0.78f, 0f, 0.15f, 0.50f, 0.85f, 0f, 0.10f, 0.65f, 0.90f),
+        floatArrayOf(0.15f, 0f, 0.85f, 0.30f, 0.10f, 0f, 0.90f, 0.45f, 0f, 0f, 1f, 0.60f),
+    )
+    private const val EdgeMinCover = 0.035f
     private const val OliveTurn = 14f
     private const val RedDeepen = 0.03f
     private const val OliveLift = 0.04f
@@ -154,15 +167,33 @@ internal object CoverColorEngine {
         return if (deg < 0f) deg + 360f else deg
     }
 
-    /** Share of the gamut a hue may use (see [SatHue]). */
-    private fun hueSat(hueDeg: Float): Float {
+    /** 1 right on red / crimson / orange-red, fading to 0 about 50 degrees away. */
+    private fun redness(hueDeg: Float): Float {
+        val h = ((hueDeg % 360f) + 360f) % 360f
+        val away = abs(h - 12f)
+        return 1f - ramp(20f, 55f, minOf(away, 360f - away))
+    }
+
+    /** 1 across the whole warm side (crimson, red, orange, amber), fading to 0 well before pink-violet and yellow-green. */
+    private fun warmness(hueDeg: Float): Float {
+        val h = ((hueDeg % 360f) + 360f) % 360f
+        val away = abs(h - 30f)
+        return 1f - ramp(36f, 76f, minOf(away, 360f - away))
+    }
+
+    /**
+     * Share of the gamut a hue may use (see [SatHue]). [calm] 0..1 is how much red fills what is seen: a red that is the
+     * whole picture is calmed, while a red accent next to a blue keeps its full colour.
+     */
+    private fun hueSat(hueDeg: Float, calm: Float): Float {
         val h = ((hueDeg % 360f) + 360f) % 360f
         var i = 0
         while (i < SatHue.size - 2 && h > SatHue[i + 2]) i += 2
         val h0 = SatHue[i]
         val h1 = SatHue[i + 2]
         val t = if (h1 > h0) ((h - h0) / (h1 - h0)).coerceIn(0f, 1f) else 0f
-        return SatHue[i + 1] + (SatHue[i + 3] - SatHue[i + 1]) * t
+        val s = SatHue[i + 1] + (SatHue[i + 3] - SatHue[i + 1]) * t
+        return s + (1f - calm) * maxOf(0f, RedAccentSat - s) * warmness(h)
     }
 
     /** Yellow-olive turns into khaki mud when it is dark: nudged towards amber, which stays golden. */
@@ -173,13 +204,10 @@ internal object CoverColorEngine {
     }
 
     /** Lightness shift of a hue: reds go deeper (carmine instead of salmon), yellow-olive goes lighter (gold instead of mud). */
-    private fun hueShiftL(hueDeg: Float): Float {
+    private fun hueShiftL(hueDeg: Float, calm: Float): Float {
         val h = ((hueDeg % 360f) + 360f) % 360f
-        val away = abs(h - 12f)
-        val dRed = minOf(away, 360f - away)
-        val red = 1f - ramp(20f, 55f, dRed)
         val olive = ramp(62f, 78f, h) * (1f - ramp(112f, 135f, h))
-        return -RedDeepen * red + OliveLift * olive
+        return -RedDeepen * redness(h) * calm + OliveLift * olive
     }
 
     /** The most chroma sRGB can show at this lightness and hue. */
@@ -200,17 +228,74 @@ internal object CoverColorEngine {
      * A colour of the given OKLCH, darkened until its luma fits [maxLuma] (white text and the page need that) and never
      * using more than [sat] of the gamut at its own lightness and hue.
      */
-    private fun graded(lightness: Float, chroma: Float, hueDeg: Float, maxLuma: Float, minLightness: Float, sat: Float, out: FloatArray) {
+    private fun graded(lightness: Float, chroma: Float, hueDeg: Float, maxLuma: Float, minLightness: Float, sat: Float, calm: Float, out: FloatArray) {
         var l = lightness
-        var c = minOf(chroma, minOf(sat * hueSat(hueDeg), 1f) * gamutMax(l, hueDeg, out))
+        var c = minOf(chroma, minOf(sat * hueSat(hueDeg, calm), 1f) * gamutMax(l, hueDeg, out))
         oklchToSrgb(l, c, hueDeg, out)
         var steps = 0
         while (luma(out) > maxLuma && steps < 12 && l > minLightness) {
             l *= 0.965f
-            c = minOf(chroma, minOf(sat * hueSat(hueDeg), 1f) * gamutMax(l, hueDeg, out))
+            c = minOf(chroma, minOf(sat * hueSat(hueDeg, calm), 1f) * gamutMax(l, hueDeg, out))
             oklchToSrgb(l, c, hueDeg, out)
             steps++
         }
+    }
+
+    /**
+     * The dominant colour of a rectangle of the analysed area ([rect] = left, top, right, bottom as fractions of it):
+     * the hue cluster with the most mass, as lightness / a / b in [out]. Returns how much of the rectangle that cluster
+     * covers, 0 when there is no colour in it at all.
+     */
+    private fun regionColour(
+        kept: FloatArray, family: IntArray, pl: FloatArray, pa: FloatArray, pb: FloatArray,
+        cw: Int, ch: Int, rect: FloatArray, out: FloatArray,
+    ): Float {
+        val x0 = (rect[0] * cw).toInt().coerceIn(0, cw - 1)
+        val x1 = (rect[2] * cw).toInt().coerceIn(x0 + 1, cw)
+        val y0 = (rect[1] * ch).toInt().coerceIn(0, ch - 1)
+        val y1 = (rect[3] * ch).toInt().coerceIn(y0 + 1, ch)
+        val m = FloatArray(Bins)
+        val sl = FloatArray(Bins)
+        val sa = FloatArray(Bins)
+        val sb = FloatArray(Bins)
+        for (y in y0 until y1) {
+            for (x in x0 until x1) {
+                val at = y * cw + x
+                val w = kept[at]
+                if (w <= 0f) continue
+                val f = family[at]
+                m[f] += w
+                sl[f] += w * pl[at]
+                sa[f] += w * pa[at]
+                sb[f] += w * pb[at]
+            }
+        }
+        var best = -1
+        var bestScore = 0f
+        for (f in 0 until Bins) {
+            val score = m[f] + 0.5f * (m[(f + Bins - 1) % Bins] + m[(f + 1) % Bins])
+            if (score > bestScore) {
+                bestScore = score
+                best = f
+            }
+        }
+        if (best < 0) return 0f
+        var tm = 0f
+        var tl = 0f
+        var ta = 0f
+        var tb = 0f
+        for (d in -1..1) {
+            val k = (best + d + Bins) % Bins
+            tm += m[k]
+            tl += sl[k]
+            ta += sa[k]
+            tb += sb[k]
+        }
+        if (tm < 1e-6f) return 0f
+        out[0] = tl / tm
+        out[1] = ta / tm
+        out[2] = tb / tm
+        return tm / ((x1 - x0) * (y1 - y0))
     }
 
     // ---------- image helpers ----------
@@ -572,24 +657,55 @@ internal object CoverColorEngine {
         val wide = vote(binW, binL, binA, binB, count, BlurWide)
         val localL = boxBlur(FloatArray(cells) { sumL[it] / maxOf(count[it], 1f) }, Cols, Rows, BlurSmall)
 
-        val rgb = FloatArray(3)
-        val coded = FloatArray(cells * 3)
+        // pass 1: the colour of every cell before grading
+        val cellA = FloatArray(cells)
+        val cellB = FloatArray(cells)
+        val cellKeep = FloatArray(cells)
         for (c in 0 until cells) {
             val t = ramp(0.03f, 0.20f, small.mass[c])
-            var l = small.l[c] * t + wide.l[c] * (1f - t)
             var a = small.a[c] * t + wide.a[c] * (1f - t)
             var b = small.b[c] * t + wide.b[c] * (1f - t)
             // no colour at all nearby: the cover's main colour fills in
             val keep = ramp(0f, FillMass, wide.mass[c])
-            l = l * keep + fillL * (1f - keep)
             a = a * keep + fillA * (1f - keep)
             b = b * keep + fillB * (1f - keep)
+            cellA[c] = a
+            cellB[c] = b
+            cellKeep[c] = keep
+        }
+
+        // how much of what is seen around the card is red: a red that is the whole picture is calmed (Clevatess), a red
+        // accent beside a blue keeps its colour (Kimi to Boku)
+        var warm = 0f
+        var seen = 0f
+        for (c in 0 until cells) {
+            val y = ((c / Cols) + 0.5f) / Rows
+            val x = ((c % Cols) + 0.5f) / Cols
+            val visible = maxOf(
+                1f - ramp(0.22f, 0.32f, y),
+                0.5f * ramp(0.76f, 0.84f, y),
+                1f - ramp(0.06f, 0.12f, minOf(x, 1f - x)),
+                0.08f,
+            )
+            val w = visible * ramp(0.03f, 0.10f, hypot(cellA[c], cellB[c]))
+            warm += w * warmness(hueOf(cellA[c], cellB[c]))
+            seen += w
+        }
+        val calm = if (seen > 1e-6f) ramp(0.55f, 0.80f, warm / seen) else 1f
+
+        // pass 2: grading
+        val rgb = FloatArray(3)
+        val coded = FloatArray(cells * 3)
+        for (c in 0 until cells) {
+            val keep = cellKeep[c]
+            val a = cellA[c]
+            val b = cellB[c]
             val chroma = hypot(a, b)
-            val hue = hueOf(a, b)
+            val hue = hueNudge(hueOf(a, b))
             // cells without colour of their own (dark or white parts of the cover) take the main hue, but softer
             val outChroma = ((chroma * 1.55f + 0.032f) * Intensity).coerceIn(minChroma, maxChroma) * (1f - FillSoften * (1f - keep))
             val outLightness = 0.31f + 0.27f * ramp(0.22f, 0.86f, localL[c])
-            graded(outLightness + hueShiftL(hue), outChroma, hue, MaxMosaicLuma, 0.22f, MosaicSatScale, rgb)
+            graded(outLightness + hueShiftL(hue, calm), outChroma, hue, MaxMosaicLuma, 0.22f, MosaicSatScale, calm, rgb)
             coded[c * 3] = rgb[0]
             coded[c * 3 + 1] = rgb[1]
             coded[c * 3 + 2] = rgb[2]
@@ -604,7 +720,7 @@ internal object CoverColorEngine {
             mosaic[c] = pack(rgb)
         }
 
-        // lights and the dark base: up to three clearly different hue clusters of the same statistics
+        // the dark base and the fallback hues: up to three clearly different hue clusters of the whole cover
         val picked = ArrayList<Int>(3)
         for (round in 0 until 3) {
             var best = -1
@@ -633,23 +749,57 @@ internal object CoverColorEngine {
                 chromas[i] = chromas[0]
             }
         }
+
+        // the colour of each side of the cover: every light takes the colour of the margin it sits next to
+        val sideHue = FloatArray(5)
+        val sideChroma = FloatArray(5)
+        val tmp = FloatArray(3)
+        for (side in 0 until 5) {
+            val fallback = if (side < 3) side else 0
+            sideHue[side] = hues[fallback]
+            sideChroma[side] = chromas[fallback]
+            if (side == 3) {
+                sideHue[side] = (mainHue - 14f + 360f) % 360f
+            }
+            val rects = EdgeRects[side]
+            for (step in 0 until 3) {
+                val rect = floatArrayOf(rects[step * 4], rects[step * 4 + 1], rects[step * 4 + 2], rects[step * 4 + 3])
+                val cover = regionColour(kept, family, pl, pa, pb, cw, ch, rect, tmp)
+                if (cover >= EdgeMinCover) {
+                    sideHue[side] = hueNudge(hueOf(tmp[1], tmp[2]))
+                    sideChroma[side] = hypot(tmp[1], tmp[2])
+                    break
+                }
+            }
+        }
+
         val lights = IntArray(4)
         val lightSat = LightSatScale
-        for (i in 0 until 3) {
-            graded(0.66f + 1.2f * hueShiftL(hues[i]), ((chromas[i] * 1.35f + 0.045f) * Intensity).coerceIn((0.055f + 0.040f * vivid) * Intensity, lightMax), hues[i], MaxLightLuma, 0.45f, lightSat, rgb)
+        // top-left, right, top-right, left: the same spots where the home screen hangs its lights
+        val order = intArrayOf(0, 1, 2, 3)
+        for (i in 0 until 4) {
+            val side = order[i]
+            val hue = sideHue[side]
+            val shift = if (i == 3) 1.2f * hueShiftL(hue, calm) + 0.04f else 1.2f * hueShiftL(hue, calm)
+            graded(
+                0.66f + shift,
+                ((sideChroma[side] * 1.35f + 0.045f) * Intensity).coerceIn((0.055f + 0.040f * vivid) * Intensity, lightMax),
+                hue, MaxLightLuma, 0.45f, lightSat, calm, rgb,
+            )
             lights[i] = pack(rgb)
         }
-        graded(0.70f + 1.2f * hueShiftL((mainHue - 14f + 360f) % 360f), ((chromas[0] * 1.35f + 0.055f) * Intensity).coerceIn((0.065f + 0.040f * vivid) * Intensity, lightMax + 0.01f), (mainHue - 14f + 360f) % 360f, MaxLightLuma, 0.45f, lightSat, rgb)
-        lights[3] = pack(rgb)
 
         var delta = ((hues[1] - mainHue + 540f) % 360f) - 180f
         delta = delta.coerceIn(-60f, 60f)
-        val baseChroma = (chromas[0] * 1.3f + 0.05f).coerceIn(0.05f + 0.04f * vivid, lightMax)
-        graded(0.42f, baseChroma, mainHue, 1f, 0.2f, lightSat, rgb)
+        val topHue = sideHue[4]
+        val topChroma = sideChroma[4]
+        val baseChroma = (topChroma * 1.3f + 0.05f).coerceIn(0.05f + 0.04f * vivid, lightMax)
+        val deepChroma = (chromas[0] * 1.3f + 0.05f).coerceIn(0.05f + 0.04f * vivid, lightMax)
+        graded(0.42f, baseChroma, topHue, 1f, 0.2f, lightSat, calm, rgb)
         val top = pack(rgb)
-        graded(0.32f, baseChroma * 0.95f, (mainHue + 0.35f * delta + 360f) % 360f, 1f, 0.2f, lightSat, rgb)
+        graded(0.32f, (baseChroma + deepChroma) * 0.475f, (mainHue + 0.35f * delta + 360f) % 360f, 1f, 0.2f, lightSat, calm, rgb)
         val mid = pack(rgb)
-        graded(0.25f, (baseChroma * 0.9f).coerceAtLeast(0.07f), (mainHue + 0.60f * delta + 360f) % 360f, 1f, 0.2f, lightSat, rgb)
+        graded(0.25f, (deepChroma * 0.9f).coerceAtLeast(0.07f), (mainHue + 0.60f * delta + 360f) % 360f, 1f, 0.2f, lightSat, calm, rgb)
         val deep = pack(rgb)
 
         return EngineResult(mosaic, top, mid, deep, lights, presence, massOf)
