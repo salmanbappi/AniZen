@@ -360,7 +360,7 @@ private fun tonesFrom(palette: Palette, version: Long, mosaic: ImageBitmap?): Co
 // ANZ --> file where the colours are kept; raise StoreFormat whenever the colour formulas change, so old data is dropped
 private const val StoreFile = "cover_tones.bin"
 private const val StoreMagic = 0x414E5A54
-private const val StoreFormat = 7
+private const val StoreFormat = 8
 private const val MaxStored = 48
 // ANZ <--
 

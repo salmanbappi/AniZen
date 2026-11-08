@@ -64,8 +64,9 @@ internal object CoverColorEngine {
     // how much of the sRGB gamut a colour may use. 1.0 is the electric edge (pure red with no green or blue in it).
     // Reds, crimsons and magentas are the loudest colours on a dark page, so they stop earlier than blues and greens.
     private val SatHue = floatArrayOf(0f, 0.78f, 30f, 0.78f, 60f, 0.90f, 100f, 0.90f, 150f, 0.95f, 200f, 0.95f, 260f, 0.95f, 300f, 0.90f, 330f, 0.84f, 360f, 0.78f)
-    private const val FillSoften = 0.25f
+    private const val FillSoften = 0.12f
     private const val RedAccentSat = 0.93f
+    private const val DensityRadius = 6
     // Where each light takes its colour from: the margin of the cover on the side where the light sits. Three rectangles
     // per side (left, top, right, bottom as fractions of the analysed area), each one reaching further in: when the
     // outer margin is white, grey or black the scan moves inwards to the first real colour.
@@ -238,6 +239,36 @@ internal object CoverColorEngine {
             c = minOf(chroma, minOf(sat * hueSat(hueDeg, calm), 1f) * gamutMax(l, hueDeg, out))
             oklchToSrgb(l, c, hueDeg, out)
             steps++
+        }
+    }
+
+    /**
+     * Blends two colours of the a/b plane the way a painter would: the hue moves between them and the chroma follows
+     * the mix, instead of the two colours cancelling into grey (orange + blue must not give a dull brown).
+     */
+    private fun mixAB(a1: Float, b1: Float, a2: Float, b2: Float, t: Float, out: FloatArray) {
+        val a = a1 * t + a2 * (1f - t)
+        val b = b1 * t + b2 * (1f - t)
+        val c1 = hypot(a1, b1) * t
+        val c2 = hypot(a2, b2) * (1f - t)
+        val target = c1 + c2
+        val m = hypot(a, b)
+        if (m < 0.35f * target) {
+            // opposite hues: the stronger one wins
+            if (c1 >= c2) {
+                out[0] = a1
+                out[1] = b1
+            } else {
+                out[0] = a2
+                out[1] = b2
+            }
+        } else if (m > 1e-6f) {
+            val k = target / m
+            out[0] = a * k
+            out[1] = b * k
+        } else {
+            out[0] = a
+            out[1] = b
         }
     }
 
@@ -464,19 +495,43 @@ internal object CoverColorEngine {
             var sa = 0f
             var sb = 0f
             var wsum = 0f
+            var sc = 0f
+            var bestU = 0f
+            var bestA = 0f
+            var bestB = 0f
             for (f in 0 until Bins) {
                 wsum += w[f][c]
                 if (w[f][c] <= 1e-7f) continue
                 val u = (score[f][c] / scoreMax).pow(HueExponent) * prior[f]
+                val fa = a[f][c] / w[f][c]
+                val fb = b[f][c] / w[f][c]
                 tot += u
                 sl += u * l[f][c] / w[f][c]
-                sa += u * a[f][c] / w[f][c]
-                sb += u * b[f][c] / w[f][c]
+                sa += u * fa
+                sb += u * fb
+                sc += u * hypot(fa, fb)
+                if (u > bestU) {
+                    bestU = u
+                    bestA = fa
+                    bestB = fb
+                }
             }
             if (tot > 1e-12f) {
                 outL[c] = sl / tot
-                outA[c] = sa / tot
-                outB[c] = sb / tot
+                var va = sa / tot
+                var vb = sb / tot
+                // hues that compete in a cell must not cancel into grey: keep the chroma of the mix
+                val m = hypot(va, vb)
+                val target = sc / tot
+                if (m < 0.35f * target) {
+                    va = bestA
+                    vb = bestB
+                } else if (m > 1e-6f) {
+                    va *= target / m
+                    vb *= target / m
+                }
+                outA[c] = va
+                outB[c] = vb
             }
             mass[c] = wsum / maxOf(cnt[c], 1e-6f)
         }
@@ -512,6 +567,8 @@ internal object CoverColorEngine {
         val pb = FloatArray(area)
         val sumL = FloatArray(cells)
         val count = FloatArray(cells)
+        val coloured = FloatArray(area)
+        var rawSum = 0f
         for (y in y0 until y1) {
             val row = ((y - y0) * Rows / ch).coerceAtMost(Rows - 1)
             val yFrac = y.toFloat() / height
@@ -524,6 +581,8 @@ internal object CoverColorEngine {
                 val chroma = hypot(lab[1], lab[2])
                 val hue = hueOf(lab[1], lab[2])
                 pl[at] = lightness
+                if (chroma >= 0.05f && lightness >= 0.12f) coloured[at] = 1f
+                rawSum += ramp(0.05f, 0.11f, chroma) * ramp(0.12f, 0.26f, lightness)
                 pa[at] = lab[1]
                 pb[at] = lab[2]
                 family[at] = (hue / 30f).toInt().coerceIn(0, Bins - 1)
@@ -561,6 +620,31 @@ internal object CoverColorEngine {
         }
         val minArea = maxOf(40, (area * MinAreaShare).toInt())
         val kept = keepLargeAreas(opened, family, cw, ch, minArea)
+
+        // Thin or small colour that sits inside a colourful picture (flames, sparkles, hair strands, petals) is part of
+        // the picture and comes back. Colour on a neutral patch (a title block, a logo) stays out.
+        val integral = FloatArray((cw + 1) * (ch + 1))
+        for (y in 0 until ch) {
+            var rowSum = 0f
+            for (x in 0 until cw) {
+                rowSum += coloured[y * cw + x]
+                integral[(y + 1) * (cw + 1) + (x + 1)] = integral[y * (cw + 1) + (x + 1)] + rowSum
+            }
+        }
+        for (y in 0 until ch) {
+            val ya = maxOf(0, y - DensityRadius)
+            val yb = minOf(ch, y + DensityRadius + 1)
+            for (x in 0 until cw) {
+                val at = y * cw + x
+                if (weight[at] <= kept[at]) continue
+                val xa = maxOf(0, x - DensityRadius)
+                val xb = minOf(cw, x + DensityRadius + 1)
+                val sum = integral[yb * (cw + 1) + xb] - integral[ya * (cw + 1) + xb] -
+                    integral[yb * (cw + 1) + xa] + integral[ya * (cw + 1) + xa]
+                val density = sum / ((xb - xa) * (yb - ya))
+                kept[at] += (weight[at] - kept[at]) * ramp(0.50f, 0.80f, density)
+            }
+        }
 
         // what survives votes, spread over the grid
         val binW = Array(Bins) { FloatArray(cells) }
@@ -612,7 +696,7 @@ internal object CoverColorEngine {
         val coverage = totalMass / area
         val presence = (coverage * 2.2f).coerceIn(0f, 1f)
         // a cover with almost no colour must not get an invented, vivid one out of a few leftover pixels
-        val vivid = ramp(0.010f, 0.100f, coverage)
+        val vivid = maxOf(ramp(0.010f, 0.100f, coverage), ramp(0.04f, 0.22f, rawSum / area))
 
         val clusterScore = FloatArray(Bins) {
             massOf[it] + 0.5f * (massOf[(it + Bins - 1) % Bins] + massOf[(it + 1) % Bins])
@@ -649,7 +733,7 @@ internal object CoverColorEngine {
         var chromaSum = 0f
         for (f in 0 until Bins) chromaSum += massOf[f] * hypot(statA[f], statB[f])
         val coverChroma = chromaSum / totalMass
-        val minChroma = (0.036f + 0.052f * vivid + 0.024f * ramp(0.04f, 0.11f, coverChroma)) * Intensity
+        val minChroma = (0.040f + 0.075f * vivid + 0.030f * ramp(0.04f, 0.11f, coverChroma)) * Intensity
         val maxChroma = (0.075f + 0.185f * vivid) * Intensity
         val lightMax = (0.095f + 0.115f * vivid) * Intensity
 
@@ -661,16 +745,15 @@ internal object CoverColorEngine {
         val cellA = FloatArray(cells)
         val cellB = FloatArray(cells)
         val cellKeep = FloatArray(cells)
+        val mixed = FloatArray(2)
         for (c in 0 until cells) {
             val t = ramp(0.03f, 0.20f, small.mass[c])
-            var a = small.a[c] * t + wide.a[c] * (1f - t)
-            var b = small.b[c] * t + wide.b[c] * (1f - t)
+            mixAB(small.a[c], small.b[c], wide.a[c], wide.b[c], t, mixed)
             // no colour at all nearby: the cover's main colour fills in
             val keep = ramp(0f, FillMass, wide.mass[c])
-            a = a * keep + fillA * (1f - keep)
-            b = b * keep + fillB * (1f - keep)
-            cellA[c] = a
-            cellB[c] = b
+            mixAB(mixed[0], mixed[1], fillA, fillB, keep, mixed)
+            cellA[c] = mixed[0]
+            cellB[c] = mixed[1]
             cellKeep[c] = keep
         }
 
@@ -703,7 +786,7 @@ internal object CoverColorEngine {
             val chroma = hypot(a, b)
             val hue = hueNudge(hueOf(a, b))
             // cells without colour of their own (dark or white parts of the cover) take the main hue, but softer
-            val outChroma = ((chroma * 1.55f + 0.032f) * Intensity).coerceIn(minChroma, maxChroma) * (1f - FillSoften * (1f - keep))
+            val outChroma = ((chroma * 1.7f + 0.04f) * Intensity).coerceIn(minChroma, maxChroma) * (1f - FillSoften * (1f - keep))
             val outLightness = 0.31f + 0.27f * ramp(0.22f, 0.86f, localL[c])
             graded(outLightness + hueShiftL(hue, calm), outChroma, hue, MaxMosaicLuma, 0.22f, MosaicSatScale, calm, rgb)
             coded[c * 3] = rgb[0]
@@ -783,7 +866,7 @@ internal object CoverColorEngine {
             val shift = if (i == 3) 1.2f * hueShiftL(hue, calm) + 0.04f else 1.2f * hueShiftL(hue, calm)
             graded(
                 0.66f + shift,
-                ((sideChroma[side] * 1.35f + 0.045f) * Intensity).coerceIn((0.055f + 0.040f * vivid) * Intensity, lightMax),
+                ((sideChroma[side] * 1.5f + 0.05f) * Intensity).coerceIn((0.060f + 0.040f * vivid) * Intensity, lightMax),
                 hue, MaxLightLuma, 0.45f, lightSat, calm, rgb,
             )
             lights[i] = pack(rgb)
