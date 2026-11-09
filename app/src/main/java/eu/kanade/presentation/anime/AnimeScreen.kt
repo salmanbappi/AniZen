@@ -642,10 +642,11 @@ private fun AnimeScreenSmallImpl(
                                 )
                             }
 
+                            // ANZ -->
                             item(key = "description-small", contentType = AnimeScreenItem.DESCRIPTION_WITH_TAG) {
                                 ExpandableAnimeDescription(
                                     modifier = Modifier.padding(bottom = 8.dp),
-                                    defaultExpandState = autoExpandDescription,
+                                    defaultExpandState = autoExpandDescription || state.isFromSource,
                                     description = state.anime.description,
                                     note = state.anime.note,
                                     tagsProvider = { state.anime.genre },
@@ -653,6 +654,7 @@ private fun AnimeScreenSmallImpl(
                                     onCopyTagToClipboard = onCopyTagToClipboard,
                                 )
                             }
+                            // ANZ <--
 
                             item(key = "relations-small") {
                                 eu.kanade.presentation.anime.components.PrequelSequelBox(
@@ -717,7 +719,16 @@ private fun AnimeScreenSmallImpl(
                                                         ) { _, anime: tachiyomi.domain.anime.model.Anime ->
                                                             SuggestionItem(
                                                                 anime = anime,
-                                                                onClick = { navigator.push(eu.kanade.tachiyomi.ui.anime.AnimeScreen(anime.id)) },
+                                                                // ANZ -->
+                                                                onClick = {
+                                                                    navigator.push(
+                                                                        eu.kanade.tachiyomi.ui.anime.AnimeScreen(
+                                                                            anime.id,
+                                                                            fromSource = !anime.favorite,
+                                                                        ),
+                                                                    )
+                                                                },
+                                                                // ANZ <--
                                                             )
                                                         }
                                                     }
@@ -1145,14 +1156,16 @@ fun AnimeScreenLargeImpl(
                                         // ANZ <--
                                     )
 
+                                    // ANZ -->
                                     ExpandableAnimeDescription(
-                                        defaultExpandState = autoExpandDescription,
+                                        defaultExpandState = true,
                                         description = state.anime.description,
                                         note = state.anime.note,
                                         tagsProvider = { state.anime.genre },
                                         onTagSearch = onTagSearch,
                                         onCopyTagToClipboard = onCopyTagToClipboard,
                                     )
+                                    // ANZ <--
 
                                     eu.kanade.presentation.anime.components.PrequelSequelBox(
                                         anime = state.anime,
@@ -1214,7 +1227,16 @@ fun AnimeScreenLargeImpl(
                                                             ) { _, anime: tachiyomi.domain.anime.model.Anime ->
                                                                 SuggestionItem(
                                                                     anime = anime,
-                                                                    onClick = { navigator.push(eu.kanade.tachiyomi.ui.anime.AnimeScreen(anime.id)) },
+                                                                    // ANZ -->
+                                                                    onClick = {
+                                                                        navigator.push(
+                                                                            eu.kanade.tachiyomi.ui.anime.AnimeScreen(
+                                                                                anime.id,
+                                                                                fromSource = !anime.favorite,
+                                                                            ),
+                                                                        )
+                                                                    },
+                                                                    // ANZ <--
                                                                 )
                                                             }
                                                         }

@@ -95,7 +95,9 @@ data object FeedTab : Tab {
             screenModel = screenModel,
             onAnimeClick = { anime, feedId ->
                 screenModel.onAnimeClicked(anime, feedId)
-                navigator.push(AnimeScreen(anime.id))
+                // ANZ -->
+                navigator.push(AnimeScreen(anime.id, fromSource = !anime.favorite))
+                // ANZ <--
             },
             onAddSourceClick = {
                 scope.launch {

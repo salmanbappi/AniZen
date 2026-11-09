@@ -23,10 +23,16 @@ class AppUpdateChecker(
     // KMK -->
     private val preferences by lazy { Injekt.get<UnsortedPreferences>() }
     // KMK <--
+    // ANZ -->
+    private val basePreferences by lazy { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
+    // ANZ <--
 
     suspend fun checkForUpdate(
         context: Context,
         forceCheck: Boolean = false,
+        // ANZ -->
+        notify: Boolean = true,
+        // ANZ <--
         // KMK -->
         autoUpdate: Boolean = AppUpdatePolicy.DISABLE_AUTO_DOWNLOAD !in preferences.appShouldAutoUpdate().get(),
         // KMK <--
@@ -43,8 +49,13 @@ class AppUpdateChecker(
                 ),
             )
 
+            // ANZ -->
+            val isSkipped = result is GetApplicationRelease.Result.NewUpdate &&
+                result.release.version == basePreferences.skippedAppUpdate().get()
+            // ANZ <--
+
             // KMK -->
-            if (!peekIntoPreview) {
+            if (!peekIntoPreview && notify && !isSkipped) {
                 // KMK <--
                 when (result) {
                     is GetApplicationRelease.Result.NewUpdate -> {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,6 +51,9 @@ fun InfoScreen(
     canAccept: Boolean = true,
     rejectText: String? = null,
     onRejectClick: (() -> Unit)? = null,
+    // ANZ -->
+    rejectAction: (@Composable RowScope.() -> Unit)? = null,
+    // ANZ <--
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val configuration = LocalConfiguration.current
@@ -114,14 +118,22 @@ fun InfoScreen(
                             Text(text = acceptText)
                         }
                         if (rejectText != null && onRejectClick != null) {
-                            OutlinedButton(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .tvGlowFocusHighlight(),
-                                onClick = onRejectClick,
+                            // ANZ -->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
                             ) {
-                                Text(text = rejectText)
+                                OutlinedButton(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .tvGlowFocusHighlight(),
+                                    onClick = onRejectClick,
+                                ) {
+                                    Text(text = rejectText)
+                                }
+                                rejectAction?.invoke(this)
                             }
+                            // ANZ <--
                         }
                     }
                 }
@@ -171,14 +183,22 @@ fun InfoScreen(
                         Text(text = acceptText)
                     }
                     if (rejectText != null && onRejectClick != null) {
-                        OutlinedButton(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .tvGlowFocusHighlight(),
-                            onClick = onRejectClick,
+                        // ANZ -->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
                         ) {
-                            Text(text = rejectText)
+                            OutlinedButton(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .tvGlowFocusHighlight(),
+                                onClick = onRejectClick,
+                            ) {
+                                Text(text = rejectText)
+                            }
+                            rejectAction?.invoke(this)
                         }
+                        // ANZ <--
                     }
                 }
             },

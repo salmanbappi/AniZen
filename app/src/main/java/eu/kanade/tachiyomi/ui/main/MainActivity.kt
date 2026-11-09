@@ -399,18 +399,19 @@ class MainActivity : BaseActivity() {
         // App updates
         LaunchedEffect(Unit) {
             if (updaterEnabled) {
-                kotlinx.coroutines.delay(15000) // Delay to let the app settle
                 try {
                     // KMK -->
                     AppUpdateJob.setupTask(context)
                     // KMK <--
-                    // Heavy work (network + PackageManager/PackageInfo parsing) must stay off
-                    // the main thread: running it here froze the whole UI for ~0.5s on
-                    // mid-range devices a few seconds after every cold start.
+                    // ANZ -->
                     val result = withContext(Dispatchers.IO) {
-                        AppUpdateChecker().checkForUpdate(context)
+                        AppUpdateChecker().checkForUpdate(context, notify = false)
                     }
-                    if (result is GetApplicationRelease.Result.NewUpdate) {
+                    if (
+                        result is GetApplicationRelease.Result.NewUpdate &&
+                        result.release.version != preferences.skippedAppUpdate().get() &&
+                        navigator.items.none { it is NewUpdateScreen }
+                    ) {
                         val updateScreen = NewUpdateScreen(
                             versionName = result.release.version,
                             changelogInfo = result.release.info,
@@ -419,6 +420,7 @@ class MainActivity : BaseActivity() {
                         )
                         navigator.push(updateScreen)
                     }
+                    // ANZ <--
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e)
                 }

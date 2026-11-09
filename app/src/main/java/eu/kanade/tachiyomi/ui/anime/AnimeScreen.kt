@@ -229,9 +229,13 @@ class AnimeScreen(
         val onSettingsClicked = remember(navigator, successState.source.id) {
             { navigator.push(SourcePreferencesScreen(successState.source.id)) }
         }.takeIf { isConfigurableSource }
+        // ANZ -->
         val onSeasonClicked = remember(navigator) {
-            { item: tachiyomi.domain.anime.model.SeasonAnime -> navigator.push(AnimeScreen(item.anime.id)) }
+            { item: tachiyomi.domain.anime.model.SeasonAnime ->
+                navigator.push(AnimeScreen(item.anime.id, fromSource = !item.anime.favorite))
+            }
         }
+        // ANZ <--
 
         AnimeScreen(
             state = successState,

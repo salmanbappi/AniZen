@@ -270,7 +270,9 @@ object AboutScreen : Screen() {
         )
         withUIContext {
             try {
-                when (val result = withIOContext { updateChecker.checkForUpdate(context, forceCheck = true) }) {
+                // ANZ -->
+                when (val result = withIOContext { updateChecker.checkForUpdate(context, forceCheck = true, notify = false) }) {
+                // ANZ <--
                     is GetApplicationRelease.Result.NewUpdate -> {
                         onAvailableUpdate(result)
                     }
