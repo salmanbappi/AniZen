@@ -1035,6 +1035,9 @@ private fun AmbientBackdrop(
     heroBottom: () -> Float,
     modifier: Modifier = Modifier,
     publishTint: Boolean = true,
+    forcedTones: CoverTones? = null,
+    editing: Boolean = false,
+    fadeMillis: Int = 700,
 ) {
     val vibrant by CoverColorObserver.vibrantColors.collectAsState()
     val background = MaterialTheme.colorScheme.background
@@ -1056,9 +1059,13 @@ private fun AmbientBackdrop(
     // Colours read from the cover itself (see CoverTones). While the next cover is still being read the
     // previous colours stay, so swiping never flashes back to a neutral page; a black-and-white cover
     // falls back to the single vibrant colour used before.
-    val raw = current?.let {
-        CoverTonesCache.get(it.libraryAnime.anime.id, it.libraryAnime.anime.coverLastModified)
+    // ANZ --> a backdrop edited by hand wins over the automatic colours (the editor window shows the automatic ones
+    // itself while there is no marker, and the colours it is working on while there is one)
+    val raw = forcedTones ?: current?.let {
+        val auto = CoverTonesCache.get(it.libraryAnime.anime.id, it.libraryAnime.anime.coverLastModified)
+        if (editing) auto else BackdropOverrides.apply(it.libraryAnime.anime.id, auto)
     }
+    // ANZ <--
     val lastTones = remember { arrayOfNulls<CoverTones>(1) }
     val tones = when {
         tab != LibraryHomeTab.Home -> null
@@ -1080,7 +1087,7 @@ private fun AmbientBackdrop(
     val glowTarget = tones?.let { 0.60f + 0.40f * minOf(1f, it.presence / 0.30f) } ?: legacyGlow
 
     // Everything cross-fades slowly when the carousel moves to another cover.
-    val fade = tween<Color>(durationMillis = 700)
+    val fade = tween<Color>(durationMillis = fadeMillis)
     val top by animateColorAsState(tones?.top ?: legacyTop, fade, label = "ambientTop")
     val mid by animateColorAsState(tones?.mid ?: legacyMid, fade, label = "ambientMid")
     val deep by animateColorAsState(tones?.deep ?: legacyDeep, fade, label = "ambientDeep")
@@ -1092,7 +1099,12 @@ private fun AmbientBackdrop(
     // colours already come from the artwork, so the moving lights are a bit softer.
     val mosaics = if (tab == LibraryHomeTab.Home) {
         heroes.map { hero ->
-            CoverTonesCache.get(hero.libraryAnime.anime.id, hero.libraryAnime.anime.coverLastModified)?.mosaic
+            if (forcedTones != null) {
+                forcedTones.mosaic
+            } else {
+                val auto = CoverTonesCache.get(hero.libraryAnime.anime.id, hero.libraryAnime.anime.coverLastModified)
+                (if (editing) auto else BackdropOverrides.apply(hero.libraryAnime.anime.id, auto))?.mosaic
+            }
         }
     } else {
         emptyList()
@@ -1105,7 +1117,7 @@ private fun AmbientBackdrop(
     )
     val glow by animateFloatAsState(
         targetValue = glowTarget,
-        animationSpec = tween(durationMillis = 700),
+        animationSpec = tween(durationMillis = fadeMillis),
         label = "ambientGlow",
     )
 
@@ -1207,6 +1219,7 @@ private fun AmbientBackdrop(
 internal fun EditorBackdrop(
     item: LibraryItem,
     coverBottom: () -> Float,
+    forcedTones: CoverTones?,
     modifier: Modifier = Modifier,
 ) {
     val heroes = remember(item) { listOf(item).toImmutableList() }
@@ -1220,6 +1233,9 @@ internal fun EditorBackdrop(
         heroBottom = coverBottom,
         modifier = modifier,
         publishTint = false,
+        forcedTones = forcedTones,
+        editing = true,
+        fadeMillis = 150,
     )
 }
 
