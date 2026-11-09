@@ -722,6 +722,12 @@ internal fun LibraryHome(
             }
         }
     }
+    // The "Editar fondo" window opens over everything, for the cover that is on show in the carousel.
+    BackdropEditorHost(
+        heroes = shelves.heroes,
+        pager = heroPager,
+        enabled = tab == LibraryHomeTab.Home && !searching,
+    )
     }
     // ANZ <--
 }
@@ -1028,6 +1034,7 @@ private fun AmbientBackdrop(
     ambientOwner: Any,
     heroBottom: () -> Float,
     modifier: Modifier = Modifier,
+    publishTint: Boolean = true,
 ) {
     val vibrant by CoverColorObserver.vibrantColors.collectAsState()
     val background = MaterialTheme.colorScheme.background
@@ -1103,7 +1110,9 @@ private fun AmbientBackdrop(
     )
 
     // Top of the screen: the tint the toolbar uses, darkened like the floor that sits under the shelves.
-    SideEffect { LibraryHomeAmbient.publish(ambientOwner, lerp(top, FloorColor, 0.5f)) }
+    if (publishTint) {
+        SideEffect { LibraryHomeAmbient.publish(ambientOwner, lerp(top, FloorColor, 0.5f)) }
+    }
 
     CoverBackdrop(
         top = top,
@@ -1191,6 +1200,27 @@ private fun AmbientBackdrop(
         )
     }
     // ANZ <--
+}
+
+/** The very same backdrop as the Home page, for the "Editar fondo" window (it never touches the toolbar tint). */
+@Composable
+internal fun EditorBackdrop(
+    item: LibraryItem,
+    coverBottom: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val heroes = remember(item) { listOf(item).toImmutableList() }
+    val pager = rememberPagerState { 1 }
+    val owner = remember { Any() }
+    AmbientBackdrop(
+        tab = LibraryHomeTab.Home,
+        heroes = heroes,
+        pagerState = pager,
+        ambientOwner = owner,
+        heroBottom = coverBottom,
+        modifier = modifier,
+        publishTint = false,
+    )
 }
 
 private fun hueShift(color: Color, degrees: Float): Color {

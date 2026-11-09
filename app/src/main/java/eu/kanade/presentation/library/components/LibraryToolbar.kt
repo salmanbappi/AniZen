@@ -183,7 +183,7 @@ private fun LibraryRegularToolbar(
                 navigateUp = navigateUp,
                 actions = {
                     val filterTint = if (hasFilters) colors.active else colors.onSurface
-                    val actionList = persistentListOf<AppBar.AppBarAction>(
+                    val baseActions = persistentListOf<AppBar.AppBarAction>(
                         AppBar.Action(
                             title = stringResource(MR.strings.action_filter),
                             icon = Icons.Outlined.FilterList,
@@ -207,6 +207,17 @@ private fun LibraryRegularToolbar(
                             onClick = onClickSyncNow,
                         ),
                     )
+                    // Only on the Home page, where there is a carousel cover to edit the backdrop of.
+                    val actionList = if (BackdropEditor.available) {
+                        baseActions.add(
+                            AppBar.OverflowAction(
+                                title = "Editar fondo",
+                                onClick = { BackdropEditor.show() },
+                            ),
+                        )
+                    } else {
+                        baseActions
+                    }
                     CompositionLocalProvider(LocalContentColor provides colors.onSurface) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
                             Icon(
