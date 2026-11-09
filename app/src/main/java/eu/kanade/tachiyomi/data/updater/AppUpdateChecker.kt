@@ -22,6 +22,7 @@ class AppUpdateChecker(
 
     // KMK -->
     private val preferences by lazy { Injekt.get<UnsortedPreferences>() }
+
     // KMK <--
     // ANZ -->
     private val basePreferences by lazy { Injekt.get<eu.kanade.domain.base.BasePreferences>() }

@@ -272,7 +272,7 @@ object AboutScreen : Screen() {
             try {
                 // ANZ -->
                 when (val result = withIOContext { updateChecker.checkForUpdate(context, forceCheck = true, notify = false) }) {
-                // ANZ <--
+                    // ANZ <--
                     is GetApplicationRelease.Result.NewUpdate -> {
                         onAvailableUpdate(result)
                     }
