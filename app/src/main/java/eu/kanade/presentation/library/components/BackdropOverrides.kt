@@ -16,15 +16,26 @@ import java.io.File
 // ANZ --> Backdrops edited by hand ("Editar fondo"), one per anime, kept between launches.
 
 /**
- * One hand-made backdrop. [x] and [y] are where the marker sits on the cover card (0 to 1, from the top left),
- * [argb] is the colour that was under it when it was placed and [strength] how strong the colour is (1 = as designed).
+ * One marker. [x] and [y] are where it sits on the cover card (0 to 1, from the top left), [argb] the colour that was
+ * under it, [zone] the part of the backdrop it colours (see [BackdropPaint.ZoneAuto]) and [strength] how strong it is.
  */
-internal class BackdropEdit(
+internal data class BackdropMarker(
     val x: Float,
     val y: Float,
     val argb: Int,
+    val zone: Int = BackdropPaint.ZoneAuto,
     val strength: Float = 1f,
 )
+
+/** One hand-made backdrop: up to [MaxMarkers] markers and an overall strength (1 = as designed). */
+internal class BackdropEdit(
+    val markers: List<BackdropMarker>,
+    val strength: Float = 1f,
+) {
+    companion object {
+        const val MaxMarkers = 4
+    }
+}
 
 /**
  * The edits made by hand. When a cover has one, the Home carousel uses it instead of the colours read automatically;
@@ -34,7 +45,8 @@ internal class BackdropEdit(
 internal object BackdropOverrides {
 
     private const val FileName = "backdrop_edits.txt"
-    private const val Header = "ANZ-BACKDROP 1"
+    private const val Header = "ANZ-BACKDROP 2"
+    private const val HeaderV1 = "ANZ-BACKDROP 1"
 
     /** By anime id. Observable, so the Home page changes the moment an edit is saved or removed. */
     private val edits = mutableStateMapOf<Long, BackdropEdit>()
@@ -63,7 +75,8 @@ internal object BackdropOverrides {
 
     /** Builds the backdrop colours for an edit (also used for the live preview while it is being made). */
     fun tonesOf(edit: BackdropEdit): CoverTones {
-        val r = BackdropPaint.paint(edit.argb, edit.strength)
+        val picks = edit.markers.map { BackdropPaint.Pick(it.argb, it.zone, it.x, it.y, it.strength) }
+        val r = BackdropPaint.paint(picks, edit.strength)
         val mosaic = Bitmap.createBitmap(
             r.mosaic,
             BackdropPaint.Cols,
@@ -98,10 +111,16 @@ internal object BackdropOverrides {
             append(Header).append('\n')
             for ((id, e) in edits.entries.sortedBy { it.key }) {
                 append(id).append(' ')
-                append(e.x).append(' ')
-                append(e.y).append(' ')
-                append(e.argb).append(' ')
-                append(e.strength).append('\n')
+                append(e.strength).append(' ')
+                append(e.markers.size)
+                for (m in e.markers) {
+                    append(' ').append(m.x)
+                    append(' ').append(m.y)
+                    append(' ').append(m.argb)
+                    append(' ').append(m.zone)
+                    append(' ').append(m.strength)
+                }
+                append('\n')
             }
         }
         scope.launch {
@@ -127,20 +146,47 @@ internal object BackdropOverrides {
             val file = File(Injekt.get<Application>().filesDir, FileName)
             if (!file.exists()) return
             val lines = file.readLines()
-            if (lines.firstOrNull()?.trim() != Header) return
-            for (line in lines.drop(1)) {
-                val p = line.trim().split(' ')
-                if (p.size < 4) continue
-                val id = p[0].toLongOrNull() ?: continue
-                val x = p[1].toFloatOrNull() ?: continue
-                val y = p[2].toFloatOrNull() ?: continue
-                val argb = p[3].toIntOrNull() ?: continue
-                val strength = p.getOrNull(4)?.toFloatOrNull() ?: 1f
-                edits[id] = BackdropEdit(x, y, argb, strength)
+            when (lines.firstOrNull()?.trim()) {
+                Header -> for (line in lines.drop(1)) parseV2(line)
+                HeaderV1 -> for (line in lines.drop(1)) parseV1(line)
             }
         } catch (_: Throwable) {
             // an unreadable file only means the automatic colours are used
         }
+    }
+
+    /** The first version of the file: one marker per anime, "id x y argb strength". */
+    private fun parseV1(line: String) {
+        val p = line.trim().split(' ')
+        if (p.size < 4) return
+        val id = p[0].toLongOrNull() ?: return
+        val x = p[1].toFloatOrNull() ?: return
+        val y = p[2].toFloatOrNull() ?: return
+        val argb = p[3].toIntOrNull() ?: return
+        val strength = p.getOrNull(4)?.toFloatOrNull() ?: 1f
+        edits[id] = BackdropEdit(listOf(BackdropMarker(x, y, argb)), strength)
+    }
+
+    /** "id strength count" followed by "x y argb zone strength" for every marker. */
+    private fun parseV2(line: String) {
+        val p = line.trim().split(' ')
+        if (p.size < 3) return
+        val id = p[0].toLongOrNull() ?: return
+        val strength = p[1].toFloatOrNull() ?: return
+        val count = p[2].toIntOrNull() ?: return
+        if (count !in 1..BackdropEdit.MaxMarkers || p.size < 3 + count * 5) return
+        val markers = ArrayList<BackdropMarker>(count)
+        for (i in 0 until count) {
+            val at = 3 + i * 5
+            markers += BackdropMarker(
+                x = p[at].toFloatOrNull() ?: return,
+                y = p[at + 1].toFloatOrNull() ?: return,
+                argb = p[at + 2].toIntOrNull() ?: return,
+                zone = p[at + 3].toIntOrNull() ?: return,
+                strength = p[at + 4].toFloatOrNull() ?: return,
+            )
+        }
+        edits[id] = BackdropEdit(markers, strength)
     }
 }
 // ANZ <--

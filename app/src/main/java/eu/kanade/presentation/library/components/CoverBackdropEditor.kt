@@ -6,12 +6,14 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,13 +37,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +57,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -75,13 +81,14 @@ import eu.kanade.presentation.anime.components.AnimeCover
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tachiyomi.domain.anime.model.asAnimeCover
 import kotlin.math.roundToInt
 
 // ANZ --> "Editar fondo": per-cover editor of the carousel backdrop.
-// Step 2: one marker. Touch the cover to put it, slide to move it (a magnifier shows the exact colour), Save keeps it
-// for this cover, "Volver a automático" removes it.
+// Step 3: up to four markers. Touch the cover to add one, touch a marker to choose it, slide to move it (a magnifier
+// shows the exact colour). Save keeps the backdrop for this cover, "Volver a automático" removes it.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -209,20 +216,61 @@ private fun CoverBackdropEditor(
         }
     }
 
-    // what is saved for this anime, and the marker as it is right now
+    // what is saved for this anime, and the markers as they are right now
     var saved by remember { mutableStateOf(BackdropOverrides.editOf(anime.id)) }
-    var edit by remember { mutableStateOf(saved) }
+    var markers by remember { mutableStateOf(saved?.markers ?: emptyList()) }
+    var selected by remember { mutableIntStateOf(if (markers.isEmpty()) -1 else 0) }
+    var dragIndex by remember { mutableIntStateOf(-1) }
     var dragging by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Zero) }
+    val scope = rememberCoroutineScope()
+    val autoTones = CoverTonesCache.get(anime.id, anime.coverLastModified)
 
-    val previewTones = remember(edit) { edit?.let { BackdropOverrides.tonesOf(it) } }
+    val previewTones = remember(markers) {
+        if (markers.isEmpty()) null else BackdropOverrides.tonesOf(BackdropEdit(markers))
+    }
+    val changed = markers.isNotEmpty() && markers != saved?.markers
 
-    fun place(position: Offset, size: IntSize) {
+    // the marker under a finger, or -1
+    fun hit(position: Offset, size: IntSize): Int {
+        val reach = with(density) { 30.dp.toPx() }
+        var best = -1
+        var bestDistance = reach * reach
+        markers.forEachIndexed { i, m ->
+            val dx = m.x * size.width - position.x
+            val dy = m.y * size.height - position.y
+            val d = dx * dx + dy * dy
+            if (d <= bestDistance) {
+                bestDistance = d
+                best = i
+            }
+        }
+        return best
+    }
+
+    // moves a marker to a point of the card and gives it the colour found there
+    fun moveTo(index: Int, position: Offset, size: IntSize) {
         val s = sample ?: return
-        if (size.width <= 0 || size.height <= 0) return
+        if (size.width <= 0 || size.height <= 0 || index !in markers.indices) return
         val nx = (position.x / size.width).coerceIn(0f, 1f)
         val ny = (position.y / size.height).coerceIn(0f, 1f)
-        edit = BackdropEdit(nx, ny, s.colourAt(nx, ny))
+        val colour = s.colourAt(nx, ny)
+        markers = markers.mapIndexed { i, m -> if (i == index) m.copy(x = nx, y = ny, argb = colour) else m }
+    }
+
+    // a finger went down on an empty spot: a new marker (while there is room), otherwise the chosen one moves there
+    fun addAt(position: Offset, size: IntSize): Int {
+        val s = sample ?: return -1
+        if (size.width <= 0 || size.height <= 0) return -1
+        if (markers.size >= BackdropEdit.MaxMarkers) {
+            val target = if (selected in markers.indices) selected else 0
+            moveTo(target, position, size)
+            return target
+        }
+        val nx = (position.x / size.width).coerceIn(0f, 1f)
+        val ny = (position.y / size.height).coerceIn(0f, 1f)
+        markers = markers + BackdropMarker(nx, ny, s.colourAt(nx, ny))
+        return markers.lastIndex
     }
 
     val shape = RoundedCornerShape(26.dp)
@@ -309,69 +357,170 @@ private fun CoverBackdropEditor(
                             measureRatio = false,
                             ratio = CardRatio,
                         )
-                        // Touch anywhere to put the marker there; slide to move it.
+                        // Touch the cover to add a marker, touch a marker to choose it, slide to move it.
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
                                 .pointerInput(Unit) {
-                                    detectTapGestures(onTap = { position -> place(position, size) })
+                                    detectTapGestures(
+                                        onTap = { position ->
+                                            val i = hit(position, size)
+                                            selected = if (i >= 0) i else addAt(position, size)
+                                        },
+                                    )
                                 }
                                 .pointerInput(Unit) {
                                     detectDragGestures(
                                         onDragStart = { position ->
-                                            dragging = true
+                                            val i = hit(position, size)
+                                            val target = if (i >= 0) i else addAt(position, size)
+                                            selected = target
+                                            dragIndex = target
+                                            dragging = target >= 0
                                             touch = position
-                                            place(position, size)
+                                            if (i >= 0) moveTo(target, position, size)
                                         },
                                         onDragEnd = { dragging = false },
                                         onDragCancel = { dragging = false },
                                     ) { change, _ ->
                                         change.consume()
                                         touch = change.position
-                                        place(change.position, size)
+                                        moveTo(dragIndex, change.position, size)
                                     }
                                 },
                         )
-                        val marker = edit
-                        if (marker != null && cardSize.width > 0) {
-                            val markerSize = 34.dp
-                            val markerPx = with(density) { markerSize.toPx() }
-                            Box(
-                                modifier = Modifier
-                                    .offset {
-                                        IntOffset(
-                                            (marker.x * cardSize.width - markerPx / 2f).roundToInt(),
-                                            (marker.y * cardSize.height - markerPx / 2f).roundToInt(),
-                                        )
-                                    }
-                                    .size(markerSize)
-                                    .background(Color.Black.copy(alpha = 0.35f), CircleShape)
-                                    .padding(2.dp)
-                                    .border(3.dp, Color.White, CircleShape)
-                                    .padding(5.dp)
-                                    .background(Color(marker.argb), CircleShape),
-                            )
+                        if (cardSize.width > 0) {
+                            markers.forEachIndexed { index, marker ->
+                                val chosen = index == selected
+                                val markerSize = if (chosen) 38.dp else 30.dp
+                                val markerPx = with(density) { markerSize.toPx() }
+                                Box(
+                                    modifier = Modifier
+                                        .offset {
+                                            IntOffset(
+                                                (marker.x * cardSize.width - markerPx / 2f).roundToInt(),
+                                                (marker.y * cardSize.height - markerPx / 2f).roundToInt(),
+                                            )
+                                        }
+                                        .size(markerSize)
+                                        .background(Color.Black.copy(alpha = 0.35f), CircleShape)
+                                        .padding(2.dp)
+                                        .border(if (chosen) 3.dp else 2.dp, Color.White, CircleShape)
+                                        .padding(if (chosen) 5.dp else 4.dp)
+                                        .background(Color(marker.argb), CircleShape),
+                                )
+                            }
                         }
                     }
                 }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 14.dp),
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = when {
-                            edit == null -> "Toca la portada para poner un marcador en el color que quieres " +
-                                "para el fondo. Después desliza el dedo para afinarlo."
-                            edit !== saved -> "Mueve el marcador hasta el color que te guste y pulsa Guardar."
+                            markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
+                                "(hasta ${BackdropEdit.MaxMarkers}), o parte del fondo automático."
+                            changed -> "Toca un marcador para elegirlo y arrástralo para moverlo. " +
+                                "Pulsa Guardar cuando te guste."
                             else -> "Este es el fondo guardado para esta portada."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.8f),
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    val chosenMarker = markers.getOrNull(selected)
+                    if (chosenMarker != null && BackdropPaint.chromaOf(chosenMarker.argb) < 0.02f) {
+                        Text(
+                            text = "El punto elegido es casi blanco o gris: el fondo saldrá gris ahí.",
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFFD27F),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    if (markers.isEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                val s = sample
+                                val lights = autoTones?.lights
+                                if (s != null && lights != null) {
+                                    scope.launch {
+                                        val points = withContext(Dispatchers.Default) {
+                                            BackdropPaint.suggest(
+                                                s.pixels,
+                                                s.w,
+                                                s.h,
+                                                s.visW,
+                                                s.visH,
+                                                lights.take(3).map { it.toArgb() }.toIntArray(),
+                                                3,
+                                            )
+                                        }
+                                        markers = List(points.size / 2) { n ->
+                                            BackdropMarker(
+                                                x = points[n * 2],
+                                                y = points[n * 2 + 1],
+                                                argb = s.colourAt(points[n * 2], points[n * 2 + 1]),
+                                            )
+                                        }
+                                        selected = if (markers.isEmpty()) -1 else 0
+                                    }
+                                }
+                            },
+                            enabled = sample != null && autoTones != null,
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White,
+                                disabledContentColor = Color.White.copy(alpha = 0.35f),
+                            ),
+                        ) {
+                            Text("Partir del fondo automático", maxLines = 1)
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            markers.forEachIndexed { index, marker ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(marker.argb))
+                                        .border(if (index == selected) 3.dp else 1.dp, Color.White, CircleShape)
+                                        .clickable { selected = index },
+                                )
+                            }
+                            Text(
+                                text = "${markers.size}/${BackdropEdit.MaxMarkers}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.7f),
+                            )
+                            Spacer(Modifier.weight(1f))
+                            TextButton(
+                                onClick = {
+                                    if (selected in markers.indices) {
+                                        markers = markers.filterIndexed { i, _ -> i != selected }
+                                        selected = markers.lastIndex
+                                    }
+                                },
+                                enabled = selected in markers.indices,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = Color.White,
+                                    disabledContentColor = Color.White.copy(alpha = 0.35f),
+                                ),
+                            ) {
+                                Text("Quitar marcador", maxLines = 1)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -380,28 +529,35 @@ private fun CoverBackdropEditor(
                             onClick = {
                                 BackdropOverrides.clear(anime.id)
                                 saved = null
-                                edit = null
+                                markers = emptyList()
+                                selected = -1
                             },
-                            enabled = edit != null || saved != null,
+                            enabled = markers.isNotEmpty() || saved != null,
                             modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = Color.White,
                                 disabledContentColor = Color.White.copy(alpha = 0.35f),
                             ),
                         ) {
-                            Text("Volver a automático", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                text = "Volver a automático",
+                                maxLines = 2,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelLarge,
+                            )
                         }
                         Button(
                             onClick = {
-                                val current = edit
-                                if (current != null) {
-                                    BackdropOverrides.save(anime.id, current)
-                                    saved = current
+                                if (markers.isNotEmpty()) {
+                                    val edit = BackdropEdit(markers)
+                                    BackdropOverrides.save(anime.id, edit)
+                                    saved = edit
                                     onClose()
                                 }
                             },
-                            enabled = edit != null && edit !== saved,
+                            enabled = changed,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.White,
@@ -417,7 +573,7 @@ private fun CoverBackdropEditor(
             }
             // The magnifier: while the finger is down it shows the spot under it, close up.
             val s = sample
-            val e = edit
+            val e = markers.getOrNull(dragIndex)
             if (dragging && s != null && e != null) {
                 val diameter = 104.dp
                 val diameterPx = with(density) { diameter.toPx() }
