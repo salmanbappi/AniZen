@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,11 +50,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -84,11 +90,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tachiyomi.domain.anime.model.asAnimeCover
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // ANZ --> "Editar fondo": per-cover editor of the carousel backdrop.
-// Step 3: up to four markers. Touch the cover to add one, touch a marker to choose it, slide to move it (a magnifier
-// shows the exact colour). Save keeps the backdrop for this cover, "Volver a automático" removes it.
+// Up to four markers. Touch the cover to add one, touch a marker to choose it, slide to move it (a magnifier shows the
+// exact colour). "Ajustar" opens the hand adjustments of the chosen marker (Brillo, Color, Tono, Fuerza and "Color
+// exacto"). Save keeps the backdrop for this cover, "Volver a automático" removes it.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -220,6 +228,7 @@ private fun CoverBackdropEditor(
     var saved by remember { mutableStateOf(BackdropOverrides.editOf(anime.id)) }
     var markers by remember { mutableStateOf(saved?.markers ?: emptyList()) }
     var selected by remember { mutableIntStateOf(if (markers.isEmpty()) -1 else 0) }
+    var adjusting by remember { mutableStateOf(false) }
     var dragIndex by remember { mutableIntStateOf(-1) }
     var dragging by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Zero) }
@@ -419,22 +428,26 @@ private fun CoverBackdropEditor(
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(
-                        text = when {
-                            markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
-                                "(hasta ${BackdropEdit.MaxMarkers}), o parte del fondo automático."
-                            changed -> "Toca un marcador para elegirlo y arrástralo para moverlo. " +
-                                "Pulsa Guardar cuando te guste."
-                            else -> "Este es el fondo guardado para esta portada."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.8f),
-                        textAlign = TextAlign.Center,
-                    )
                     val chosenMarker = markers.getOrNull(selected)
-                    if (chosenMarker != null && BackdropPaint.chromaOf(chosenMarker.argb) < 0.02f) {
+                    val panelOpen = adjusting && chosenMarker != null
+                    if (!panelOpen) {
                         Text(
-                            text = "El punto elegido es casi blanco o gris: el fondo saldrá gris ahí.",
+                            text = when {
+                                markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
+                                    "(hasta ${BackdropEdit.MaxMarkers}), o parte del fondo automático."
+                                changed -> "Toca un marcador para elegirlo; arrástralo para moverlo. " +
+                                    "«Ajustar» cambia su brillo, color y tono. Pulsa Guardar cuando te guste."
+                                else -> "Este es el fondo guardado para esta portada."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.8f),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    if (chosenMarker != null && !chosenMarker.exact && BackdropPaint.chromaOf(chosenMarker.argb) < 0.02f) {
+                        Text(
+                            text = "Punto casi blanco o gris: el fondo saldrá gris ahí. " +
+                                "Para que salga así, activa «Color exacto» en Ajustar.",
                             modifier = Modifier.padding(top = 4.dp),
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFFFD27F),
@@ -497,12 +510,19 @@ private fun CoverBackdropEditor(
                                         .clickable { selected = index },
                                 )
                             }
-                            Text(
-                                text = "${markers.size}/${BackdropEdit.MaxMarkers}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.7f),
-                            )
                             Spacer(Modifier.weight(1f))
+                            TextButton(
+                                onClick = { adjusting = !adjusting },
+                                enabled = chosenMarker != null,
+                                contentPadding = PaddingValues(horizontal = 10.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    containerColor = if (panelOpen) Color.White.copy(alpha = 0.18f) else Color.Transparent,
+                                    contentColor = Color.White,
+                                    disabledContentColor = Color.White.copy(alpha = 0.35f),
+                                ),
+                            ) {
+                                Text("Ajustar", maxLines = 1)
+                            }
                             TextButton(
                                 onClick = {
                                     if (selected in markers.indices) {
@@ -511,13 +531,23 @@ private fun CoverBackdropEditor(
                                     }
                                 },
                                 enabled = selected in markers.indices,
+                                contentPadding = PaddingValues(horizontal = 10.dp),
                                 colors = ButtonDefaults.textButtonColors(
                                     contentColor = Color.White,
                                     disabledContentColor = Color.White.copy(alpha = 0.35f),
                                 ),
                             ) {
-                                Text("Quitar marcador", maxLines = 1)
+                                Text("Quitar", maxLines = 1)
                             }
+                        }
+                        if (panelOpen && chosenMarker != null) {
+                            Spacer(Modifier.height(4.dp))
+                            AdjustPanel(
+                                marker = chosenMarker,
+                                onChange = { changedMarker ->
+                                    markers = markers.mapIndexed { i, m -> if (i == selected) changedMarker else m }
+                                },
+                            )
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -640,6 +670,176 @@ private fun Loupe(
             center = centre,
             style = Stroke(width = 2.dp.toPx()),
         )
+    }
+}
+
+/**
+ * The hand adjustments of one marker: four sliders (the middle is "as it is") and the exact switch. Every change goes
+ * out as a new marker through [onChange]; the preview behind the window follows the finger.
+ */
+@Composable
+private fun AdjustPanel(
+    marker: BackdropMarker,
+    onChange: (BackdropMarker) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AdjustRow("Brillo", marker.light, signed((marker.light * 100f).roundToInt())) {
+            onChange(marker.copy(light = it))
+        }
+        AdjustRow("Color", marker.color, signed((marker.color * 100f).roundToInt())) {
+            onChange(marker.copy(color = it))
+        }
+        AdjustRow("Tono", marker.tone, signed((marker.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
+            onChange(marker.copy(tone = it))
+        }
+        AdjustRow("Fuerza", marker.force, signed((marker.force * 100f).roundToInt())) {
+            onChange(marker.copy(force = it))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Color exacto",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "El blanco sale blanco",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.6f),
+                    maxLines = 1,
+                )
+            }
+            TextButton(
+                onClick = { onChange(marker.withoutAdjustments()) },
+                enabled = marker.adjusted,
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = Color.White,
+                    disabledContentColor = Color.White.copy(alpha = 0.35f),
+                ),
+            ) {
+                Text("Restablecer", maxLines = 1)
+            }
+            Switch(
+                checked = marker.exact,
+                onCheckedChange = { onChange(marker.copy(exact = it)) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.Black,
+                    checkedTrackColor = Color.White,
+                    checkedBorderColor = Color.White,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.25f),
+                    uncheckedBorderColor = Color.White.copy(alpha = 0.5f),
+                ),
+            )
+        }
+    }
+}
+
+private fun signed(n: Int): String = if (n > 0) "+$n" else "$n"
+
+@Composable
+private fun AdjustRow(
+    label: String,
+    value: Float,
+    display: String,
+    onChange: (Float) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(56.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.85f),
+            maxLines = 1,
+        )
+        AdjustSlider(value = value, onChange = onChange, modifier = Modifier.weight(1f))
+        Text(
+            text = display,
+            modifier = Modifier.width(48.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.85f),
+            textAlign = TextAlign.End,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * A slider from -1 to 1 with a mark in the middle (the untouched value). It snaps to the middle when it is close, so
+ * going back to "as it is" is easy. Drawn by hand so that it is thin and the rows stay compact.
+ */
+@Composable
+private fun AdjustSlider(
+    value: Float,
+    onChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var widthPx by remember { mutableFloatStateOf(1f) }
+    val latest by rememberUpdatedState(onChange)
+    val padPx = with(LocalDensity.current) { 12.dp.toPx() }
+
+    fun pick(x: Float) {
+        val span = (widthPx - 2f * padPx).coerceAtLeast(1f)
+        val v = ((x - padPx) / span * 2f - 1f).coerceIn(-1f, 1f)
+        latest(if (abs(v) < 0.04f) 0f else v)
+    }
+
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+            .pointerInput(Unit) {
+                detectTapGestures { position -> pick(position.x) }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(onDragStart = { position -> pick(position.x) }) { change, _ ->
+                    change.consume()
+                    pick(change.position.x)
+                }
+            },
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val pad = 12.dp.toPx()
+            val span = size.width - 2f * pad
+            val cy = size.height / 2f
+            val track = 4.dp.toPx()
+            val centreX = pad + span / 2f
+            val thumbX = pad + (value.coerceIn(-1f, 1f) + 1f) / 2f * span
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.28f),
+                topLeft = Offset(pad, cy - track / 2f),
+                size = Size(span, track),
+                cornerRadius = CornerRadius(track / 2f),
+            )
+            val from = minOf(centreX, thumbX)
+            val to = maxOf(centreX, thumbX)
+            if (to - from > 0.5f) {
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(from, cy - track / 2f),
+                    size = Size(to - from, track),
+                    cornerRadius = CornerRadius(track / 2f),
+                )
+            }
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.7f),
+                topLeft = Offset(centreX - 1.dp.toPx(), cy - 7.dp.toPx()),
+                size = Size(2.dp.toPx(), 14.dp.toPx()),
+                cornerRadius = CornerRadius(1.dp.toPx()),
+            )
+            drawCircle(color = Color.Black.copy(alpha = 0.30f), radius = 11.dp.toPx(), center = Offset(thumbX, cy))
+            drawCircle(color = Color.White, radius = 9.dp.toPx(), center = Offset(thumbX, cy))
+        }
     }
 }
 // ANZ <--

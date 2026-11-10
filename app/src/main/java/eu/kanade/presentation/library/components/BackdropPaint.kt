@@ -119,14 +119,40 @@ internal object BackdropPaint {
     const val ZoneLeft = 3
     const val ZoneRight = 4
 
-    /** A marker as the painter needs it: where it sits on the card (0 to 1), its colour, its zone and its strength. */
+    /**
+     * A marker as the painter needs it: where it sits on the card (0 to 1), its colour, its zone and its strength.
+     *
+     * The four hand adjustments go from -1 to 1 (0 = untouched): [light] makes the colour lighter or darker, [color]
+     * weaker or stronger, [tone] turns its hue, [force] lets it rule more or less over the other colours around it.
+     * With [exact] the colour is used as it is: no softening of strong hues, no minimum of colour, and its own
+     * lightness is kept (so a white pick stays white instead of turning into a mid grey).
+     */
     class Pick(
         val argb: Int,
         val zone: Int = ZoneAuto,
         val x: Float = 0.5f,
         val y: Float = 0.5f,
         val strength: Float = 1f,
+        val light: Float = 0f,
+        val color: Float = 0f,
+        val tone: Float = 0f,
+        val force: Float = 0f,
+        val exact: Boolean = false,
     )
+
+    /** What each adjustment means in the painter's own units. */
+    fun lightShift(v: Float): Float = v * 0.35f
+    fun colourFactor(v: Float): Float = if (v >= 0f) 1f + 1.6f * v else 1f + v
+    fun toneDegrees(v: Float): Float = v * 60f
+    fun forceWeight(v: Float): Float = if (v >= 0f) 1f + 2f * v else 1f + 0.75f * v
+
+    private fun blend(a: Int, b: Int, t: Float): Int {
+        val u = 1f - t
+        val r = (((a shr 16) and 0xFF) * u + ((b shr 16) and 0xFF) * t + 0.5f).toInt().coerceIn(0, 255)
+        val g = (((a shr 8) and 0xFF) * u + ((b shr 8) and 0xFF) * t + 0.5f).toInt().coerceIn(0, 255)
+        val bl = ((a and 0xFF) * u + (b and 0xFF) * t + 0.5f).toInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (r shl 16) or (g shl 8) or bl
+    }
 
     /** The zone a marker belongs to by where it sits on the cover (left of the cover = left of the backdrop). */
     fun zoneOf(x: Float, y: Float): Int {
@@ -228,6 +254,22 @@ internal object BackdropPaint {
             }
             return out
         }
+
+        /**
+         * The colour as it is: it is only brought inside what the screen can show (less colour, never another hue or
+         * another lightness), without the softening [colour] does.
+         */
+        fun exact(va: Float, vb: Float, lightness: Float): Int {
+            val c0 = hypot(va, vb)
+            val hueRad = if (c0 < 1e-5f) 0f else atan2(vb, va)
+            val l = lightness.coerceIn(0.04f, 0.985f)
+            val c = if (c0 < 1e-5f) 0f else min(c0, gamutMax(l, hueRad, scratch))
+            linearRgb(l, c * cos(hueRad), c * sin(hueRad), scratch)
+            return (0xFF shl 24) or
+                (fromLinear(scratch[0]) shl 16) or
+                (fromLinear(scratch[1]) shl 8) or
+                fromLinear(scratch[2])
+        }
     }
 
     /**
@@ -278,35 +320,59 @@ internal object BackdropPaint {
      * Every marker lives in a zone of the backdrop (its own, or by where it sits on the cover): the top band, the
      * bottom, the left or the right side. The backdrop is a smooth field that takes each zone's colour near its
      * edge of the screen and mixes the neighbours between them. A zone nobody picked borrows from the nearest one.
+     *
+     * Each zone carries, besides its colour, a lightness shift (the Brillo adjustment), the lightness its colour has
+     * when it is used as it is, and how "exact" it is (0 = painted the designed way, 1 = used as it is).
      */
     fun paint(picks: List<Pick>, strength: Float = 1f): Result {
         val lab = FloatArray(3)
         val zoneA = FloatArray(5)
         val zoneB = FloatArray(5)
+        val zoneDl = FloatArray(5)
+        val zoneLx = FloatArray(5) { 0.5f }
+        val zoneEx = FloatArray(5)
+        val zoneW = FloatArray(5) { 1f }
         val has = BooleanArray(5)
         var maxStrength = 1f
         for (zone in 1..4) {
             val va = FloatArray(picks.size)
             val vb = FloatArray(picks.size)
             val w = FloatArray(picks.size)
+            val dls = FloatArray(picks.size)
+            val lxs = FloatArray(picks.size)
+            val exs = FloatArray(picks.size)
             var n = 0
             for (p in picks) {
                 val z = if (p.zone == ZoneAuto) zoneOf(p.x, p.y) else p.zone
                 if (z != zone) continue
                 oklab(p.argb, lab)
                 val c0 = hypot(lab[1], lab[2])
-                val k = p.strength * strength
-                maxStrength = max(maxStrength, k)
-                if (c0 < 0.012f) {
-                    va[n] = 0f
-                    vb[n] = 0f
-                } else {
-                    // A dull pick keeps its hue but gets enough colour to read as that hue.
-                    val c = (c0 * 1.5f + 0.05f).coerceIn(0.085f, 0.30f) * k
-                    va[n] = c * lab[1] / c0
-                    vb[n] = c * lab[2] / c0
+                val dl = lightShift(p.light)
+                val k = p.strength * strength * colourFactor(p.color)
+                var ca = 0f
+                var cb = 0f
+                if (c0 >= 0.012f) {
+                    // A dull pick keeps its hue but gets enough colour to read as that hue (unless it is used as it is).
+                    val c = if (p.exact) c0 * k else (c0 * 1.5f + 0.05f).coerceIn(0.085f, 0.30f) * k
+                    ca = c * lab[1] / c0
+                    cb = c * lab[2] / c0
+                    val turn = rad(toneDegrees(p.tone))
+                    if (turn != 0f) {
+                        val cs = cos(turn)
+                        val sn = sin(turn)
+                        val ra = ca * cs - cb * sn
+                        val rb = ca * sn + cb * cs
+                        ca = ra
+                        cb = rb
+                    }
                 }
-                w[n] = 1f
+                if (!p.exact) maxStrength = max(maxStrength, k)
+                va[n] = ca
+                vb[n] = cb
+                w[n] = forceWeight(p.force)
+                dls[n] = dl
+                lxs[n] = (lab[0] + dl).coerceIn(0.04f, 0.985f)
+                exs[n] = if (p.exact) 1f else 0f
                 n++
             }
             if (n > 0) {
@@ -314,6 +380,20 @@ internal object BackdropPaint {
                 mix(va, vb, w, n, out)
                 zoneA[zone] = out[0]
                 zoneB[zone] = out[1]
+                var sw = 0f
+                var sdl = 0f
+                var slx = 0f
+                var sex = 0f
+                for (i in 0 until n) {
+                    sw += w[i]
+                    sdl += w[i] * dls[i]
+                    slx += w[i] * lxs[i]
+                    sex += w[i] * exs[i]
+                }
+                zoneDl[zone] = sdl / sw
+                zoneLx[zone] = slx / sw
+                zoneEx[zone] = sex / sw
+                zoneW[zone] = sw / n
                 has[zone] = true
             }
         }
@@ -324,49 +404,86 @@ internal object BackdropPaint {
         val painter = Painter(maxStrength)
         val tmp = FloatArray(2)
 
-        fun zoneColour(order: IntArray, out: FloatArray) {
-            for (z in order) {
-                if (has[z]) {
-                    out[0] = zoneA[z]
-                    out[1] = zoneB[z]
-                    return
-                }
+        /** One colour of the backdrop: the designed way, the exact way, or a mix of both when a zone has both. */
+        fun tone(
+            a: Float,
+            b: Float,
+            dl: Float,
+            lx: Float,
+            ex: Float,
+            roleL: Float,
+            turn: Float,
+            k: Float,
+            maxLuma: Float,
+            exactScale: Float,
+        ): Int {
+            val nat = if (ex < 0.999f) {
+                painter.colour(a, b, (roleL + dl).coerceIn(0.08f, 0.97f), turn, k, maxLuma + max(0f, dl) * 2f)
+            } else {
+                0
             }
-            out[0] = 0f
-            out[1] = 0f
+            val exc = if (ex > 0.001f) painter.exact(a, b, lx * exactScale) else 0
+            return when {
+                ex <= 0.001f -> nat
+                ex >= 0.999f -> exc
+                else -> blend(nat, exc, ex)
+            }
         }
 
-        val leftV = FloatArray(2)
-        val rightV = FloatArray(2)
-        val topV = FloatArray(2)
-        val bottomV = FloatArray(2)
-        zoneColour(intArrayOf(ZoneLeft, ZoneTop, ZoneRight, ZoneBottom), leftV)
-        zoneColour(intArrayOf(ZoneRight, ZoneTop, ZoneLeft, ZoneBottom), rightV)
-        zoneColour(intArrayOf(ZoneTop, ZoneLeft, ZoneRight, ZoneBottom), topV)
-        zoneColour(intArrayOf(ZoneBottom, ZoneLeft, ZoneRight, ZoneTop), bottomV)
+        /** The first zone of [order] that has a colour (0 = none, which reads as no colour at all). */
+        fun source(order: IntArray): Int {
+            for (z in order) {
+                if (has[z]) return z
+            }
+            return 0
+        }
+
+        val zl = source(intArrayOf(ZoneLeft, ZoneTop, ZoneRight, ZoneBottom))
+        val zr = source(intArrayOf(ZoneRight, ZoneTop, ZoneLeft, ZoneBottom))
+        val zt = source(intArrayOf(ZoneTop, ZoneLeft, ZoneRight, ZoneBottom))
+        val zb = source(intArrayOf(ZoneBottom, ZoneLeft, ZoneRight, ZoneTop))
+
         // the middle of the picture: every zone that has a colour counts the same
+        var midDl = 0f
+        var midLx = 0f
+        var midEx = 0f
         run {
             val va = FloatArray(4)
             val vb = FloatArray(4)
             val w = FloatArray(4)
+            var count = 0
             for (z in 1..4) {
                 va[z - 1] = zoneA[z]
                 vb[z - 1] = zoneB[z]
                 w[z - 1] = if (has[z]) 1f else 0f
+                if (has[z]) {
+                    count++
+                    midDl += zoneDl[z]
+                    midLx += zoneLx[z]
+                    midEx += zoneEx[z]
+                }
             }
             mix(va, vb, w, 4, tmp)
+            if (count > 0) {
+                midDl /= count
+                midLx /= count
+                midEx /= count
+            } else {
+                midLx = 0.5f
+            }
         }
-        val midV = floatArrayOf(tmp[0], tmp[1])
+        val midA = tmp[0]
+        val midB = tmp[1]
 
         val lights = intArrayOf(
-            painter.colour(leftV[0], leftV[1], 0.66f, 0f, 1f, 0.30f),
-            painter.colour(rightV[0], rightV[1], 0.62f, 7f, 1f, 0.30f),
-            painter.colour(topV[0], topV[1], 0.70f, -7f, 1f, 0.30f),
-            painter.colour(bottomV[0], bottomV[1], 0.66f, 14f, 1f, 0.30f),
+            tone(zoneA[zl], zoneB[zl], zoneDl[zl], zoneLx[zl], zoneEx[zl], 0.66f, 0f, 1f, 0.30f, 1f),
+            tone(zoneA[zr], zoneB[zr], zoneDl[zr], zoneLx[zr], zoneEx[zr], 0.62f, 7f, 1f, 0.30f, 1f),
+            tone(zoneA[zt], zoneB[zt], zoneDl[zt], zoneLx[zt], zoneEx[zt], 0.70f, -7f, 1f, 0.30f, 1f),
+            tone(zoneA[zb], zoneB[zb], zoneDl[zb], zoneLx[zb], zoneEx[zb], 0.66f, 14f, 1f, 0.30f, 1f),
         )
-        val top = painter.colour(topV[0], topV[1], 0.42f, 0f, 0.85f, 1f)
-        val mid = painter.colour(midV[0], midV[1], 0.32f, 0f, 0.80f, 1f)
-        val deep = painter.colour(bottomV[0], bottomV[1], 0.23f, 0f, 0.70f, 1f)
+        val top = tone(zoneA[zt], zoneB[zt], zoneDl[zt], zoneLx[zt], zoneEx[zt], 0.42f, 0f, 0.85f, 1f, 0.94f)
+        val mid = tone(midA, midB, midDl, midLx, midEx, 0.32f, 0f, 0.80f, 1f, 0.88f)
+        val deep = tone(zoneA[zb], zoneB[zb], zoneDl[zb], zoneLx[zb], zoneEx[zb], 0.23f, 0f, 0.70f, 1f, 0.80f)
 
         // the field: where each zone has its say (anchors just outside the screen; the screen is about twice as tall)
         val anchorU = floatArrayOf(0f, 0.5f, 0.5f, -0.05f, 1.05f)
@@ -383,6 +500,10 @@ internal object BackdropPaint {
             val t = cy / (Rows - 1f)
             for (cx in 0 until Cols) {
                 val u = cx / (Cols - 1f)
+                var sw = 0f
+                var sdl = 0f
+                var slx = 0f
+                var sex = 0f
                 for (z in 1..4) {
                     if (!has[z]) {
                         fieldW[z - 1] = 0f
@@ -391,12 +512,23 @@ internal object BackdropPaint {
                     val du = u - anchorU[z]
                     val dv = (t - anchorV[z]) * 2f
                     val d2 = du * du + dv * dv + 0.03f
-                    fieldW[z - 1] = 1f / (d2 * kotlin.math.sqrt(d2))
+                    val wz = zoneW[z] / (d2 * kotlin.math.sqrt(d2))
+                    fieldW[z - 1] = wz
+                    sw += wz
+                    sdl += wz * zoneDl[z]
+                    slx += wz * zoneLx[z]
+                    sex += wz * zoneEx[z]
                 }
                 mix(fieldA, fieldB, fieldW, 4, tmp)
+                val dl = if (sw > 0f) sdl / sw else 0f
+                val lx = if (sw > 0f) slx / sw else 0.5f
+                val ex = if (sw > 0f) sex / sw else 0f
                 // lighter at the top, darker towards the bottom, a hint of light from the upper left
                 val l = (0.58f - 0.27f * t + 0.04f * (1f - u) * (1f - t)).coerceIn(0.28f, 0.62f)
-                mosaic[cy * Cols + cx] = painter.colour(tmp[0], tmp[1], l, 8f * (u - 0.5f), 0.95f - 0.20f * t, 0.25f)
+                mosaic[cy * Cols + cx] = tone(
+                    tmp[0], tmp[1], dl, lx, ex,
+                    l, 8f * (u - 0.5f), 0.95f - 0.20f * t, 0.25f, 1f - 0.18f * t,
+                )
             }
         }
         return Result(top, mid, deep, lights, mosaic, 0.6f)
