@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -27,12 +28,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +52,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -96,7 +104,9 @@ import kotlin.math.roundToInt
 // ANZ --> "Editar fondo": per-cover editor of the carousel backdrop.
 // Up to four markers. Touch the cover to add one, touch a marker to choose it, slide to move it (a magnifier shows the
 // exact colour). "Ajustar" opens the hand adjustments of the chosen marker (Brillo, Color, Tono, Fuerza and "Color
-// exacto"). Save keeps the backdrop for this cover, "Volver a automático" removes it.
+// exacto", the zone and the overall strength). "Comparar" (held down) shows the automatic backdrop, "Deshacer" goes
+// back one step, "Copiar a otras temporadas" gives the same backdrop to the other seasons of the series. Save keeps the
+// backdrop for this cover, "Volver a automático" removes it.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -126,6 +136,7 @@ internal fun BackdropEditorHost(
     heroes: ImmutableList<LibraryItem>,
     pager: PagerState,
     enabled: Boolean,
+    library: List<LibraryItem>,
 ) {
     val editable = enabled && heroes.isNotEmpty()
     DisposableEffect(editable) {
@@ -138,7 +149,7 @@ internal fun BackdropEditorHost(
     if (editable && BackdropEditor.open) {
         val frozen = remember { heroes.getOrNull(pager.currentPage) }
         if (frozen != null) {
-            CoverBackdropEditor(item = frozen, onClose = { BackdropEditor.hide() })
+            CoverBackdropEditor(item = frozen, library = library, onClose = { BackdropEditor.hide() })
         }
     }
 }
@@ -201,6 +212,7 @@ private fun sampleBitmapOf(image: coil3.Image, resources: android.content.res.Re
 @Composable
 private fun CoverBackdropEditor(
     item: LibraryItem,
+    library: List<LibraryItem>,
     onClose: () -> Unit,
 ) {
     val anime = item.libraryAnime.anime
@@ -231,6 +243,12 @@ private fun CoverBackdropEditor(
     var adjusting by remember { mutableStateOf(false) }
     // how strong the colour of the whole backdrop is (1 = as designed)
     var general by remember { mutableFloatStateOf(saved?.strength ?: 1f) }
+    // while the "Comparar" button is held down the automatic backdrop is shown
+    var comparing by remember { mutableStateOf(false) }
+    var showCopy by remember { mutableStateOf(false) }
+    // the steps that can be undone (newest last), and when the last slider step was recorded
+    val history = remember { mutableStateListOf<EditorSnapshot>() }
+    var lastPanelStep by remember { mutableLongStateOf(0L) }
     var dragIndex by remember { mutableIntStateOf(-1) }
     var dragging by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Zero) }
@@ -241,6 +259,39 @@ private fun CoverBackdropEditor(
         if (markers.isEmpty()) null else BackdropOverrides.tonesOf(BackdropEdit(markers, general))
     }
     val changed = markers.isNotEmpty() && (markers != saved?.markers || general != saved?.strength)
+
+    // the other seasons of this series found in the library, by their titles
+    val seasons = remember(anime.id, library) {
+        SeasonMatcher.relatives(
+            anime.id,
+            anime.title,
+            library.map { it.libraryAnime.anime.id to it.libraryAnime.anime.title },
+        )
+    }
+
+    // records the state before a change, so that "Deshacer" can bring it back
+    fun pushHistory() {
+        val last = history.lastOrNull()
+        if (last != null && last.markers == markers && last.general == general) return
+        history.add(EditorSnapshot(markers, general, selected))
+        if (history.size > 40) history.removeAt(0)
+    }
+
+    // a slider moves many times in a row: only the first move (after a pause) is a step of its own
+    fun pushPanelStep() {
+        val now = System.currentTimeMillis()
+        if (now - lastPanelStep > 600L) pushHistory()
+        lastPanelStep = now
+    }
+
+    fun undo() {
+        if (history.isEmpty()) return
+        val last = history.removeAt(history.lastIndex)
+        markers = last.markers
+        general = last.general
+        selected = if (last.markers.isEmpty()) -1 else last.selected.coerceIn(0, last.markers.lastIndex)
+        lastPanelStep = 0L
+    }
 
     // the marker under a finger, or -1
     fun hit(position: Offset, size: IntSize): Int {
@@ -273,6 +324,7 @@ private fun CoverBackdropEditor(
     fun addAt(position: Offset, size: IntSize): Int {
         val s = sample ?: return -1
         if (size.width <= 0 || size.height <= 0) return -1
+        pushHistory()
         if (markers.size >= BackdropEdit.MaxMarkers) {
             val target = if (selected in markers.indices) selected else 0
             moveTo(target, position, size)
@@ -302,7 +354,7 @@ private fun CoverBackdropEditor(
             EditorBackdrop(
                 item = item,
                 coverBottom = { coverBottom },
-                forcedTones = previewTones,
+                forcedTones = if (comparing) null else previewTones,
                 modifier = Modifier.fillMaxSize(),
             )
             Column(
@@ -339,6 +391,17 @@ private fun CoverBackdropEditor(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    Row(
+                        modifier = Modifier.padding(end = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (history.isNotEmpty()) {
+                            PillChip("Deshacer", false, Modifier.width(82.dp)) { undo() }
+                        }
+                        if (markers.isNotEmpty()) {
+                            HoldPill("Comparar", comparing, Modifier.width(88.dp)) { comparing = it }
+                        }
                     }
                 }
                 BoxWithConstraints(
@@ -384,6 +447,7 @@ private fun CoverBackdropEditor(
                                     detectDragGestures(
                                         onDragStart = { position ->
                                             val i = hit(position, size)
+                                            if (i >= 0) pushHistory()
                                             val target = if (i >= 0) i else addAt(position, size)
                                             selected = target
                                             dragIndex = target
@@ -460,13 +524,22 @@ private fun CoverBackdropEditor(
                                 markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
                                     "(hasta ${BackdropEdit.MaxMarkers}), o parte del fondo automático."
                                 changed -> "Toca un marcador para elegirlo; arrástralo para moverlo. " +
-                                    "«Ajustar» cambia su brillo, color, tono y zona. Pulsa Guardar cuando te guste."
+                                    "«Ajustar» cambia su color y zona. Mantén pulsado «Comparar» para ver el automático. " +
+                                    "Pulsa Guardar cuando te guste."
                                 else -> "Este es el fondo guardado para esta portada."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center,
                         )
+                    }
+                    if (!panelOpen && markers.isNotEmpty() && seasons.isNotEmpty()) {
+                        TextButton(
+                            onClick = { showCopy = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                        ) {
+                            Text("Copiar a otras temporadas (${seasons.size})", maxLines = 1)
+                        }
                     }
                     if (chosenMarker != null && !chosenMarker.exact && BackdropPaint.chromaOf(chosenMarker.argb) < 0.02f) {
                         Text(
@@ -486,6 +559,7 @@ private fun CoverBackdropEditor(
                                 val lights = autoTones?.lights
                                 if (s != null && lights != null) {
                                     scope.launch {
+                                        pushHistory()
                                         val points = withContext(Dispatchers.Default) {
                                             BackdropPaint.suggest(
                                                 s.pixels,
@@ -550,6 +624,7 @@ private fun CoverBackdropEditor(
                             TextButton(
                                 onClick = {
                                     if (selected in markers.indices) {
+                                        pushHistory()
                                         markers = markers.filterIndexed { i, _ -> i != selected }
                                         selected = markers.lastIndex
                                     }
@@ -570,9 +645,13 @@ private fun CoverBackdropEditor(
                                 marker = chosenMarker,
                                 general = general,
                                 onChange = { changedMarker ->
+                                    pushPanelStep()
                                     markers = markers.mapIndexed { i, m -> if (i == selected) changedMarker else m }
                                 },
-                                onGeneral = { general = it },
+                                onGeneral = {
+                                    pushPanelStep()
+                                    general = it
+                                },
                             )
                         }
                     }
@@ -588,6 +667,7 @@ private fun CoverBackdropEditor(
                                 markers = emptyList()
                                 selected = -1
                                 general = 1f
+                                history.clear()
                             },
                             enabled = markers.isNotEmpty() || saved != null,
                             modifier = Modifier.weight(1f),
@@ -627,6 +707,19 @@ private fun CoverBackdropEditor(
                         }
                     }
                 }
+            }
+            if (showCopy && markers.isNotEmpty()) {
+                CopySeasonsDialog(
+                    seasons = seasons,
+                    onDismiss = { showCopy = false },
+                    onConfirm = { ids ->
+                        val edit = BackdropEdit(markers, general)
+                        BackdropOverrides.saveAll(ids + anime.id, edit)
+                        saved = edit
+                        showCopy = false
+                        onClose()
+                    },
+                )
             }
             // The magnifier: while the finger is down it shows the spot under it, close up.
             val s = sample
@@ -846,6 +939,101 @@ private fun strengthToSlider(strength: Float): Float {
         (strength - 1f) / (1f - BackdropEdit.MinStrength)
     }
     return v.coerceIn(-1f, 1f)
+}
+
+/** The state of the editor at one moment, for "Deshacer". */
+private class EditorSnapshot(
+    val markers: List<BackdropMarker>,
+    val general: Float,
+    val selected: Int,
+)
+
+/** Which other seasons get this backdrop (all ticked at first), then it is saved for them and for this cover. */
+@Composable
+private fun CopySeasonsDialog(
+    seasons: List<Pair<Long, String>>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<Long>) -> Unit,
+) {
+    val picked = remember { mutableStateMapOf<Long, Boolean>().also { m -> seasons.forEach { m[it.first] = true } } }
+    val chosen = seasons.filter { picked[it.first] == true }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Copiar fondo a otras temporadas") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = "Este fondo se guardará también en las marcadas, y después puedes cambiarlo en cada una.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(8.dp))
+                for ((id, title) in seasons) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { picked[id] = picked[id] != true }
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = picked[id] == true, onCheckedChange = { picked[id] = it })
+                        Text(
+                            text = title,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(chosen.map { it.first }) }, enabled = chosen.isNotEmpty()) {
+                Text("Guardar y copiar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+/** A pill that does something only while it is held down (the finger up gives the state back). */
+@Composable
+private fun HoldPill(
+    label: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onHold: (Boolean) -> Unit,
+) {
+    val latest by rememberUpdatedState(onHold)
+    Box(
+        modifier = modifier
+            .height(30.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(if (active) Color.White else Color.White.copy(alpha = 0.14f))
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        latest(true)
+                        tryAwaitRelease()
+                        latest(false)
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (active) Color.Black else Color.White,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable

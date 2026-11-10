@@ -727,6 +727,7 @@ internal fun LibraryHome(
         heroes = shelves.heroes,
         pager = heroPager,
         enabled = tab == LibraryHomeTab.Home && !searching,
+        library = flat,
     )
     }
     // ANZ <--

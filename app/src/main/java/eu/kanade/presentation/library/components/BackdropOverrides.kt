@@ -130,6 +130,12 @@ internal object BackdropOverrides {
         persist()
     }
 
+    /** The same edit for several anime (the other seasons of a series); the file is written once. */
+    fun saveAll(animeIds: Collection<Long>, edit: BackdropEdit) {
+        for (id in animeIds) edits[id] = edit
+        persist()
+    }
+
     fun clear(animeId: Long) {
         if (edits.remove(animeId) != null) {
             built.remove(animeId)
