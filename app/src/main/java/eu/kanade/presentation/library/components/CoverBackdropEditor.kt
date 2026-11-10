@@ -229,16 +229,18 @@ private fun CoverBackdropEditor(
     var markers by remember { mutableStateOf(saved?.markers ?: emptyList()) }
     var selected by remember { mutableIntStateOf(if (markers.isEmpty()) -1 else 0) }
     var adjusting by remember { mutableStateOf(false) }
+    // how strong the colour of the whole backdrop is (1 = as designed)
+    var general by remember { mutableFloatStateOf(saved?.strength ?: 1f) }
     var dragIndex by remember { mutableIntStateOf(-1) }
     var dragging by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
     val autoTones = CoverTonesCache.get(anime.id, anime.coverLastModified)
 
-    val previewTones = remember(markers) {
-        if (markers.isEmpty()) null else BackdropOverrides.tonesOf(BackdropEdit(markers))
+    val previewTones = remember(markers, general) {
+        if (markers.isEmpty()) null else BackdropOverrides.tonesOf(BackdropEdit(markers, general))
     }
-    val changed = markers.isNotEmpty() && markers != saved?.markers
+    val changed = markers.isNotEmpty() && (markers != saved?.markers || general != saved?.strength)
 
     // the marker under a finger, or -1
     fun hit(position: Offset, size: IntSize): Int {
@@ -420,6 +422,28 @@ private fun CoverBackdropEditor(
                                 )
                             }
                         }
+                        // while adjusting: a bar on the edge of the card shows which part of the backdrop the chosen
+                        // marker paints
+                        val zoneMarker = if (adjusting) markers.getOrNull(selected) else null
+                        if (zoneMarker != null) {
+                            val zone = effectiveZone(zoneMarker)
+                            val bar = Modifier.background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(2.dp))
+                            when (zone) {
+                                BackdropPaint.ZoneTop -> Box(
+                                    Modifier.align(Alignment.TopCenter).padding(top = 8.dp).width(80.dp).height(4.dp).then(bar),
+                                )
+                                BackdropPaint.ZoneBottom -> Box(
+                                    Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp).width(80.dp).height(4.dp).then(bar),
+                                )
+                                BackdropPaint.ZoneLeft -> Box(
+                                    Modifier.align(Alignment.CenterStart).padding(start = 8.dp).width(4.dp).height(80.dp).then(bar),
+                                )
+                                BackdropPaint.ZoneRight -> Box(
+                                    Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).width(4.dp).height(80.dp).then(bar),
+                                )
+                                else -> Unit
+                            }
+                        }
                     }
                 }
                 Column(
@@ -436,7 +460,7 @@ private fun CoverBackdropEditor(
                                 markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
                                     "(hasta ${BackdropEdit.MaxMarkers}), o parte del fondo automático."
                                 changed -> "Toca un marcador para elegirlo; arrástralo para moverlo. " +
-                                    "«Ajustar» cambia su brillo, color y tono. Pulsa Guardar cuando te guste."
+                                    "«Ajustar» cambia su brillo, color, tono y zona. Pulsa Guardar cuando te guste."
                                 else -> "Este es el fondo guardado para esta portada."
                             },
                             style = MaterialTheme.typography.bodySmall,
@@ -544,9 +568,11 @@ private fun CoverBackdropEditor(
                             Spacer(Modifier.height(4.dp))
                             AdjustPanel(
                                 marker = chosenMarker,
+                                general = general,
                                 onChange = { changedMarker ->
                                     markers = markers.mapIndexed { i, m -> if (i == selected) changedMarker else m }
                                 },
+                                onGeneral = { general = it },
                             )
                         }
                     }
@@ -561,6 +587,7 @@ private fun CoverBackdropEditor(
                                 saved = null
                                 markers = emptyList()
                                 selected = -1
+                                general = 1f
                             },
                             enabled = markers.isNotEmpty() || saved != null,
                             modifier = Modifier.weight(1f),
@@ -581,7 +608,7 @@ private fun CoverBackdropEditor(
                         Button(
                             onClick = {
                                 if (markers.isNotEmpty()) {
-                                    val edit = BackdropEdit(markers)
+                                    val edit = BackdropEdit(markers, general)
                                     BackdropOverrides.save(anime.id, edit)
                                     saved = edit
                                     onClose()
@@ -674,45 +701,29 @@ private fun Loupe(
 }
 
 /**
- * The hand adjustments of one marker: four sliders (the middle is "as it is") and the exact switch. Every change goes
- * out as a new marker through [onChange]; the preview behind the window follows the finger.
+ * The hand adjustments of the chosen marker, in two tabs. "Color": four sliders (the middle is "as it is") and the
+ * exact switch. "Zona": which part of the backdrop the marker paints and the overall strength of the colour. Every
+ * change goes out as a new marker through [onChange] (or [onGeneral]); the preview behind the window follows the finger.
  */
 @Composable
 private fun AdjustPanel(
     marker: BackdropMarker,
+    general: Float,
     onChange: (BackdropMarker) -> Unit,
+    onGeneral: (Float) -> Unit,
 ) {
+    var tab by remember { mutableIntStateOf(0) }
     Column(modifier = Modifier.fillMaxWidth()) {
-        AdjustRow("Brillo", marker.light, signed((marker.light * 100f).roundToInt())) {
-            onChange(marker.copy(light = it))
-        }
-        AdjustRow("Color", marker.color, signed((marker.color * 100f).roundToInt())) {
-            onChange(marker.copy(color = it))
-        }
-        AdjustRow("Tono", marker.tone, signed((marker.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
-            onChange(marker.copy(tone = it))
-        }
-        AdjustRow("Fuerza", marker.force, signed((marker.force * 100f).roundToInt())) {
-            onChange(marker.copy(force = it))
-        }
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Color exacto",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White,
-                    maxLines = 1,
-                )
-                Text(
-                    text = "El blanco sale blanco",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.6f),
-                    maxLines = 1,
-                )
-            }
+            PillChip("Color", tab == 0, Modifier.width(76.dp)) { tab = 0 }
+            Spacer(Modifier.width(6.dp))
+            PillChip("Zona", tab == 1, Modifier.width(76.dp)) { tab = 1 }
+            Spacer(Modifier.weight(1f))
             TextButton(
                 onClick = { onChange(marker.withoutAdjustments()) },
                 enabled = marker.adjusted,
@@ -724,19 +735,140 @@ private fun AdjustPanel(
             ) {
                 Text("Restablecer", maxLines = 1)
             }
-            Switch(
-                checked = marker.exact,
-                onCheckedChange = { onChange(marker.copy(exact = it)) },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.Black,
-                    checkedTrackColor = Color.White,
-                    checkedBorderColor = Color.White,
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = Color.White.copy(alpha = 0.25f),
-                    uncheckedBorderColor = Color.White.copy(alpha = 0.5f),
-                ),
+        }
+        if (tab == 0) {
+            AdjustRow("Brillo", marker.light, signed((marker.light * 100f).roundToInt())) {
+                onChange(marker.copy(light = it))
+            }
+            AdjustRow("Color", marker.color, signed((marker.color * 100f).roundToInt())) {
+                onChange(marker.copy(color = it))
+            }
+            AdjustRow("Tono", marker.tone, signed((marker.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
+                onChange(marker.copy(tone = it))
+            }
+            AdjustRow("Fuerza", marker.force, signed((marker.force * 100f).roundToInt())) {
+                onChange(marker.copy(force = it))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Color exacto",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "El blanco sale blanco",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.6f),
+                        maxLines = 1,
+                    )
+                }
+                Switch(
+                    checked = marker.exact,
+                    onCheckedChange = { onChange(marker.copy(exact = it)) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.Black,
+                        checkedTrackColor = Color.White,
+                        checkedBorderColor = Color.White,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.25f),
+                        uncheckedBorderColor = Color.White.copy(alpha = 0.5f),
+                    ),
+                )
+            }
+        } else {
+            val now = effectiveZone(marker)
+            Text(
+                text = "Zona de este color: " +
+                    if (marker.zone == BackdropPaint.ZoneAuto) "automática (${zoneName(now)})" else zoneName(now),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.85f),
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                for ((zone, label) in ZoneChoices) {
+                    PillChip(label, marker.zone == zone, Modifier.weight(1f)) { onChange(marker.copy(zone = zone)) }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            AdjustRow("General", strengthToSlider(general), "${(general * 100f).roundToInt()}%") {
+                onGeneral(strengthFromSlider(it))
+            }
+            Text(
+                text = "General cambia la fuerza del color de todo el fondo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.6f),
+                maxLines = 1,
             )
         }
+    }
+}
+
+private val ZoneChoices = listOf(
+    BackdropPaint.ZoneAuto to "Auto",
+    BackdropPaint.ZoneTop to "Arriba",
+    BackdropPaint.ZoneBottom to "Abajo",
+    BackdropPaint.ZoneLeft to "Izq.",
+    BackdropPaint.ZoneRight to "Der.",
+)
+
+/** The zone a marker really paints: the one chosen by hand, or the one given by where it sits on the cover. */
+private fun effectiveZone(marker: BackdropMarker): Int =
+    if (marker.zone == BackdropPaint.ZoneAuto) BackdropPaint.zoneOf(marker.x, marker.y) else marker.zone
+
+private fun zoneName(zone: Int): String = when (zone) {
+    BackdropPaint.ZoneTop -> "arriba"
+    BackdropPaint.ZoneBottom -> "abajo"
+    BackdropPaint.ZoneLeft -> "izquierda"
+    else -> "derecha"
+}
+
+/** The overall strength (0.2 to 1.6, 1 = as designed) as a slider position from -1 to 1 and back. */
+private fun strengthFromSlider(v: Float): Float =
+    if (v >= 0f) {
+        1f + (BackdropEdit.MaxStrength - 1f) * v
+    } else {
+        1f + (1f - BackdropEdit.MinStrength) * v
+    }
+
+private fun strengthToSlider(strength: Float): Float {
+    val v = if (strength >= 1f) {
+        (strength - 1f) / (BackdropEdit.MaxStrength - 1f)
+    } else {
+        (strength - 1f) / (1f - BackdropEdit.MinStrength)
+    }
+    return v.coerceIn(-1f, 1f)
+}
+
+@Composable
+private fun PillChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(30.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(if (selected) Color.White else Color.White.copy(alpha = 0.14f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) Color.Black else Color.White,
+            maxLines = 1,
+        )
     }
 }
 
@@ -752,7 +884,7 @@ private fun AdjustRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(34.dp),
+            .height(32.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

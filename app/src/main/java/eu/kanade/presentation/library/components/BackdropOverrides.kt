@@ -34,21 +34,23 @@ internal data class BackdropMarker(
     val force: Float = 0f,
     val exact: Boolean = false,
 ) {
-    /** True when any hand adjustment is on. */
+    /** True when any hand adjustment is on (including a zone chosen by hand). */
     val adjusted: Boolean
-        get() = light != 0f || color != 0f || tone != 0f || force != 0f || exact
+        get() = light != 0f || color != 0f || tone != 0f || force != 0f || exact || zone != BackdropPaint.ZoneAuto
 
     fun withoutAdjustments(): BackdropMarker =
-        copy(light = 0f, color = 0f, tone = 0f, force = 0f, exact = false)
+        copy(zone = BackdropPaint.ZoneAuto, light = 0f, color = 0f, tone = 0f, force = 0f, exact = false)
 }
 
-/** One hand-made backdrop: up to [MaxMarkers] markers and an overall strength (1 = as designed). */
+/** One hand-made backdrop: up to [MaxMarkers] markers and an overall strength (1 = as designed, [MinStrength] to [MaxStrength]). */
 internal class BackdropEdit(
     val markers: List<BackdropMarker>,
     val strength: Float = 1f,
 ) {
     companion object {
         const val MaxMarkers = 4
+        const val MinStrength = 0.2f
+        const val MaxStrength = 1.6f
     }
 }
 
@@ -198,7 +200,7 @@ internal object BackdropOverrides {
         val x = p[1].toFloatOrNull() ?: return
         val y = p[2].toFloatOrNull() ?: return
         val argb = p[3].toIntOrNull() ?: return
-        val strength = p.getOrNull(4)?.toFloatOrNull() ?: 1f
+        val strength = (p.getOrNull(4)?.toFloatOrNull() ?: 1f).coerceIn(BackdropEdit.MinStrength, BackdropEdit.MaxStrength)
         edits[id] = BackdropEdit(listOf(BackdropMarker(x, y, argb)), strength)
     }
 
@@ -210,7 +212,7 @@ internal object BackdropOverrides {
         val p = line.trim().split(' ')
         if (p.size < 3) return
         val id = p[0].toLongOrNull() ?: return
-        val strength = p[1].toFloatOrNull() ?: return
+        val strength = (p[1].toFloatOrNull() ?: return).coerceIn(BackdropEdit.MinStrength, BackdropEdit.MaxStrength)
         val count = p[2].toIntOrNull() ?: return
         if (count !in 1..BackdropEdit.MaxMarkers || p.size < 3 + count * 10) return
         val markers = ArrayList<BackdropMarker>(count)
@@ -237,7 +239,7 @@ internal object BackdropOverrides {
         val p = line.trim().split(' ')
         if (p.size < 3) return
         val id = p[0].toLongOrNull() ?: return
-        val strength = p[1].toFloatOrNull() ?: return
+        val strength = (p[1].toFloatOrNull() ?: return).coerceIn(BackdropEdit.MinStrength, BackdropEdit.MaxStrength)
         val count = p[2].toIntOrNull() ?: return
         if (count !in 1..BackdropEdit.MaxMarkers || p.size < 3 + count * 5) return
         val markers = ArrayList<BackdropMarker>(count)
