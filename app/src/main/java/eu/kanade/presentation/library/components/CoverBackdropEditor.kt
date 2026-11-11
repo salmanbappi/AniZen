@@ -111,7 +111,8 @@ import kotlin.math.roundToInt
 // part of the cover counts, and the area each of the four lights looks at); "Ver origen" shows or hides that.
 // "Ajustar el automático" changes the automatic backdrop itself, without markers: one point per section (the four lights)
 // with the colour the backdrop has there, each adjustable on its own (Brillo, Color, Tono, Área), or "Todo" at once.
-// The points can be moved (the change follows them) and taken off ("Quitar") or put back ("Poner").
+// Moving a point onto another colour of the cover puts that colour in its place in the backdrop; "Quitar" takes its
+// colour out of the backdrop (the others cover the place) and "Poner" brings it back.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -307,14 +308,17 @@ private fun CoverBackdropEditor(
 
     // the four sections of the automatic backdrop (one per light): where each sits on the cover, and its colour now
     val spotBase = remember(origin) { spotAnchors(origin) }
-    val anchors = List(4) { i -> tweak.spots.getOrNull(i)?.let { floatArrayOf(it.x, it.y) } ?: spotBase[i] }
+    val homesNow by rememberUpdatedState(spotBase)
+    // where each point is drawn: on the colour picked for it, or where the colour of that section lives
+    val anchors = List(4) { i -> shownAt(spotOf(tweak, i, spotBase)) }
     val anchorsNow by rememberUpdatedState(anchors)
     val removedSpots = BooleanArray(4) { tweak.spots.getOrNull(it)?.removed == true }
     val shownTones = if (comparing) autoTones else (previewTones ?: autoTones)
     val spotColours = remember(shownTones, tweak.spots, spotBase) {
         IntArray(4) { i ->
             val tones = shownTones
-            tones?.let { BackdropOverrides.colourAround(it, anchors[i][0], anchors[i][1]) }
+            val home = spotOf(tweak, i, spotBase)
+            tones?.let { BackdropOverrides.colourAround(it, home.x, home.y) }
                 ?: tones?.lights?.getOrNull(i)?.toArgb()
                 ?: 0xFF808080.toInt()
         }
@@ -374,19 +378,21 @@ private fun CoverBackdropEditor(
         return best
     }
 
-    // moves a section point to a spot of the card (and puts it back when [restore])
+    // puts a section point on a spot of the card: the colour there becomes the colour of that section (and it is put
+    // back when [restore])
     fun moveSpot(index: Int, position: Offset, size: IntSize, restore: Boolean) {
         val s = sample ?: return
         if (size.width <= 0 || size.height <= 0 || index !in 0..3) return
         val nx = (position.x / size.width).coerceIn(0.04f, 0.96f)
         val ny = (position.y / size.height).coerceIn(0.04f, 0.96f)
-        val current = spotOf(tweak, index, anchorsNow)
+        val current = spotOf(tweak, index, homesNow)
         val moved = current.copy(
-            x = s.coverX(nx).coerceIn(0.02f, 0.98f),
-            y = s.coverY(ny).coerceIn(0.02f, 0.98f),
+            pickX = s.coverX(nx).coerceIn(0.02f, 0.98f),
+            pickY = s.coverY(ny).coerceIn(0.02f, 0.98f),
+            pickArgb = s.colourAt(nx, ny) or (0xFF shl 24),
             removed = if (restore) false else current.removed,
         )
-        tweak = withSpot(tweak, index, moved, anchorsNow)
+        tweak = withSpot(tweak, index, moved, homesNow)
     }
 
     // the marker under a finger, or -1
@@ -542,7 +548,7 @@ private fun CoverBackdropEditor(
                                                 val spot = nearestSpot(position, size)
                                                 if (spot >= 0) {
                                                     tweakSel = spot
-                                                } else if (tweakSel in 0..3 && spotOf(tweak, tweakSel, anchorsNow).removed) {
+                                                } else if (tweakSel in 0..3 && spotOf(tweak, tweakSel, homesNow).removed) {
                                                     // a section that was taken off goes where the finger is
                                                     pushHistory()
                                                     moveSpot(tweakSel, position, size, true)
@@ -716,7 +722,7 @@ private fun CoverBackdropEditor(
                             tweak = tweak,
                             selected = tweakSel,
                             colours = spotColours,
-                            anchors = anchors,
+                            anchors = spotBase,
                             onSelect = { tweakSel = it },
                             onChange = {
                                 pushPanelStep()
@@ -1454,6 +1460,10 @@ private fun spotAnchors(origin: OriginView?): List<FloatArray> = List(4) { i ->
 private fun spotOf(tweak: BackdropTweak, i: Int, anchors: List<FloatArray>): SpotTweak =
     tweak.spots.getOrNull(i) ?: SpotTweak(anchors[i][0], anchors[i][1])
 
+/** Where a section's point is drawn on the cover: on the colour picked for it, or where its colour lives. */
+private fun shownAt(spot: SpotTweak): FloatArray =
+    if (spot.picked) floatArrayOf(spot.pickX, spot.pickY) else floatArrayOf(spot.x, spot.y)
+
 private fun withSpot(tweak: BackdropTweak, i: Int, spot: SpotTweak, anchors: List<FloatArray>): BackdropTweak =
     tweak.copy(spots = List(4) { j -> if (j == i) spot else spotOf(tweak, j, anchors) })
 
@@ -1602,8 +1612,8 @@ private fun TweakPanel(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Este punto está quitado: ahí el fondo queda como el automático. " +
-                        "Pulsa «Poner», o toca la portada donde lo quieras.",
+                    text = "Este color está quitado: ya no está en el fondo y los demás cubren su lugar. " +
+                        "Pulsa «Poner», o toca en la portada el color que quieras poner en su lugar.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.75f),
                     textAlign = TextAlign.Center,

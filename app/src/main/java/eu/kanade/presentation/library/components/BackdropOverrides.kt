@@ -16,6 +16,7 @@ import uy.kohesive.injekt.api.get
 import java.io.File
 import kotlin.math.exp
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 
 // ANZ --> Backdrops edited by hand ("Editar fondo"), one per anime, kept between launches.
@@ -63,9 +64,11 @@ internal data class BackdropTweak(
 }
 
 /**
- * Changes to one section of the automatic backdrop: the colours around the spot ([x], [y] on the cover, 0 to 1) get
- * lighter or darker ([light]), weaker or stronger ([color]) and their hue turns ([tone]); [reach] makes the section
- * smaller (-1) or larger (1). Each goes from -1 to 1 (0 = untouched).
+ * One section of the automatic backdrop (there are four, one per light of the colour engine). Its colour lives around
+ * the spot ([x], [y] on the cover, 0 to 1). It can take another colour ([pickArgb], picked on the cover at [pickX],
+ * [pickY]), be taken off ([removed]: its colour disappears and the others cover the place), and have its lightness
+ * ([light]), colour ([color]) and hue ([tone]) changed, each from -1 to 1 (0 = untouched). [reach] makes the section
+ * smaller (-1) or larger (1).
  */
 internal data class SpotTweak(
     val x: Float,
@@ -74,12 +77,18 @@ internal data class SpotTweak(
     val color: Float = 0f,
     val tone: Float = 0f,
     val reach: Float = 0f,
-    /** Taken off by hand: its changes are kept but not used until it is put back. */
     val removed: Boolean = false,
+    val pickX: Float = -1f,
+    val pickY: Float = -1f,
+    /** The colour picked on the cover for this section, or 0 when it keeps the colour the engine found. */
+    val pickArgb: Int = 0,
 ) {
-    /** True when it changes the colours (a different reach alone changes nothing, and a removed one does nothing). */
+    val picked: Boolean
+        get() = pickArgb != 0
+
+    /** True when it changes the backdrop (a different reach alone changes nothing). */
     val active: Boolean
-        get() = !removed && (light != 0f || color != 0f || tone != 0f)
+        get() = removed || picked || light != 0f || color != 0f || tone != 0f
 }
 
 /**
@@ -142,9 +151,10 @@ internal object BackdropOverrides {
     }
 
     /**
-     * The automatic colours with the hand changes on top (also used for the live preview): the changes to the whole
-     * backdrop, plus those of each section (they fade out with the distance to their spot, so the rest stays as the
-     * colour engine made it).
+     * The automatic colours with the hand changes on top (also used for the live preview). The changes to the whole
+     * backdrop apply everywhere. Each section works around its spot: it can take another colour, be taken off and have
+     * its lightness, colour and hue changed. They fade out with the distance to the spot, so the rest stays as the
+     * colour engine made it.
      */
     fun tweaked(auto: CoverTones, tweak: BackdropTweak): CoverTones {
         val spots = tweak.spots.take(4)
@@ -175,6 +185,33 @@ internal object BackdropOverrides {
             return w
         }
 
+        // what a picked colour becomes in the mosaic and in a light (graded the way the colour engine grades)
+        val picked = spots.map { if (it.pickArgb != 0 && !it.removed) gradedPick(it.pickArgb) else null }
+
+        // for a section taken off: the mix of what the others have, the nearer ones counting more
+        fun fill(i: Int, colourOf: (Int) -> Int?): Int? {
+            var sr = 0f
+            var sg = 0f
+            var sb = 0f
+            var sw = 0f
+            for (j in spots.indices) {
+                if (j == i || spots[j].removed) continue
+                val c = colourOf(j) ?: continue
+                val dx = (spots[j].x - spots[i].x) * 0.7f
+                val dy = spots[j].y - spots[i].y
+                val weight = 1f / (dx * dx + dy * dy + 0.02f)
+                sr += weight * ((c shr 16) and 255)
+                sg += weight * ((c shr 8) and 255)
+                sb += weight * (c and 255)
+                sw += weight
+            }
+            if (sw <= 0f) return null
+            return (0xFF shl 24) or
+                (((sr / sw + 0.5f).toInt().coerceIn(0, 255)) shl 16) or
+                (((sg / sw + 0.5f).toInt().coerceIn(0, 255)) shl 8) or
+                ((sb / sw + 0.5f).toInt().coerceIn(0, 255))
+        }
+
         val mosaic = auto.mosaic?.let { picture ->
             try {
                 val bitmap = picture.asAndroidBitmap()
@@ -182,6 +219,38 @@ internal object BackdropOverrides {
                 val h = bitmap.height
                 val px = IntArray(w * h)
                 bitmap.getPixels(px, 0, w, 0, 0, w, h)
+                val original = px.copyOf()
+
+                // the colour of a small area of the automatic mosaic
+                fun around(fx: Float, fy: Float): Int {
+                    val cx = (fx.coerceIn(0f, 1f) * w).toInt().coerceIn(0, w - 1)
+                    val cy = (fy.coerceIn(0f, 1f) * h).toInt().coerceIn(0, h - 1)
+                    var r = 0
+                    var g = 0
+                    var b = 0
+                    var n = 0
+                    for (dy in -1..1) {
+                        for (dx in -1..1) {
+                            val c = original[(cy + dy).coerceIn(0, h - 1) * w + (cx + dx).coerceIn(0, w - 1)]
+                            r += (c shr 16) and 255
+                            g += (c shr 8) and 255
+                            b += c and 255
+                            n++
+                        }
+                    }
+                    return (0xFF shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (b / n)
+                }
+
+                // the colour each section puts in its place (0 = it keeps the automatic one)
+                val here = IntArray(spots.size) { around(spots[it].x, spots[it].y) }
+                val replacement = IntArray(spots.size) { i ->
+                    when {
+                        spots[i].removed -> fill(i) { j -> picked[j]?.first ?: here[j] } ?: around(0.5f, 0.5f)
+                        picked[i] != null -> picked[i]!!.first
+                        else -> 0
+                    }
+                }
+
                 val share = FloatArray(spots.size)
                 for (k in px.indices) {
                     val u = ((k % w) + 0.5f) / w
@@ -197,12 +266,47 @@ internal object BackdropOverrides {
                         sum += value
                     }
                     if (sum > 1f) for (i in spots.indices) share[i] /= sum
-                    px[k] = adjust(px[k], share)
+
+                    // the colours the sections put here, in place of the automatic one
+                    var total = 0f
+                    var mr = 0f
+                    var mg = 0f
+                    var mb = 0f
+                    for (i in spots.indices) {
+                        val c = replacement[i]
+                        if (c == 0 || share[i] <= 0f) continue
+                        val part = min(1f, share[i] * 1.4f)
+                        total += part
+                        mr += part * ((c shr 16) and 255)
+                        mg += part * ((c shr 8) and 255)
+                        mb += part * (c and 255)
+                    }
+                    var colour = px[k]
+                    if (total > 0f) {
+                        val t = min(total, 1f)
+                        val old = px[k]
+                        val r = (((old shr 16) and 255) * (1f - t) + mr / total * t + 0.5f).toInt().coerceIn(0, 255)
+                        val g = (((old shr 8) and 255) * (1f - t) + mg / total * t + 0.5f).toInt().coerceIn(0, 255)
+                        val b = ((old and 255) * (1f - t) + mb / total * t + 0.5f).toInt().coerceIn(0, 255)
+                        colour = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                    }
+                    px[k] = adjust(colour, share)
                 }
                 Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888).asImageBitmap()
             } catch (_: Throwable) {
                 picture
             }
+        }
+
+        val lights = auto.lights.mapIndexed { i, c ->
+            val s = spots.getOrNull(i)
+            val base = when {
+                s == null -> c.toArgb()
+                s.removed -> fill(i) { j -> picked[j]?.second ?: auto.lights.getOrNull(j)?.toArgb() } ?: c.toArgb()
+                picked[i] != null -> picked[i]!!.second
+                else -> c.toArgb()
+            }
+            Color(adjust(base, weights(i to 1f)))
         }
         val topShare = weights(0 to 0.5f, 2 to 0.5f)
         val restShare = weights(0 to 0.25f, 1 to 0.25f, 2 to 0.25f, 3 to 0.25f)
@@ -212,9 +316,32 @@ internal object BackdropOverrides {
             top = Color(adjust(auto.top.toArgb(), topShare)),
             mid = Color(adjust(auto.mid.toArgb(), restShare)),
             deep = Color(adjust(auto.deep.toArgb(), restShare)),
-            lights = auto.lights.mapIndexed { i, c -> Color(adjust(c.toArgb(), weights(i to 1f))) },
+            lights = lights,
             mosaic = mosaic,
         )
+    }
+
+    private val gradedCache = HashMap<Int, Pair<Int, Int>>()
+
+    /** A colour picked on the cover as the backdrop would have it: its mosaic colour and its light colour. */
+    private fun gradedPick(argb: Int): Pair<Int, Int> = synchronized(gradedCache) {
+        gradedCache[argb] ?: run {
+            val r = BackdropPaint.paint(listOf(BackdropPaint.Pick(argb)), 1f)
+            var sr = 0L
+            var sg = 0L
+            var sb = 0L
+            for (c in r.mosaic) {
+                sr += (c shr 16) and 255
+                sg += (c shr 8) and 255
+                sb += c and 255
+            }
+            val n = r.mosaic.size.coerceAtLeast(1)
+            val mosaicColour = (0xFF shl 24) or ((sr / n).toInt() shl 16) or ((sg / n).toInt() shl 8) or (sb / n).toInt()
+            val pair = Pair(mosaicColour, r.lights[0])
+            if (gradedCache.size > 96) gradedCache.clear()
+            gradedCache[argb] = pair
+            pair
+        }
     }
 
     /** The colour the mosaic of [tones] has around a spot of the cover (x and y from 0 to 1), or null. */
@@ -331,7 +458,11 @@ internal object BackdropOverrides {
                     append(' ').append(sp.reach)
                 }
                 // which sections are taken off, one digit each (files from before this have none)
-                if (spots.isNotEmpty()) append(' ').append(spots.joinToString("") { if (it.removed) "1" else "0" })
+                if (spots.isNotEmpty()) {
+                    append(' ').append(spots.joinToString("") { if (it.removed) "1" else "0" })
+                    // the colour picked for each section: "x,y,argb" joined by ";"
+                    append(' ').append(spots.joinToString(";") { "${it.pickX},${it.pickY},${it.pickArgb}" })
+                }
                 append('\n')
             }
         }
@@ -401,6 +532,7 @@ internal object BackdropOverrides {
         val spots = ArrayList<SpotTweak>(spotCount)
         if (p.size >= spotsAt + 1 + spotCount * 6) {
             val flags = p.getOrNull(spotsAt + 1 + spotCount * 6)?.takeIf { it.length == spotCount }
+            val picks = p.getOrNull(spotsAt + 2 + spotCount * 6)?.split(';')?.takeIf { it.size == spotCount }
             for (i in 0 until spotCount) {
                 val at = spotsAt + 1 + i * 6
                 spots += SpotTweak(
@@ -411,6 +543,9 @@ internal object BackdropOverrides {
                     tone = (p[at + 4].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
                     reach = (p[at + 5].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
                     removed = flags != null && flags[i] == '1',
+                    pickX = picks?.get(i)?.split(',')?.getOrNull(0)?.toFloatOrNull() ?: -1f,
+                    pickY = picks?.get(i)?.split(',')?.getOrNull(1)?.toFloatOrNull() ?: -1f,
+                    pickArgb = picks?.get(i)?.split(',')?.getOrNull(2)?.toIntOrNull() ?: 0,
                 )
             }
         }
