@@ -74,10 +74,12 @@ internal data class SpotTweak(
     val color: Float = 0f,
     val tone: Float = 0f,
     val reach: Float = 0f,
+    /** Taken off by hand: its changes are kept but not used until it is put back. */
+    val removed: Boolean = false,
 ) {
-    /** True when it changes the colours (a different reach alone changes nothing). */
+    /** True when it changes the colours (a different reach alone changes nothing, and a removed one does nothing). */
     val active: Boolean
-        get() = light != 0f || color != 0f || tone != 0f
+        get() = !removed && (light != 0f || color != 0f || tone != 0f)
 }
 
 /**
@@ -157,6 +159,7 @@ internal object BackdropOverrides {
             var turn = globalTurn
             for (i in spots.indices) {
                 val s = spots[i]
+                if (s.removed) continue
                 shift += w[i] * BackdropPaint.lightShift(s.light)
                 extra += w[i] * (BackdropPaint.colourFactor(s.color) - 1f)
                 turn += w[i] * BackdropPaint.toneDegrees(s.tone)
@@ -327,6 +330,8 @@ internal object BackdropOverrides {
                     append(' ').append(sp.tone)
                     append(' ').append(sp.reach)
                 }
+                // which sections are taken off, one digit each (files from before this have none)
+                if (spots.isNotEmpty()) append(' ').append(spots.joinToString("") { if (it.removed) "1" else "0" })
                 append('\n')
             }
         }
@@ -395,6 +400,7 @@ internal object BackdropOverrides {
         val spotCount = (p.getOrNull(spotsAt)?.toIntOrNull() ?: 0).coerceIn(0, 4)
         val spots = ArrayList<SpotTweak>(spotCount)
         if (p.size >= spotsAt + 1 + spotCount * 6) {
+            val flags = p.getOrNull(spotsAt + 1 + spotCount * 6)?.takeIf { it.length == spotCount }
             for (i in 0 until spotCount) {
                 val at = spotsAt + 1 + i * 6
                 spots += SpotTweak(
@@ -404,6 +410,7 @@ internal object BackdropOverrides {
                     color = (p[at + 3].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
                     tone = (p[at + 4].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
                     reach = (p[at + 5].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                    removed = flags != null && flags[i] == '1',
                 )
             }
         }

@@ -111,6 +111,7 @@ import kotlin.math.roundToInt
 // part of the cover counts, and the area each of the four lights looks at); "Ver origen" shows or hides that.
 // "Ajustar el automático" changes the automatic backdrop itself, without markers: one point per section (the four lights)
 // with the colour the backdrop has there, each adjustable on its own (Brillo, Color, Tono, Área), or "Todo" at once.
+// The points can be moved (the change follows them) and taken off ("Quitar") or put back ("Poner").
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -189,6 +190,11 @@ private class CoverSample(bitmap: Bitmap) {
     fun cardX(fx: Float): Float = (fx - (0.5f - visW / 2f)) / visW
 
     fun cardY(fy: Float): Float = (fy - (0.5f - visH / 2f)) / visH
+
+    /** The other way round: where a point of the card (0 to 1) lies on the whole cover (fractions). */
+    fun coverX(nx: Float): Float = 0.5f - visW / 2f + nx * visW
+
+    fun coverY(ny: Float): Float = 0.5f - visH / 2f + ny * visH
 
     /** The colour under a point of the card (0 to 1 each way). */
     fun colourAt(nx: Float, ny: Float): Int =
@@ -279,6 +285,8 @@ private fun CoverBackdropEditor(
     val history = remember { mutableStateListOf<EditorSnapshot>() }
     var lastPanelStep by remember { mutableLongStateOf(0L) }
     var dragIndex by remember { mutableIntStateOf(-1) }
+    // the section point being moved while the automatic backdrop is adjusted, or -1
+    var spotDrag by remember { mutableIntStateOf(-1) }
     var dragging by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
@@ -301,6 +309,7 @@ private fun CoverBackdropEditor(
     val spotBase = remember(origin) { spotAnchors(origin) }
     val anchors = List(4) { i -> tweak.spots.getOrNull(i)?.let { floatArrayOf(it.x, it.y) } ?: spotBase[i] }
     val anchorsNow by rememberUpdatedState(anchors)
+    val removedSpots = BooleanArray(4) { tweak.spots.getOrNull(it)?.removed == true }
     val shownTones = if (comparing) autoTones else (previewTones ?: autoTones)
     val spotColours = remember(shownTones, tweak.spots, spotBase) {
         IntArray(4) { i ->
@@ -352,6 +361,7 @@ private fun CoverBackdropEditor(
         var best = -1
         var bestDistance = reach * reach
         for (i in 0 until 4) {
+            if (tweak.spots.getOrNull(i)?.removed == true) continue
             val a = anchorsNow[i]
             val x = s.cardX(a[0]).coerceIn(0.05f, 0.95f) * size.width
             val y = s.cardY(a[1]).coerceIn(0.05f, 0.95f) * size.height
@@ -362,6 +372,21 @@ private fun CoverBackdropEditor(
             }
         }
         return best
+    }
+
+    // moves a section point to a spot of the card (and puts it back when [restore])
+    fun moveSpot(index: Int, position: Offset, size: IntSize, restore: Boolean) {
+        val s = sample ?: return
+        if (size.width <= 0 || size.height <= 0 || index !in 0..3) return
+        val nx = (position.x / size.width).coerceIn(0.04f, 0.96f)
+        val ny = (position.y / size.height).coerceIn(0.04f, 0.96f)
+        val current = spotOf(tweak, index, anchorsNow)
+        val moved = current.copy(
+            x = s.coverX(nx).coerceIn(0.02f, 0.98f),
+            y = s.coverY(ny).coerceIn(0.02f, 0.98f),
+            removed = if (restore) false else current.removed,
+        )
+        tweak = withSpot(tweak, index, moved, anchorsNow)
     }
 
     // the marker under a finger, or -1
@@ -515,7 +540,13 @@ private fun CoverBackdropEditor(
                                         onTap = { position ->
                                             if (markers.isEmpty() && tweakOpen) {
                                                 val spot = nearestSpot(position, size)
-                                                if (spot >= 0) tweakSel = spot
+                                                if (spot >= 0) {
+                                                    tweakSel = spot
+                                                } else if (tweakSel in 0..3 && spotOf(tweak, tweakSel, anchorsNow).removed) {
+                                                    // a section that was taken off goes where the finger is
+                                                    pushHistory()
+                                                    moveSpot(tweakSel, position, size, true)
+                                                }
                                             } else {
                                                 val i = hit(position, size)
                                                 selected = if (i >= 0) i else addAt(position, size)
@@ -528,7 +559,12 @@ private fun CoverBackdropEditor(
                                         onDragStart = { position ->
                                             if (markers.isEmpty() && tweakOpen) {
                                                 val spot = nearestSpot(position, size)
-                                                if (spot >= 0) tweakSel = spot
+                                                if (spot >= 0) {
+                                                    pushHistory()
+                                                    tweakSel = spot
+                                                    moveSpot(spot, position, size, false)
+                                                }
+                                                spotDrag = spot
                                                 dragIndex = -1
                                                 dragging = false
                                             } else {
@@ -542,12 +578,22 @@ private fun CoverBackdropEditor(
                                                 if (i >= 0) moveTo(target, position, size)
                                             }
                                         },
-                                        onDragEnd = { dragging = false },
-                                        onDragCancel = { dragging = false },
+                                        onDragEnd = {
+                                            dragging = false
+                                            spotDrag = -1
+                                        },
+                                        onDragCancel = {
+                                            dragging = false
+                                            spotDrag = -1
+                                        },
                                     ) { change, _ ->
                                         change.consume()
                                         touch = change.position
-                                        moveTo(dragIndex, change.position, size)
+                                        if (spotDrag >= 0) {
+                                            moveSpot(spotDrag, change.position, size, false)
+                                        } else {
+                                            moveTo(dragIndex, change.position, size)
+                                        }
                                     }
                                 },
                         )
@@ -577,7 +623,7 @@ private fun CoverBackdropEditor(
                         val originNow = origin
                         val sampleNow = sample
                         if (sampleNow != null && cardSize.width > 0 && markers.isEmpty() && tweakOpen) {
-                            SpotPoints(anchors, spotColours, tweakSel, sampleNow, cardSize, Modifier.matchParentSize())
+                            SpotPoints(anchors, removedSpots, spotColours, tweakSel, sampleNow, cardSize, Modifier.matchParentSize())
                         } else if (originNow != null && sampleNow != null && cardSize.width > 0) {
                             if (showOrigin) {
                                 OriginOverlay(originNow, sampleNow, cardSize, Modifier.matchParentSize())
@@ -1418,6 +1464,7 @@ private fun lumaOf(argb: Int): Float =
 @Composable
 private fun SpotPoints(
     anchors: List<FloatArray>,
+    removed: BooleanArray,
     colours: IntArray,
     selected: Int,
     sample: CoverSample,
@@ -1427,6 +1474,7 @@ private fun SpotPoints(
     val density = LocalDensity.current
     Box(modifier = modifier) {
         for (i in 0 until 4) {
+            if (removed[i]) continue
             val chosen = i == selected
             val diameter = if (chosen) 38.dp else 30.dp
             val diameterPx = with(density) { diameter.toPx() }
@@ -1484,10 +1532,11 @@ private fun TweakPanel(
         ) {
             for (i in 0 until 4) {
                 val chosen = section && i == selected
+                val off = tweak.spots.getOrNull(i)?.removed == true
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(opaque(colours[i]), CircleShape)
+                        .background(opaque(colours[i]).copy(alpha = if (off) 0.25f else 1f), CircleShape)
                         .border(if (chosen) 3.dp else 1.dp, Color.White, CircleShape)
                         .clickable { onSelect(i) },
                     contentAlignment = Alignment.Center,
@@ -1510,14 +1559,6 @@ private fun TweakPanel(
                 .height(36.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = if (spot != null) "${selected + 1} · ${OriginNames[selected]}" else "Todo el fondo",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
             TextButton(
                 onClick = {
                     if (spot != null) {
@@ -1535,15 +1576,40 @@ private fun TweakPanel(
             ) {
                 Text("Restablecer", maxLines = 1)
             }
+            if (spot != null) {
+                TextButton(
+                    onClick = { onChange(withSpot(tweak, selected, spot.copy(removed = !spot.removed), anchors)) },
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                ) {
+                    Text(if (spot.removed) "Poner" else "Quitar", maxLines = 1)
+                }
+            }
+            Spacer(Modifier.weight(1f))
             TextButton(
                 onClick = onClose,
                 contentPadding = PaddingValues(horizontal = 8.dp),
                 colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
             ) {
-                Text("Cerrar", maxLines = 1)
+                Text("Listo", maxLines = 1)
             }
         }
-        if (spot != null) {
+        if (spot != null && spot.removed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(128.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Este punto está quitado: ahí el fondo queda como el automático. " +
+                        "Pulsa «Poner», o toca la portada donde lo quieras.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.75f),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else if (spot != null) {
             AdjustRow("Brillo", spot.light, signed((spot.light * 100f).roundToInt())) {
                 onChange(withSpot(tweak, selected, spot.copy(light = it), anchors))
             }
