@@ -237,6 +237,8 @@ private fun CoverBackdropEditor(
     // the picture the colours are read from, once the cover has loaded
     var loaded by remember { mutableStateOf<coil3.Image?>(null) }
     var sample by remember { mutableStateOf<CoverSample?>(null) }
+    // where the automatic colours come from, once the cover is read
+    var origin by remember { mutableStateOf<OriginView?>(null) }
     LaunchedEffect(loaded) {
         val image = loaded ?: return@LaunchedEffect
         sample = withContext(Dispatchers.Default) {
@@ -268,8 +270,7 @@ private fun CoverBackdropEditor(
     // hand changes on top of the automatic backdrop (used while there are no markers), and whether their panel is open
     var tweak by remember { mutableStateOf(saved?.tweak ?: BackdropTweak()) }
     var tweakOpen by remember { mutableStateOf(saved?.markers?.isEmpty() == true) }
-    // where the automatic colours come from; shown at first on a cover that has no edit
-    var origin by remember { mutableStateOf<OriginView?>(null) }
+    // whether the part of the cover the automatic colours come from is shown (at first on a cover that has no edit)
     var showOrigin by remember { mutableStateOf(saved == null) }
     // the steps that can be undone (newest last), and when the last slider step was recorded
     val history = remember { mutableStateListOf<EditorSnapshot>() }
