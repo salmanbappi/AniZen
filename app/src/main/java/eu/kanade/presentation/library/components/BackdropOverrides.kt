@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
+import kotlin.math.exp
+import kotlin.math.max
+import kotlin.math.pow
 
 // ANZ --> Backdrops edited by hand ("Editar fondo"), one per anime, kept between launches.
 
@@ -52,7 +55,27 @@ internal data class BackdropTweak(
     val light: Float = 0f,
     val color: Float = 0f,
     val tone: Float = 0f,
+    /** Changes of one section of the backdrop each (the four lights, in the order of the colour engine), or none. */
+    val spots: List<SpotTweak> = emptyList(),
 ) {
+    val active: Boolean
+        get() = light != 0f || color != 0f || tone != 0f || spots.any { it.active }
+}
+
+/**
+ * Changes to one section of the automatic backdrop: the colours around the spot ([x], [y] on the cover, 0 to 1) get
+ * lighter or darker ([light]), weaker or stronger ([color]) and their hue turns ([tone]); [reach] makes the section
+ * smaller (-1) or larger (1). Each goes from -1 to 1 (0 = untouched).
+ */
+internal data class SpotTweak(
+    val x: Float,
+    val y: Float,
+    val light: Float = 0f,
+    val color: Float = 0f,
+    val tone: Float = 0f,
+    val reach: Float = 0f,
+) {
+    /** True when it changes the colours (a different reach alone changes nothing). */
     val active: Boolean
         get() = light != 0f || color != 0f || tone != 0f
 }
@@ -116,12 +139,39 @@ internal object BackdropOverrides {
         return tones
     }
 
-    /** The automatic colours with the hand changes on top (also used for the live preview). */
+    /**
+     * The automatic colours with the hand changes on top (also used for the live preview): the changes to the whole
+     * backdrop, plus those of each section (they fade out with the distance to their spot, so the rest stays as the
+     * colour engine made it).
+     */
     fun tweaked(auto: CoverTones, tweak: BackdropTweak): CoverTones {
-        val shift = BackdropPaint.lightShift(tweak.light)
-        val factor = BackdropPaint.colourFactor(tweak.color)
-        val turn = BackdropPaint.toneDegrees(tweak.tone)
-        fun fix(c: Color): Color = Color(BackdropPaint.tweak(c.toArgb(), shift, factor, turn))
+        val spots = tweak.spots.take(4)
+        val globalShift = BackdropPaint.lightShift(tweak.light)
+        val globalFactor = BackdropPaint.colourFactor(tweak.color)
+        val globalTurn = BackdropPaint.toneDegrees(tweak.tone)
+
+        // one colour with the global change and the sections it belongs to ([w] = how much of each section reaches it)
+        fun adjust(argb: Int, w: FloatArray): Int {
+            var shift = globalShift
+            var extra = 0f
+            var turn = globalTurn
+            for (i in spots.indices) {
+                val s = spots[i]
+                shift += w[i] * BackdropPaint.lightShift(s.light)
+                extra += w[i] * (BackdropPaint.colourFactor(s.color) - 1f)
+                turn += w[i] * BackdropPaint.toneDegrees(s.tone)
+            }
+            val factor = max(0f, globalFactor * (1f + extra))
+            if (shift == 0f && factor == 1f && turn == 0f) return argb
+            return BackdropPaint.tweak(argb, shift, factor, turn)
+        }
+
+        fun weights(vararg parts: Pair<Int, Float>): FloatArray {
+            val w = FloatArray(spots.size)
+            for ((i, share) in parts) if (i in w.indices) w[i] = share
+            return w
+        }
+
         val mosaic = auto.mosaic?.let { picture ->
             try {
                 val bitmap = picture.asAndroidBitmap()
@@ -129,21 +179,68 @@ internal object BackdropOverrides {
                 val h = bitmap.height
                 val px = IntArray(w * h)
                 bitmap.getPixels(px, 0, w, 0, 0, w, h)
-                for (i in px.indices) px[i] = BackdropPaint.tweak(px[i], shift, factor, turn)
+                val share = FloatArray(spots.size)
+                for (k in px.indices) {
+                    val u = ((k % w) + 0.5f) / w
+                    val v = ((k / w) + 0.5f) / h
+                    var sum = 0f
+                    for (i in spots.indices) {
+                        val s = spots[i]
+                        val sigma = 0.22f * 2f.pow(s.reach.coerceIn(-1f, 1f))
+                        val dx = (u - s.x) * 0.7f
+                        val dy = v - s.y
+                        val value = if (s.active) exp(-(dx * dx + dy * dy) / (2f * sigma * sigma)) else 0f
+                        share[i] = value
+                        sum += value
+                    }
+                    if (sum > 1f) for (i in spots.indices) share[i] /= sum
+                    px[k] = adjust(px[k], share)
+                }
                 Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888).asImageBitmap()
             } catch (_: Throwable) {
                 picture
             }
         }
+        val topShare = weights(0 to 0.5f, 2 to 0.5f)
+        val restShare = weights(0 to 0.25f, 1 to 0.25f, 2 to 0.25f, 3 to 0.25f)
         return CoverTones(
             coverVersion = auto.coverVersion,
             presence = auto.presence,
-            top = fix(auto.top),
-            mid = fix(auto.mid),
-            deep = fix(auto.deep),
-            lights = auto.lights.map { fix(it) },
+            top = Color(adjust(auto.top.toArgb(), topShare)),
+            mid = Color(adjust(auto.mid.toArgb(), restShare)),
+            deep = Color(adjust(auto.deep.toArgb(), restShare)),
+            lights = auto.lights.mapIndexed { i, c -> Color(adjust(c.toArgb(), weights(i to 1f))) },
             mosaic = mosaic,
         )
+    }
+
+    /** The colour the mosaic of [tones] has around a spot of the cover (x and y from 0 to 1), or null. */
+    fun colourAround(tones: CoverTones, x: Float, y: Float): Int? {
+        val picture = tones.mosaic ?: return null
+        return try {
+            val bitmap = picture.asAndroidBitmap()
+            val w = bitmap.width
+            val h = bitmap.height
+            if (w <= 0 || h <= 0) return null
+            val cx = (x.coerceIn(0f, 1f) * w).toInt().coerceIn(0, w - 1)
+            val cy = (y.coerceIn(0f, 1f) * h).toInt().coerceIn(0, h - 1)
+            var r = 0
+            var g = 0
+            var b = 0
+            var n = 0
+            for (dy in -1..1) {
+                for (dx in -1..1) {
+                    val c = bitmap.getPixel((cx + dx).coerceIn(0, w - 1), (cy + dy).coerceIn(0, h - 1))
+                    r += (c shr 16) and 255
+                    g += (c shr 8) and 255
+                    b += c and 255
+                    n++
+                }
+            }
+            (0xFF shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (b / n)
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     /** Builds the backdrop colours for an edit (also used for the live preview while it is being made). */
@@ -220,6 +317,16 @@ internal object BackdropOverrides {
                     append(' ').append(m.force)
                     append(' ').append(if (m.exact) 1 else 0)
                 }
+                val spots = if (e.tweak.active) e.tweak.spots.take(4) else emptyList()
+                append(' ').append(spots.size)
+                for (sp in spots) {
+                    append(' ').append(sp.x)
+                    append(' ').append(sp.y)
+                    append(' ').append(sp.light)
+                    append(' ').append(sp.color)
+                    append(' ').append(sp.tone)
+                    append(' ').append(sp.reach)
+                }
                 append('\n')
             }
         }
@@ -278,13 +385,29 @@ internal object BackdropOverrides {
         if (p.size < 6) return
         val id = p[0].toLongOrNull() ?: return
         val strength = (p[1].toFloatOrNull() ?: return).coerceIn(BackdropEdit.MinStrength, BackdropEdit.MaxStrength)
-        val tweak = BackdropTweak(
-            light = (p[2].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
-            color = (p[3].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
-            tone = (p[4].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
-        )
+        val tweakLight = (p[2].toFloatOrNull() ?: return).coerceIn(-1f, 1f)
+        val tweakColor = (p[3].toFloatOrNull() ?: return).coerceIn(-1f, 1f)
+        val tweakTone = (p[4].toFloatOrNull() ?: return).coerceIn(-1f, 1f)
         val count = p[5].toIntOrNull() ?: return
         if (count !in 0..BackdropEdit.MaxMarkers || p.size < 6 + count * 10) return
+        // after the markers: how many sections have changes (files from before sections have none), then each one
+        val spotsAt = 6 + count * 10
+        val spotCount = (p.getOrNull(spotsAt)?.toIntOrNull() ?: 0).coerceIn(0, 4)
+        val spots = ArrayList<SpotTweak>(spotCount)
+        if (p.size >= spotsAt + 1 + spotCount * 6) {
+            for (i in 0 until spotCount) {
+                val at = spotsAt + 1 + i * 6
+                spots += SpotTweak(
+                    x = (p[at].toFloatOrNull() ?: return).coerceIn(0f, 1f),
+                    y = (p[at + 1].toFloatOrNull() ?: return).coerceIn(0f, 1f),
+                    light = (p[at + 2].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                    color = (p[at + 3].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                    tone = (p[at + 4].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                    reach = (p[at + 5].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                )
+            }
+        }
+        val tweak = BackdropTweak(tweakLight, tweakColor, tweakTone, spots)
         if (count == 0 && !tweak.active) return
         val markers = ArrayList<BackdropMarker>(count)
         for (i in 0 until count) {

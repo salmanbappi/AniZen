@@ -109,7 +109,8 @@ import kotlin.math.roundToInt
 // backdrop for this cover, "Volver a automático" removes it.
 // When the window opens on a cover without an edit it shows where the automatic backdrop takes its colours from (what
 // part of the cover counts, and the area each of the four lights looks at); "Ver origen" shows or hides that.
-// "Ajustar el automático" changes the automatic backdrop itself (Brillo, Color, Tono) without markers.
+// "Ajustar el automático" changes the automatic backdrop itself, without markers: one point per section (the four lights)
+// with the colour the backdrop has there, each adjustable on its own (Brillo, Color, Tono, Área), or "Todo" at once.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -270,6 +271,8 @@ private fun CoverBackdropEditor(
     // hand changes on top of the automatic backdrop (used while there are no markers), and whether their panel is open
     var tweak by remember { mutableStateOf(saved?.tweak ?: BackdropTweak()) }
     var tweakOpen by remember { mutableStateOf(saved?.markers?.isEmpty() == true) }
+    // which section is chosen in that panel: 0 to 3 the sections, 4 the whole backdrop
+    var tweakSel by remember { mutableIntStateOf(0) }
     // whether the part of the cover the automatic colours come from is shown (at first on a cover that has no edit)
     var showOrigin by remember { mutableStateOf(saved == null) }
     // the steps that can be undone (newest last), and when the last slider step was recorded
@@ -293,6 +296,20 @@ private fun CoverBackdropEditor(
     val generalNow = if (markers.isEmpty()) 1f else general
     val hasEdit = markers.isNotEmpty() || tweakNow.active
     val changed = hasEdit && (markers != saved?.markers || generalNow != saved?.strength || tweakNow != saved?.tweak)
+
+    // the four sections of the automatic backdrop (one per light): where each sits on the cover, and its colour now
+    val spotBase = remember(origin) { spotAnchors(origin) }
+    val anchors = List(4) { i -> tweak.spots.getOrNull(i)?.let { floatArrayOf(it.x, it.y) } ?: spotBase[i] }
+    val anchorsNow by rememberUpdatedState(anchors)
+    val shownTones = if (comparing) autoTones else (previewTones ?: autoTones)
+    val spotColours = remember(shownTones, tweak.spots, spotBase) {
+        IntArray(4) { i ->
+            val tones = shownTones
+            tones?.let { BackdropOverrides.colourAround(it, anchors[i][0], anchors[i][1]) }
+                ?: tones?.lights?.getOrNull(i)?.toArgb()
+                ?: 0xFF808080.toInt()
+        }
+    }
 
     // the other seasons of this series found in the library, by their titles
     val seasons = remember(anime.id, library) {
@@ -326,6 +343,25 @@ private fun CoverBackdropEditor(
         tweak = last.tweak
         selected = if (last.markers.isEmpty()) -1 else last.selected.coerceIn(0, last.markers.lastIndex)
         lastPanelStep = 0L
+    }
+
+    // the section point under a finger (while the automatic backdrop is being adjusted), or -1
+    fun nearestSpot(position: Offset, size: IntSize): Int {
+        val s = sample ?: return -1
+        val reach = with(density) { 40.dp.toPx() }
+        var best = -1
+        var bestDistance = reach * reach
+        for (i in 0 until 4) {
+            val a = anchorsNow[i]
+            val x = s.cardX(a[0]).coerceIn(0.05f, 0.95f) * size.width
+            val y = s.cardY(a[1]).coerceIn(0.05f, 0.95f) * size.height
+            val d = (x - position.x) * (x - position.x) + (y - position.y) * (y - position.y)
+            if (d <= bestDistance) {
+                bestDistance = d
+                best = i
+            }
+        }
+        return best
     }
 
     // the marker under a finger, or -1
@@ -477,22 +513,34 @@ private fun CoverBackdropEditor(
                                 .pointerInput(Unit) {
                                     detectTapGestures(
                                         onTap = { position ->
-                                            val i = hit(position, size)
-                                            selected = if (i >= 0) i else addAt(position, size)
+                                            if (markers.isEmpty() && tweakOpen) {
+                                                val spot = nearestSpot(position, size)
+                                                if (spot >= 0) tweakSel = spot
+                                            } else {
+                                                val i = hit(position, size)
+                                                selected = if (i >= 0) i else addAt(position, size)
+                                            }
                                         },
                                     )
                                 }
                                 .pointerInput(Unit) {
                                     detectDragGestures(
                                         onDragStart = { position ->
-                                            val i = hit(position, size)
-                                            if (i >= 0) pushHistory()
-                                            val target = if (i >= 0) i else addAt(position, size)
-                                            selected = target
-                                            dragIndex = target
-                                            dragging = target >= 0
-                                            touch = position
-                                            if (i >= 0) moveTo(target, position, size)
+                                            if (markers.isEmpty() && tweakOpen) {
+                                                val spot = nearestSpot(position, size)
+                                                if (spot >= 0) tweakSel = spot
+                                                dragIndex = -1
+                                                dragging = false
+                                            } else {
+                                                val i = hit(position, size)
+                                                if (i >= 0) pushHistory()
+                                                val target = if (i >= 0) i else addAt(position, size)
+                                                selected = target
+                                                dragIndex = target
+                                                dragging = target >= 0
+                                                touch = position
+                                                if (i >= 0) moveTo(target, position, size)
+                                            }
                                         },
                                         onDragEnd = { dragging = false },
                                         onDragCancel = { dragging = false },
@@ -528,7 +576,9 @@ private fun CoverBackdropEditor(
                         // where the automatic colours come from, and the button that shows or hides it
                         val originNow = origin
                         val sampleNow = sample
-                        if (originNow != null && sampleNow != null && cardSize.width > 0) {
+                        if (sampleNow != null && cardSize.width > 0 && markers.isEmpty() && tweakOpen) {
+                            SpotPoints(anchors, spotColours, tweakSel, sampleNow, cardSize, Modifier.matchParentSize())
+                        } else if (originNow != null && sampleNow != null && cardSize.width > 0) {
                             if (showOrigin) {
                                 OriginOverlay(originNow, sampleNow, cardSize, Modifier.matchParentSize())
                             }
@@ -574,8 +624,8 @@ private fun CoverBackdropEditor(
                     val panelOpen = adjusting && chosenMarker != null
                     val tweakPanelOpen = markers.isEmpty() && tweakOpen
                     val originNow = origin
-                    if (!panelOpen) {
-                        if (showOrigin && originNow != null && !tweakPanelOpen) {
+                    if (!panelOpen && !tweakPanelOpen) {
+                        if (showOrigin && originNow != null) {
                             OriginLegend(originNow)
                         } else {
                             Text(
@@ -583,9 +633,6 @@ private fun CoverBackdropEditor(
                                     markers.isEmpty() && tweakNow.active && changed ->
                                         "Este es el fondo automático con tus ajustes. Pulsa Guardar cuando te guste."
                                     markers.isEmpty() && tweakNow.active -> "Este es el fondo guardado para esta portada."
-                                    markers.isEmpty() && tweakPanelOpen ->
-                                        "Mueve los controles: cambian el fondo automático tal como está. " +
-                                            "Mantén pulsado «Comparar» para ver el original."
                                     markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
                                         "(hasta ${BackdropEdit.MaxMarkers}), parte del fondo automático o ajústalo."
                                     changed -> "Toca un marcador para elegirlo; arrástralo para moverlo. " +
@@ -599,7 +646,7 @@ private fun CoverBackdropEditor(
                             )
                         }
                     }
-                    if (!panelOpen && hasEdit && seasons.isNotEmpty()) {
+                    if (!panelOpen && !tweakPanelOpen && hasEdit && seasons.isNotEmpty()) {
                         TextButton(
                             onClick = { showCopy = true },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
@@ -618,7 +665,20 @@ private fun CoverBackdropEditor(
                         )
                     }
                     Spacer(Modifier.height(10.dp))
-                    if (markers.isEmpty()) {
+                    if (markers.isEmpty() && tweakPanelOpen) {
+                        TweakPanel(
+                            tweak = tweak,
+                            selected = tweakSel,
+                            colours = spotColours,
+                            anchors = anchors,
+                            onSelect = { tweakSel = it },
+                            onChange = {
+                                pushPanelStep()
+                                tweak = it
+                            },
+                            onClose = { tweakOpen = false },
+                        )
+                    } else if (markers.isEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -682,15 +742,15 @@ private fun CoverBackdropEditor(
                             }
                             OutlinedButton(
                                 onClick = {
-                                    tweakOpen = !tweakOpen
-                                    if (tweakOpen) showOrigin = false
+                                    tweakOpen = true
+                                    tweakSel = 0
+                                    showOrigin = false
                                 },
                                 enabled = autoTones != null,
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = if (tweakOpen) 0.9f else 0.5f)),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (tweakOpen) Color.White.copy(alpha = 0.18f) else Color.Transparent,
                                     contentColor = Color.White,
                                     disabledContentColor = Color.White.copy(alpha = 0.35f),
                                 ),
@@ -702,16 +762,6 @@ private fun CoverBackdropEditor(
                                     style = MaterialTheme.typography.labelLarge,
                                 )
                             }
-                        }
-                        if (tweakPanelOpen) {
-                            Spacer(Modifier.height(4.dp))
-                            TweakPanel(
-                                tweak = tweak,
-                                onChange = {
-                                    pushPanelStep()
-                                    tweak = it
-                                },
-                            )
                         }
                     } else {
                         Row(
@@ -1341,13 +1391,119 @@ private fun OriginLegend(origin: OriginView, modifier: Modifier = Modifier) {
     }
 }
 
-/** Changes on top of the automatic backdrop itself (no markers): Brillo, Color and Tono. */
+/** Where the four sections sit on the cover: the spot each light reads its colour from, or a usual place. */
+private val DefaultSpots = arrayOf(
+    floatArrayOf(0.27f, 0.16f),
+    floatArrayOf(0.81f, 0.50f),
+    floatArrayOf(0.72f, 0.16f),
+    floatArrayOf(0.19f, 0.50f),
+)
+
+private fun spotAnchors(origin: OriginView?): List<FloatArray> = List(4) { i ->
+    val at = origin?.at?.getOrNull(i)
+    if (at != null) floatArrayOf(at[0].coerceIn(0.02f, 0.98f), at[1].coerceIn(0.02f, 0.98f)) else DefaultSpots[i]
+}
+
+/** What section [i] has now (nothing changed yet when it has no changes of its own). */
+private fun spotOf(tweak: BackdropTweak, i: Int, anchors: List<FloatArray>): SpotTweak =
+    tweak.spots.getOrNull(i) ?: SpotTweak(anchors[i][0], anchors[i][1])
+
+private fun withSpot(tweak: BackdropTweak, i: Int, spot: SpotTweak, anchors: List<FloatArray>): BackdropTweak =
+    tweak.copy(spots = List(4) { j -> if (j == i) spot else spotOf(tweak, j, anchors) })
+
+private fun lumaOf(argb: Int): Float =
+    (0.299f * ((argb shr 16) and 255) + 0.587f * ((argb shr 8) and 255) + 0.114f * (argb and 255)) / 255f
+
+/** Over the cover while the automatic backdrop is adjusted: one numbered point per section, in its colour now. */
+@Composable
+private fun SpotPoints(
+    anchors: List<FloatArray>,
+    colours: IntArray,
+    selected: Int,
+    sample: CoverSample,
+    cardSize: IntSize,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    Box(modifier = modifier) {
+        for (i in 0 until 4) {
+            val chosen = i == selected
+            val diameter = if (chosen) 38.dp else 30.dp
+            val diameterPx = with(density) { diameter.toPx() }
+            val colour = colours[i]
+            val cx = sample.cardX(anchors[i][0]).coerceIn(0.05f, 0.95f) * cardSize.width
+            val cy = sample.cardY(anchors[i][1]).coerceIn(0.05f, 0.95f) * cardSize.height
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset((cx - diameterPx / 2f).roundToInt(), (cy - diameterPx / 2f).roundToInt()) }
+                    .size(diameter)
+                    .background(Color.Black.copy(alpha = 0.35f), CircleShape)
+                    .padding(2.dp)
+                    .border(if (chosen) 3.dp else 2.dp, Color.White, CircleShape)
+                    .padding(if (chosen) 4.dp else 3.dp)
+                    .background(opaque(colour), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${i + 1}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (lumaOf(colour) > 0.6f) Color.Black else Color.White,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The automatic backdrop, adjusted section by section: pick one of the four colours (the points on the cover, or the
+ * circles here) and change its Brillo, Color, Tono and Área; "Todo" changes the whole backdrop at once. Nothing moves
+ * until a control does, so the backdrop starts exactly as the colour engine made it.
+ */
 @Composable
 private fun TweakPanel(
     tweak: BackdropTweak,
+    selected: Int,
+    colours: IntArray,
+    anchors: List<FloatArray>,
+    onSelect: (Int) -> Unit,
     onChange: (BackdropTweak) -> Unit,
+    onClose: () -> Unit,
 ) {
+    val section = selected in 0..3
+    val spot = if (section) spotOf(tweak, selected, anchors) else null
+    val changedNow = if (spot != null) spot.active else (tweak.light != 0f || tweak.color != 0f || tweak.tone != 0f)
     Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            for (i in 0 until 4) {
+                val chosen = section && i == selected
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(opaque(colours[i]), CircleShape)
+                        .border(if (chosen) 3.dp else 1.dp, Color.White, CircleShape)
+                        .clickable { onSelect(i) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "${i + 1}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (lumaOf(colours[i]) > 0.6f) Color.Black else Color.White,
+                        maxLines = 1,
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            PillChip("Todo", selected == 4, Modifier.width(64.dp)) { onSelect(4) }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1355,16 +1511,23 @@ private fun TweakPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Sobre el automático",
+                text = if (spot != null) "${selected + 1} · ${OriginNames[selected]}" else "Todo el fondo",
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.85f),
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             TextButton(
-                onClick = { onChange(BackdropTweak()) },
-                enabled = tweak.active,
-                contentPadding = PaddingValues(horizontal = 10.dp),
+                onClick = {
+                    if (spot != null) {
+                        onChange(withSpot(tweak, selected, SpotTweak(spot.x, spot.y), anchors))
+                    } else {
+                        onChange(tweak.copy(light = 0f, color = 0f, tone = 0f))
+                    }
+                },
+                enabled = changedNow,
+                contentPadding = PaddingValues(horizontal = 8.dp),
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = Color.White,
                     disabledContentColor = Color.White.copy(alpha = 0.35f),
@@ -1372,15 +1535,38 @@ private fun TweakPanel(
             ) {
                 Text("Restablecer", maxLines = 1)
             }
+            TextButton(
+                onClick = onClose,
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+            ) {
+                Text("Cerrar", maxLines = 1)
+            }
         }
-        AdjustRow("Brillo", tweak.light, signed((tweak.light * 100f).roundToInt())) {
-            onChange(tweak.copy(light = it))
-        }
-        AdjustRow("Color", tweak.color, signed((tweak.color * 100f).roundToInt())) {
-            onChange(tweak.copy(color = it))
-        }
-        AdjustRow("Tono", tweak.tone, signed((tweak.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
-            onChange(tweak.copy(tone = it))
+        if (spot != null) {
+            AdjustRow("Brillo", spot.light, signed((spot.light * 100f).roundToInt())) {
+                onChange(withSpot(tweak, selected, spot.copy(light = it), anchors))
+            }
+            AdjustRow("Color", spot.color, signed((spot.color * 100f).roundToInt())) {
+                onChange(withSpot(tweak, selected, spot.copy(color = it), anchors))
+            }
+            AdjustRow("Tono", spot.tone, signed((spot.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
+                onChange(withSpot(tweak, selected, spot.copy(tone = it), anchors))
+            }
+            AdjustRow("Área", spot.reach, signed((spot.reach * 100f).roundToInt())) {
+                onChange(withSpot(tweak, selected, spot.copy(reach = it), anchors))
+            }
+        } else {
+            AdjustRow("Brillo", tweak.light, signed((tweak.light * 100f).roundToInt())) {
+                onChange(tweak.copy(light = it))
+            }
+            AdjustRow("Color", tweak.color, signed((tweak.color * 100f).roundToInt())) {
+                onChange(tweak.copy(color = it))
+            }
+            AdjustRow("Tono", tweak.tone, signed((tweak.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
+                onChange(tweak.copy(tone = it))
+            }
+            Spacer(Modifier.height(32.dp))
         }
     }
 }
