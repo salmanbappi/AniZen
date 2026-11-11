@@ -4,7 +4,9 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,10 +44,27 @@ internal data class BackdropMarker(
         copy(zone = BackdropPaint.ZoneAuto, light = 0f, color = 0f, tone = 0f, force = 0f, exact = false)
 }
 
-/** One hand-made backdrop: up to [MaxMarkers] markers and an overall strength (1 = as designed, [MinStrength] to [MaxStrength]). */
+/**
+ * Hand changes on top of the automatic backdrop, each from -1 to 1 (0 = none): [light] (Brillo), [color] (Color) and
+ * [tone] (Tono). They are used only by an edit without markers.
+ */
+internal data class BackdropTweak(
+    val light: Float = 0f,
+    val color: Float = 0f,
+    val tone: Float = 0f,
+) {
+    val active: Boolean
+        get() = light != 0f || color != 0f || tone != 0f
+}
+
+/**
+ * One hand-made backdrop: up to [MaxMarkers] markers and an overall strength (1 = as designed, [MinStrength] to
+ * [MaxStrength]). Without markers it is the automatic backdrop with the [tweak] on top of it.
+ */
 internal class BackdropEdit(
     val markers: List<BackdropMarker>,
     val strength: Float = 1f,
+    val tweak: BackdropTweak = BackdropTweak(),
 ) {
     companion object {
         const val MaxMarkers = 4
@@ -62,15 +81,18 @@ internal class BackdropEdit(
 internal object BackdropOverrides {
 
     private const val FileName = "backdrop_edits.txt"
-    private const val Header = "ANZ-BACKDROP 3"
+    private const val Header = "ANZ-BACKDROP 4"
+    private const val HeaderV3 = "ANZ-BACKDROP 3"
     private const val HeaderV2 = "ANZ-BACKDROP 2"
     private const val HeaderV1 = "ANZ-BACKDROP 1"
 
     /** By anime id. Observable, so the Home page changes the moment an edit is saved or removed. */
     private val edits = mutableStateMapOf<Long, BackdropEdit>()
 
-    /** The tones built from each edit (main thread only). */
-    private val built = HashMap<Long, Pair<BackdropEdit, CoverTones>>()
+    /** The tones built from each edit (main thread only); [auto] is what an edit without markers was built on. */
+    private class Built(val edit: BackdropEdit, val auto: CoverTones?, val tones: CoverTones)
+
+    private val built = HashMap<Long, Built>()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val fileLock = Any()
@@ -84,11 +106,44 @@ internal object BackdropOverrides {
     /** The colours the backdrop of this anime must use: its edit when it has one, otherwise [auto]. */
     fun apply(animeId: Long, auto: CoverTones?): CoverTones? {
         val edit = edits[animeId] ?: return auto
+        val onAuto = edit.markers.isEmpty()
+        // an edit without markers works on the automatic colours, which may not be ready yet
+        if (onAuto && auto == null) return null
         val known = built[animeId]
-        if (known != null && known.first === edit) return known.second
-        val tones = tonesOf(edit)
-        built[animeId] = edit to tones
+        if (known != null && known.edit === edit && (!onAuto || known.auto === auto)) return known.tones
+        val tones = if (onAuto && auto != null) tweaked(auto, edit.tweak) else tonesOf(edit)
+        built[animeId] = Built(edit, if (onAuto) auto else null, tones)
         return tones
+    }
+
+    /** The automatic colours with the hand changes on top (also used for the live preview). */
+    fun tweaked(auto: CoverTones, tweak: BackdropTweak): CoverTones {
+        val shift = BackdropPaint.lightShift(tweak.light)
+        val factor = BackdropPaint.colourFactor(tweak.color)
+        val turn = BackdropPaint.toneDegrees(tweak.tone)
+        fun fix(c: Color): Color = Color(BackdropPaint.tweak(c.toArgb(), shift, factor, turn))
+        val mosaic = auto.mosaic?.let { picture ->
+            try {
+                val bitmap = picture.asAndroidBitmap()
+                val w = bitmap.width
+                val h = bitmap.height
+                val px = IntArray(w * h)
+                bitmap.getPixels(px, 0, w, 0, 0, w, h)
+                for (i in px.indices) px[i] = BackdropPaint.tweak(px[i], shift, factor, turn)
+                Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888).asImageBitmap()
+            } catch (_: Throwable) {
+                picture
+            }
+        }
+        return CoverTones(
+            coverVersion = auto.coverVersion,
+            presence = auto.presence,
+            top = fix(auto.top),
+            mid = fix(auto.mid),
+            deep = fix(auto.deep),
+            lights = auto.lights.map { fix(it) },
+            mosaic = mosaic,
+        )
     }
 
     /** Builds the backdrop colours for an edit (also used for the live preview while it is being made). */
@@ -149,6 +204,9 @@ internal object BackdropOverrides {
             for ((id, e) in edits.entries.sortedBy { it.key }) {
                 append(id).append(' ')
                 append(e.strength).append(' ')
+                append(e.tweak.light).append(' ')
+                append(e.tweak.color).append(' ')
+                append(e.tweak.tone).append(' ')
                 append(e.markers.size)
                 for (m in e.markers) {
                     append(' ').append(m.x)
@@ -189,7 +247,8 @@ internal object BackdropOverrides {
             if (!file.exists()) return
             val lines = file.readLines()
             when (lines.firstOrNull()?.trim()) {
-                Header -> for (line in lines.drop(1)) parseV3(line)
+                Header -> for (line in lines.drop(1)) parseV4(line)
+                HeaderV3 -> for (line in lines.drop(1)) parseV3(line)
                 HeaderV2 -> for (line in lines.drop(1)) parseV2(line)
                 HeaderV1 -> for (line in lines.drop(1)) parseV1(line)
             }
@@ -211,8 +270,44 @@ internal object BackdropOverrides {
     }
 
     /**
-     * "id strength count" followed by "x y argb zone strength light color tone force exact" for every marker
-     * (exact is 1 or 0).
+     * "id strength tweakLight tweakColor tweakTone count" followed by "x y argb zone strength light color tone force
+     * exact" for every marker (exact is 1 or 0). An edit may have no markers when it has a tweak.
+     */
+    private fun parseV4(line: String) {
+        val p = line.trim().split(' ')
+        if (p.size < 6) return
+        val id = p[0].toLongOrNull() ?: return
+        val strength = (p[1].toFloatOrNull() ?: return).coerceIn(BackdropEdit.MinStrength, BackdropEdit.MaxStrength)
+        val tweak = BackdropTweak(
+            light = (p[2].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+            color = (p[3].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+            tone = (p[4].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+        )
+        val count = p[5].toIntOrNull() ?: return
+        if (count !in 0..BackdropEdit.MaxMarkers || p.size < 6 + count * 10) return
+        if (count == 0 && !tweak.active) return
+        val markers = ArrayList<BackdropMarker>(count)
+        for (i in 0 until count) {
+            val at = 6 + i * 10
+            markers += BackdropMarker(
+                x = p[at].toFloatOrNull() ?: return,
+                y = p[at + 1].toFloatOrNull() ?: return,
+                argb = p[at + 2].toIntOrNull() ?: return,
+                zone = p[at + 3].toIntOrNull() ?: return,
+                strength = p[at + 4].toFloatOrNull() ?: return,
+                light = (p[at + 5].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                color = (p[at + 6].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                tone = (p[at + 7].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                force = (p[at + 8].toFloatOrNull() ?: return).coerceIn(-1f, 1f),
+                exact = p[at + 9] == "1",
+            )
+        }
+        edits[id] = BackdropEdit(markers, strength, tweak)
+    }
+
+    /**
+     * The third version of the file: "id strength count" followed by "x y argb zone strength light color tone force
+     * exact" for every marker (exact is 1 or 0).
      */
     private fun parseV3(line: String) {
         val p = line.trim().split(' ')

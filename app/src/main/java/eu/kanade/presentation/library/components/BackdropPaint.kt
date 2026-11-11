@@ -140,6 +140,34 @@ internal object BackdropPaint {
         val exact: Boolean = false,
     )
 
+    /** How far apart two colours are in hue and chroma (OKLab a/b plane; about 0.05 is a clearly different shade). */
+    fun colourDistance(a: Int, b: Int): Float {
+        val la = FloatArray(3)
+        val lb = FloatArray(3)
+        oklab(a, la)
+        oklab(b, lb)
+        return hypot(la[1] - lb[1], la[2] - lb[2])
+    }
+
+    /**
+     * The same colour made lighter or darker ([lightShift] added to its OKLab lightness), weaker or stronger (chroma
+     * times [chromaFactor]) and with its hue turned by [turnDegrees]. It never leaves what the screen can show.
+     */
+    fun tweak(argb: Int, lightShift: Float, chromaFactor: Float, turnDegrees: Float): Int {
+        val lab = FloatArray(3)
+        oklab(argb, lab)
+        val c0 = hypot(lab[1], lab[2])
+        val hueRad = (if (c0 < 1e-5f) 0f else atan2(lab[2], lab[1])) + rad(turnDegrees)
+        val l = (lab[0] + lightShift).coerceIn(0.02f, 0.99f)
+        val scratch = FloatArray(3)
+        val c = if (c0 < 1e-5f) 0f else min(c0 * chromaFactor, gamutMax(l, hueRad, scratch))
+        linearRgb(l, c * cos(hueRad), c * sin(hueRad), scratch)
+        return (0xFF shl 24) or
+            (fromLinear(scratch[0]) shl 16) or
+            (fromLinear(scratch[1]) shl 8) or
+            fromLinear(scratch[2])
+    }
+
     /** What each adjustment means in the painter's own units. */
     fun lightShift(v: Float): Float = v * 0.35f
     fun colourFactor(v: Float): Float = if (v >= 0f) 1f + 1.6f * v else 1f + v

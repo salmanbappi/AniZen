@@ -38,6 +38,32 @@ internal class EngineResult(
     val masses: FloatArray,
 )
 
+/**
+ * What the engine looked at in a cover, for the "Editar fondo" window to show. Filled only when the caller passes one to
+ * [CoverColorEngine.analyze]; the colours the engine returns are the same with or without it.
+ */
+internal class EngineExplain {
+    /** The part of the cover that was analysed: left, top, right, bottom as fractions of the whole cover. */
+    var area = floatArrayOf(0f, 0f, 1f, 1f)
+
+    /** Size of [kept]. */
+    var keptW = 0
+    var keptH = 0
+
+    /** [keptW] x [keptH] values, row by row, over [area]: how much each part counts for the colours (0 = not at all). */
+    var kept = FloatArray(0)
+
+    /**
+     * For each of the four lights (top-left, right, top-right, left): the rectangle of the cover its colour was taken
+     * from (left, top, right, bottom as fractions of the whole cover), or null when no part of the cover had colour
+     * and the colours of the whole cover were used instead.
+     */
+    val lightRect = arrayOfNulls<FloatArray>(4)
+
+    /** For each light: where its colour was found (x, y as fractions of the whole cover), or null. */
+    val lightAt = arrayOfNulls<FloatArray>(4)
+}
+
 internal object CoverColorEngine {
     const val Cols = 32
     const val Rows = 48
@@ -279,7 +305,7 @@ internal object CoverColorEngine {
      */
     private fun regionColour(
         kept: FloatArray, family: IntArray, pl: FloatArray, pa: FloatArray, pb: FloatArray,
-        cw: Int, ch: Int, rect: FloatArray, out: FloatArray,
+        cw: Int, ch: Int, rect: FloatArray, out: FloatArray, centroid: FloatArray? = null,
     ): Float {
         val x0 = (rect[0] * cw).toInt().coerceIn(0, cw - 1)
         val x1 = (rect[2] * cw).toInt().coerceIn(x0 + 1, cw)
@@ -289,6 +315,8 @@ internal object CoverColorEngine {
         val sl = FloatArray(Bins)
         val sa = FloatArray(Bins)
         val sb = FloatArray(Bins)
+        val sx = if (centroid != null) FloatArray(Bins) else null
+        val sy = if (centroid != null) FloatArray(Bins) else null
         for (y in y0 until y1) {
             for (x in x0 until x1) {
                 val at = y * cw + x
@@ -299,6 +327,10 @@ internal object CoverColorEngine {
                 sl[f] += w * pl[at]
                 sa[f] += w * pa[at]
                 sb[f] += w * pb[at]
+                if (sx != null && sy != null) {
+                    sx[f] += w * (x + 0.5f)
+                    sy[f] += w * (y + 0.5f)
+                }
             }
         }
         var best = -1
@@ -315,14 +347,24 @@ internal object CoverColorEngine {
         var tl = 0f
         var ta = 0f
         var tb = 0f
+        var tx = 0f
+        var ty = 0f
         for (d in -1..1) {
             val k = (best + d + Bins) % Bins
             tm += m[k]
             tl += sl[k]
             ta += sa[k]
             tb += sb[k]
+            if (sx != null && sy != null) {
+                tx += sx[k]
+                ty += sy[k]
+            }
         }
         if (tm < 1e-6f) return 0f
+        if (centroid != null) {
+            centroid[0] = tx / tm
+            centroid[1] = ty / tm
+        }
         out[0] = tl / tm
         out[1] = ta / tm
         out[2] = tb / tm
@@ -546,7 +588,7 @@ internal object CoverColorEngine {
     // ---------- the engine ----------
 
     /** [pixels]: ARGB, [width] x [height], a cover scaled to about 160 px. Null when the cover has no usable colour. */
-    fun analyze(pixels: IntArray, width: Int, height: Int): EngineResult? {
+    fun analyze(pixels: IntArray, width: Int, height: Int, explain: EngineExplain? = null): EngineResult? {
         if (width < 16 || height < 16 || pixels.size < width * height) return null
         // the middle of the artwork: frames and black bars at the sides, the very bottom edge
         val x0 = (width * 0.10f).toInt()
@@ -644,6 +686,13 @@ internal object CoverColorEngine {
                 val density = sum / ((xb - xa) * (yb - ya))
                 kept[at] += (weight[at] - kept[at]) * ramp(0.50f, 0.80f, density)
             }
+        }
+
+        if (explain != null) {
+            explain.area = floatArrayOf(x0.toFloat() / width, y0.toFloat() / height, x1.toFloat() / width, y1.toFloat() / height)
+            explain.keptW = cw
+            explain.keptH = ch
+            explain.kept = kept.copyOf()
         }
 
         // what survives votes, spread over the grid
@@ -845,12 +894,22 @@ internal object CoverColorEngine {
                 sideHue[side] = (mainHue - 14f + 360f) % 360f
             }
             val rects = EdgeRects[side]
+            val centre = if (explain != null) FloatArray(2) else null
             for (step in 0 until 3) {
                 val rect = floatArrayOf(rects[step * 4], rects[step * 4 + 1], rects[step * 4 + 2], rects[step * 4 + 3])
-                val cover = regionColour(kept, family, pl, pa, pb, cw, ch, rect, tmp)
+                val cover = regionColour(kept, family, pl, pa, pb, cw, ch, rect, tmp, centre)
                 if (cover >= EdgeMinCover) {
                     sideHue[side] = hueNudge(hueOf(tmp[1], tmp[2]))
                     sideChroma[side] = hypot(tmp[1], tmp[2])
+                    if (explain != null && centre != null && side < 4) {
+                        explain.lightRect[side] = floatArrayOf(
+                            (x0 + rect[0] * cw) / width,
+                            (y0 + rect[1] * ch) / height,
+                            (x0 + rect[2] * cw) / width,
+                            (y0 + rect[3] * ch) / height,
+                        )
+                        explain.lightAt[side] = floatArrayOf((x0 + centre[0]) / width, (y0 + centre[1]) / height)
+                    }
                     break
                 }
             }

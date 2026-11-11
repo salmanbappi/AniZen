@@ -107,6 +107,9 @@ import kotlin.math.roundToInt
 // exacto", the zone and the overall strength). "Comparar" (held down) shows the automatic backdrop, "Deshacer" goes
 // back one step, "Copiar a otras temporadas" gives the same backdrop to the other seasons of the series. Save keeps the
 // backdrop for this cover, "Volver a automático" removes it.
+// When the window opens on a cover without an edit it shows where the automatic backdrop takes its colours from (what
+// part of the cover counts, and the area each of the four lights looks at); "Ver origen" shows or hides that.
+// "Ajustar el automático" changes the automatic backdrop itself (Brillo, Color, Tono) without markers.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -181,6 +184,11 @@ private class CoverSample(bitmap: Bitmap) {
     fun imageX(nx: Float): Float = (0.5f - visW / 2f + nx * visW) * w
     fun imageY(ny: Float): Float = (0.5f - visH / 2f + ny * visH) * h
 
+    /** Where a point of the whole cover (fractions) falls on the card: 0 to 1 each way, outside when the card crops it. */
+    fun cardX(fx: Float): Float = (fx - (0.5f - visW / 2f)) / visW
+
+    fun cardY(fy: Float): Float = (fy - (0.5f - visH / 2f)) / visH
+
     /** The colour under a point of the card (0 to 1 each way). */
     fun colourAt(nx: Float, ny: Float): Int =
         BackdropPaint.sample(pixels, w, h, imageX(nx), imageY(ny), 0.035f * visW * w)
@@ -235,6 +243,17 @@ private fun CoverBackdropEditor(
             sampleBitmapOf(image, context.resources)?.let { CoverSample(it) }
         }
     }
+    // the same analysis the automatic backdrop does, this time asked to say what it looked at
+    LaunchedEffect(sample) {
+        val s = sample ?: return@LaunchedEffect
+        origin = withContext(Dispatchers.Default) {
+            try {
+                buildOrigin(s)
+            } catch (_: Throwable) {
+                null
+            }
+        }
+    }
 
     // what is saved for this anime, and the markers as they are right now
     var saved by remember { mutableStateOf(BackdropOverrides.editOf(anime.id)) }
@@ -246,6 +265,12 @@ private fun CoverBackdropEditor(
     // while the "Comparar" button is held down the automatic backdrop is shown
     var comparing by remember { mutableStateOf(false) }
     var showCopy by remember { mutableStateOf(false) }
+    // hand changes on top of the automatic backdrop (used while there are no markers), and whether their panel is open
+    var tweak by remember { mutableStateOf(saved?.tweak ?: BackdropTweak()) }
+    var tweakOpen by remember { mutableStateOf(saved?.markers?.isEmpty() == true) }
+    // where the automatic colours come from; shown at first on a cover that has no edit
+    var origin by remember { mutableStateOf<OriginView?>(null) }
+    var showOrigin by remember { mutableStateOf(saved == null) }
     // the steps that can be undone (newest last), and when the last slider step was recorded
     val history = remember { mutableStateListOf<EditorSnapshot>() }
     var lastPanelStep by remember { mutableLongStateOf(0L) }
@@ -255,10 +280,18 @@ private fun CoverBackdropEditor(
     val scope = rememberCoroutineScope()
     val autoTones = CoverTonesCache.get(anime.id, anime.coverLastModified)
 
-    val previewTones = remember(markers, general) {
-        if (markers.isEmpty()) null else BackdropOverrides.tonesOf(BackdropEdit(markers, general))
+    val previewTones = remember(markers, general, tweak, autoTones) {
+        when {
+            markers.isNotEmpty() -> BackdropOverrides.tonesOf(BackdropEdit(markers, general))
+            tweak.active && autoTones != null -> BackdropOverrides.tweaked(autoTones, tweak)
+            else -> null
+        }
     }
-    val changed = markers.isNotEmpty() && (markers != saved?.markers || general != saved?.strength)
+    // the tweak only counts while there are no markers
+    val tweakNow = if (markers.isEmpty()) tweak else BackdropTweak()
+    val generalNow = if (markers.isEmpty()) 1f else general
+    val hasEdit = markers.isNotEmpty() || tweakNow.active
+    val changed = hasEdit && (markers != saved?.markers || generalNow != saved?.strength || tweakNow != saved?.tweak)
 
     // the other seasons of this series found in the library, by their titles
     val seasons = remember(anime.id, library) {
@@ -272,8 +305,8 @@ private fun CoverBackdropEditor(
     // records the state before a change, so that "Deshacer" can bring it back
     fun pushHistory() {
         val last = history.lastOrNull()
-        if (last != null && last.markers == markers && last.general == general) return
-        history.add(EditorSnapshot(markers, general, selected))
+        if (last != null && last.markers == markers && last.general == general && last.tweak == tweak) return
+        history.add(EditorSnapshot(markers, general, selected, tweak))
         if (history.size > 40) history.removeAt(0)
     }
 
@@ -289,6 +322,7 @@ private fun CoverBackdropEditor(
         val last = history.removeAt(history.lastIndex)
         markers = last.markers
         general = last.general
+        tweak = last.tweak
         selected = if (last.markers.isEmpty()) -1 else last.selected.coerceIn(0, last.markers.lastIndex)
         lastPanelStep = 0L
     }
@@ -325,6 +359,10 @@ private fun CoverBackdropEditor(
         val s = sample ?: return -1
         if (size.width <= 0 || size.height <= 0) return -1
         pushHistory()
+        if (markers.isEmpty()) {
+            tweak = BackdropTweak()
+            showOrigin = false
+        }
         if (markers.size >= BackdropEdit.MaxMarkers) {
             val target = if (selected in markers.indices) selected else 0
             moveTo(target, position, size)
@@ -399,7 +437,7 @@ private fun CoverBackdropEditor(
                         if (history.isNotEmpty()) {
                             PillChip("Deshacer", false, Modifier.width(82.dp)) { undo() }
                         }
-                        if (markers.isNotEmpty()) {
+                        if (hasEdit) {
                             HoldPill("Comparar", comparing, Modifier.width(88.dp)) { comparing = it }
                         }
                     }
@@ -486,6 +524,21 @@ private fun CoverBackdropEditor(
                                 )
                             }
                         }
+                        // where the automatic colours come from, and the button that shows or hides it
+                        val originNow = origin
+                        val sampleNow = sample
+                        if (originNow != null && sampleNow != null && cardSize.width > 0) {
+                            if (showOrigin) {
+                                OriginOverlay(originNow, sampleNow, cardSize, Modifier.matchParentSize())
+                            }
+                            PillChip(
+                                label = if (showOrigin) "Ocultar origen" else "Ver origen",
+                                selected = showOrigin,
+                                modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
+                                idle = Color.Black.copy(alpha = 0.55f),
+                                textPadding = PaddingValues(horizontal = 12.dp),
+                            ) { showOrigin = !showOrigin }
+                        }
                         // while adjusting: a bar on the edge of the card shows which part of the backdrop the chosen
                         // marker paints
                         val zoneMarker = if (adjusting) markers.getOrNull(selected) else null
@@ -518,22 +571,34 @@ private fun CoverBackdropEditor(
                 ) {
                     val chosenMarker = markers.getOrNull(selected)
                     val panelOpen = adjusting && chosenMarker != null
+                    val tweakPanelOpen = markers.isEmpty() && tweakOpen
+                    val originNow = origin
                     if (!panelOpen) {
-                        Text(
-                            text = when {
-                                markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
-                                    "(hasta ${BackdropEdit.MaxMarkers}), o parte del fondo automático."
-                                changed -> "Toca un marcador para elegirlo; arrástralo para moverlo. " +
-                                    "«Ajustar» cambia su color y zona. Mantén pulsado «Comparar» para ver el automático. " +
-                                    "Pulsa Guardar cuando te guste."
-                                else -> "Este es el fondo guardado para esta portada."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.8f),
-                            textAlign = TextAlign.Center,
-                        )
+                        if (showOrigin && originNow != null && !tweakPanelOpen) {
+                            OriginLegend(originNow)
+                        } else {
+                            Text(
+                                text = when {
+                                    markers.isEmpty() && tweakNow.active && changed ->
+                                        "Este es el fondo automático con tus ajustes. Pulsa Guardar cuando te guste."
+                                    markers.isEmpty() && tweakNow.active -> "Este es el fondo guardado para esta portada."
+                                    markers.isEmpty() && tweakPanelOpen ->
+                                        "Mueve los controles: cambian el fondo automático tal como está. " +
+                                            "Mantén pulsado «Comparar» para ver el original."
+                                    markers.isEmpty() -> "Toca la portada para poner marcadores en los colores que quieres " +
+                                        "(hasta ${BackdropEdit.MaxMarkers}), parte del fondo automático o ajústalo."
+                                    changed -> "Toca un marcador para elegirlo; arrástralo para moverlo. " +
+                                        "«Ajustar» cambia su color y zona. Mantén pulsado «Comparar» para ver el automático. " +
+                                        "Pulsa Guardar cuando te guste."
+                                    else -> "Este es el fondo guardado para esta portada."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
-                    if (!panelOpen && markers.isNotEmpty() && seasons.isNotEmpty()) {
+                    if (!panelOpen && hasEdit && seasons.isNotEmpty()) {
                         TextButton(
                             onClick = { showCopy = true },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
@@ -553,44 +618,99 @@ private fun CoverBackdropEditor(
                     }
                     Spacer(Modifier.height(10.dp))
                     if (markers.isEmpty()) {
-                        OutlinedButton(
-                            onClick = {
-                                val s = sample
-                                val lights = autoTones?.lights
-                                if (s != null && lights != null) {
-                                    scope.launch {
-                                        pushHistory()
-                                        val points = withContext(Dispatchers.Default) {
-                                            BackdropPaint.suggest(
-                                                s.pixels,
-                                                s.w,
-                                                s.h,
-                                                s.visW,
-                                                s.visH,
-                                                lights.take(3).map { it.toArgb() }.toIntArray(),
-                                                3,
-                                            )
-                                        }
-                                        markers = List(points.size / 2) { n ->
-                                            BackdropMarker(
-                                                x = points[n * 2],
-                                                y = points[n * 2 + 1],
-                                                argb = s.colourAt(points[n * 2], points[n * 2 + 1]),
-                                            )
-                                        }
-                                        selected = if (markers.isEmpty()) -1 else 0
-                                    }
-                                }
-                            },
-                            enabled = sample != null && autoTones != null,
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White,
-                                disabledContentColor = Color.White.copy(alpha = 0.35f),
-                            ),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Text("Partir del fondo automático", maxLines = 1)
+                            OutlinedButton(
+                                onClick = {
+                                    val sampleNow = sample
+                                    if (sampleNow != null) {
+                                        scope.launch {
+                                            // first the spots the automatic backdrop really reads; if that is not known, a guess
+                                            var fresh = origin?.let { originMarkers(it, sampleNow) }.orEmpty()
+                                            if (fresh.isEmpty()) {
+                                                val lights = autoTones?.lights
+                                                if (lights != null) {
+                                                    val points = withContext(Dispatchers.Default) {
+                                                        BackdropPaint.suggest(
+                                                            sampleNow.pixels,
+                                                            sampleNow.w,
+                                                            sampleNow.h,
+                                                            sampleNow.visW,
+                                                            sampleNow.visH,
+                                                            lights.take(3).map { it.toArgb() }.toIntArray(),
+                                                            3,
+                                                        )
+                                                    }
+                                                    fresh = List(points.size / 2) { n ->
+                                                        BackdropMarker(
+                                                            x = points[n * 2],
+                                                            y = points[n * 2 + 1],
+                                                            argb = sampleNow.colourAt(points[n * 2], points[n * 2 + 1]),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            if (fresh.isNotEmpty()) {
+                                                pushHistory()
+                                                tweak = BackdropTweak()
+                                                tweakOpen = false
+                                                showOrigin = false
+                                                markers = fresh
+                                                selected = 0
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = sample != null && (origin != null || autoTones != null),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White,
+                                    disabledContentColor = Color.White.copy(alpha = 0.35f),
+                                ),
+                            ) {
+                                Text(
+                                    text = "Partir del automático",
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    tweakOpen = !tweakOpen
+                                    if (tweakOpen) showOrigin = false
+                                },
+                                enabled = autoTones != null,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = if (tweakOpen) 0.9f else 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (tweakOpen) Color.White.copy(alpha = 0.18f) else Color.Transparent,
+                                    contentColor = Color.White,
+                                    disabledContentColor = Color.White.copy(alpha = 0.35f),
+                                ),
+                            ) {
+                                Text(
+                                    text = "Ajustar el automático",
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                        }
+                        if (tweakPanelOpen) {
+                            Spacer(Modifier.height(4.dp))
+                            TweakPanel(
+                                tweak = tweak,
+                                onChange = {
+                                    pushPanelStep()
+                                    tweak = it
+                                },
+                            )
                         }
                     } else {
                         Row(
@@ -667,9 +787,11 @@ private fun CoverBackdropEditor(
                                 markers = emptyList()
                                 selected = -1
                                 general = 1f
+                                tweak = BackdropTweak()
+                                tweakOpen = false
                                 history.clear()
                             },
-                            enabled = markers.isNotEmpty() || saved != null,
+                            enabled = hasEdit || saved != null,
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
@@ -687,8 +809,8 @@ private fun CoverBackdropEditor(
                         }
                         Button(
                             onClick = {
-                                if (markers.isNotEmpty()) {
-                                    val edit = BackdropEdit(markers, general)
+                                if (hasEdit) {
+                                    val edit = BackdropEdit(markers, generalNow, tweakNow)
                                     BackdropOverrides.save(anime.id, edit)
                                     saved = edit
                                     onClose()
@@ -708,12 +830,12 @@ private fun CoverBackdropEditor(
                     }
                 }
             }
-            if (showCopy && markers.isNotEmpty()) {
+            if (showCopy && hasEdit) {
                 CopySeasonsDialog(
                     seasons = seasons,
                     onDismiss = { showCopy = false },
                     onConfirm = { ids ->
-                        val edit = BackdropEdit(markers, general)
+                        val edit = BackdropEdit(markers, generalNow, tweakNow)
                         BackdropOverrides.saveAll(ids + anime.id, edit)
                         saved = edit
                         showCopy = false
@@ -941,11 +1063,333 @@ private fun strengthToSlider(strength: Float): Float {
     return v.coerceIn(-1f, 1f)
 }
 
+/**
+ * Where the automatic backdrop takes its colours from, as the colour engine reports it for this cover: the weight each
+ * spot of the artwork has (what counts and what is ignored), and for each of the four lights the part of the cover it
+ * reads and the spot its colour sits at. A light with no part found uses the main colour of the cover instead.
+ */
+private class OriginView(
+    /** Black with an alpha: the opaque parts are the ones the engine ignores. Covers [area]. */
+    val mask: ImageBitmap,
+    /** Left, top, right, bottom of the part the engine looked at, as fractions of the whole cover. */
+    val area: FloatArray,
+    /** Per light: the part of the cover it reads (fractions of the whole cover), or null. */
+    val rects: Array<FloatArray?>,
+    /** Per light: where its colour sits (fractions of the whole cover), or null. */
+    val at: Array<FloatArray?>,
+    /** Per light: the colour the backdrop gets. */
+    val colours: IntArray,
+)
+
+/** The lights, in the order the engine gives them (the same spots as on the Home). */
+private val OriginNames = arrayOf("Arriba izq.", "Derecha", "Arriba der.", "Izquierda")
+
+private fun opaque(argb: Int): Color = Color(argb or (0xFF shl 24))
+
+/** A smaller copy of a picture (each new pixel is the average of the old ones it covers). */
+private fun shrinkPixels(src: IntArray, w: Int, h: Int, nw: Int, nh: Int): IntArray {
+    val out = IntArray(nw * nh)
+    for (y in 0 until nh) {
+        val y0 = y * h / nh
+        val y1 = maxOf(y0 + 1, (y + 1) * h / nh)
+        for (x in 0 until nw) {
+            val x0 = x * w / nw
+            val x1 = maxOf(x0 + 1, (x + 1) * w / nw)
+            var r = 0
+            var g = 0
+            var b = 0
+            var n = 0
+            for (yy in y0 until y1) {
+                for (xx in x0 until x1) {
+                    val p = src[yy * w + xx]
+                    r += (p shr 16) and 255
+                    g += (p shr 8) and 255
+                    b += p and 255
+                    n++
+                }
+            }
+            out[y * nw + x] = (0xFF shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (b / n)
+        }
+    }
+    return out
+}
+
+/** Runs the colour engine on the cover the way the Home does and keeps what it says it looked at. */
+private fun buildOrigin(s: CoverSample): OriginView? {
+    val scale = 160f / maxOf(s.w, s.h).coerceAtLeast(1)
+    val nw: Int
+    val nh: Int
+    val px: IntArray
+    if (scale < 1f) {
+        nw = (s.w * scale).toInt().coerceAtLeast(1)
+        nh = (s.h * scale).toInt().coerceAtLeast(1)
+        px = shrinkPixels(s.pixels, s.w, s.h, nw, nh)
+    } else {
+        nw = s.w
+        nh = s.h
+        px = s.pixels
+    }
+    val explain = EngineExplain()
+    val result = CoverColorEngine.analyze(px, nw, nh, explain) ?: return null
+    val mw = explain.keptW
+    val mh = explain.keptH
+    if (mw <= 0 || mh <= 0 || explain.kept.size < mw * mh || result.lights.size < 4) return null
+    val alphas = IntArray(mw * mh)
+    for (i in alphas.indices) {
+        val t = ((explain.kept[i] - 0.02f) / 0.23f).coerceIn(0f, 1f)
+        val counts = t * t * (3f - 2f * t)
+        val alpha = (0.64f * (1f - counts) * 255f).roundToInt().coerceIn(0, 255)
+        alphas[i] = alpha shl 24
+    }
+    val mask = Bitmap.createBitmap(alphas, mw, mh, Bitmap.Config.ARGB_8888)
+    return OriginView(mask.asImageBitmap(), explain.area, explain.lightRect, explain.lightAt, result.lights)
+}
+
+/**
+ * Markers on the spots the automatic backdrop really reads (one per light, without repeating a colour), so that it can
+ * be taken from there and changed. A spot with almost no colour moves to the nearest one that has some.
+ */
+private fun originMarkers(origin: OriginView, s: CoverSample): List<BackdropMarker> {
+    val order = intArrayOf(3, 1, 0, 2)
+    val zones = intArrayOf(
+        BackdropPaint.ZoneTop,
+        BackdropPaint.ZoneRight,
+        BackdropPaint.ZoneTop,
+        BackdropPaint.ZoneLeft,
+    )
+    val radius = 0.03f * s.w
+    val out = ArrayList<BackdropMarker>()
+    for (light in order) {
+        val at = origin.at.getOrNull(light) ?: continue
+        val rect = origin.rects.getOrNull(light) ?: continue
+        var spotX = at[0]
+        var spotY = at[1]
+        var colour = BackdropPaint.sample(s.pixels, s.w, s.h, spotX * s.w, spotY * s.h, radius)
+        if (BackdropPaint.chromaOf(colour) < 0.05f) {
+            var bestDistance = Float.MAX_VALUE
+            for (j in 0 until 9) {
+                for (i in 0 until 9) {
+                    val fx = rect[0] + (rect[2] - rect[0]) * (i + 0.5f) / 9f
+                    val fy = rect[1] + (rect[3] - rect[1]) * (j + 0.5f) / 9f
+                    val c = BackdropPaint.sample(s.pixels, s.w, s.h, fx * s.w, fy * s.h, radius)
+                    if (BackdropPaint.chromaOf(c) < 0.05f) continue
+                    val d = (fx - at[0]) * (fx - at[0]) + (fy - at[1]) * (fy - at[1])
+                    if (d < bestDistance) {
+                        bestDistance = d
+                        spotX = fx
+                        spotY = fy
+                        colour = c
+                    }
+                }
+            }
+        }
+        val zone = zones[light]
+        if (out.any { it.zone == zone && BackdropPaint.colourDistance(it.argb, colour) < 0.05f }) continue
+        out.add(
+            BackdropMarker(
+                x = s.cardX(spotX).coerceIn(0.05f, 0.95f),
+                y = s.cardY(spotY).coerceIn(0.05f, 0.95f),
+                argb = colour,
+                zone = zone,
+            ),
+        )
+    }
+    return out
+}
+
+/**
+ * Drawn over the cover: what the automatic backdrop ignores is darkened (outside the part it looks at, and inside it
+ * white, black and the colourless), each light has a frame around the part of the cover it reads, and a number on the
+ * spot its colour is taken from.
+ */
+@Composable
+private fun OriginOverlay(
+    origin: OriginView,
+    sample: CoverSample,
+    cardSize: IntSize,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    Box(modifier = modifier) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val w = size.width
+            val h = size.height
+            val dim = Color.Black.copy(alpha = 0.64f)
+            val ax0 = sample.cardX(origin.area[0]) * w
+            val ay0 = sample.cardY(origin.area[1]) * h
+            val ax1 = sample.cardX(origin.area[2]) * w
+            val ay1 = sample.cardY(origin.area[3]) * h
+            val top = ay0.coerceIn(0f, h)
+            val bottom = ay1.coerceIn(0f, h)
+            val left = ax0.coerceIn(0f, w)
+            val right = ax1.coerceIn(0f, w)
+            if (top > 0f) drawRect(dim, Offset(0f, 0f), Size(w, top))
+            if (bottom < h) drawRect(dim, Offset(0f, bottom), Size(w, h - bottom))
+            if (bottom > top && left > 0f) drawRect(dim, Offset(0f, top), Size(left, bottom - top))
+            if (bottom > top && right < w) drawRect(dim, Offset(right, top), Size(w - right, bottom - top))
+            val dw = (ax1 - ax0).roundToInt()
+            val dh = (ay1 - ay0).roundToInt()
+            if (dw > 0 && dh > 0) {
+                drawImage(
+                    image = origin.mask,
+                    dstOffset = IntOffset(ax0.roundToInt(), ay0.roundToInt()),
+                    dstSize = IntSize(dw, dh),
+                    filterQuality = FilterQuality.Low,
+                )
+            }
+            val corner = CornerRadius(8.dp.toPx())
+            for (i in 0 until 4) {
+                val r = origin.rects.getOrNull(i) ?: continue
+                val x0 = sample.cardX(r[0]) * w
+                val y0 = sample.cardY(r[1]) * h
+                val x1 = sample.cardX(r[2]) * w
+                val y1 = sample.cardY(r[3]) * h
+                if (x1 <= x0 || y1 <= y0) continue
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(x0, y0),
+                    size = Size(x1 - x0, y1 - y0),
+                    cornerRadius = corner,
+                    style = Stroke(width = 3.dp.toPx()),
+                )
+                drawRoundRect(
+                    color = opaque(origin.colours[i]),
+                    topLeft = Offset(x0, y0),
+                    size = Size(x1 - x0, y1 - y0),
+                    cornerRadius = corner,
+                    style = Stroke(width = 1.5.dp.toPx()),
+                )
+            }
+        }
+        val badge = 22.dp
+        val badgePx = with(density) { badge.toPx() }
+        for (i in 0 until 4) {
+            val at = origin.at.getOrNull(i) ?: continue
+            val colour = origin.colours[i]
+            val luma = (
+                0.299f * ((colour shr 16) and 255) +
+                    0.587f * ((colour shr 8) and 255) +
+                    0.114f * (colour and 255)
+                ) / 255f
+            val cx = sample.cardX(at[0]).coerceIn(0.05f, 0.95f) * cardSize.width
+            val cy = sample.cardY(at[1]).coerceIn(0.05f, 0.95f) * cardSize.height
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset((cx - badgePx / 2f).roundToInt(), (cy - badgePx / 2f).roundToInt()) }
+                    .size(badge)
+                    .background(opaque(colour), CircleShape)
+                    .border(2.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${i + 1}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (luma > 0.6f) Color.Black else Color.White,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+/** Under the cover: which light is which, and what the darkened parts mean. */
+@Composable
+private fun OriginLegend(origin: OriginView, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (row in 0 until 2) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                for (col in 0 until 2) {
+                    val i = row * 2 + col
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .background(opaque(origin.colours[i]), CircleShape)
+                                .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "${i + 1} · ${OriginNames[i]}" + if (origin.rects[i] == null) " (general)" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.9f),
+                            maxLines = 2,
+                        )
+                    }
+                }
+            }
+        }
+        Text(
+            text = "Cada luz del fondo toma el color de su recuadro. Lo oscurecido no cuenta: " +
+                "blanco, negro o sin color." +
+                if (origin.rects.any { it == null }) " «General»: no halló color en ese borde y usa el principal." else "",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Changes on top of the automatic backdrop itself (no markers): Brillo, Color and Tono. */
+@Composable
+private fun TweakPanel(
+    tweak: BackdropTweak,
+    onChange: (BackdropTweak) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Sobre el automático",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.85f),
+                maxLines = 1,
+            )
+            TextButton(
+                onClick = { onChange(BackdropTweak()) },
+                enabled = tweak.active,
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = Color.White,
+                    disabledContentColor = Color.White.copy(alpha = 0.35f),
+                ),
+            ) {
+                Text("Restablecer", maxLines = 1)
+            }
+        }
+        AdjustRow("Brillo", tweak.light, signed((tweak.light * 100f).roundToInt())) {
+            onChange(tweak.copy(light = it))
+        }
+        AdjustRow("Color", tweak.color, signed((tweak.color * 100f).roundToInt())) {
+            onChange(tweak.copy(color = it))
+        }
+        AdjustRow("Tono", tweak.tone, signed((tweak.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
+            onChange(tweak.copy(tone = it))
+        }
+    }
+}
+
 /** The state of the editor at one moment, for "Deshacer". */
 private class EditorSnapshot(
     val markers: List<BackdropMarker>,
     val general: Float,
     val selected: Int,
+    val tweak: BackdropTweak,
 )
 
 /** Which other seasons get this backdrop (all ticked at first), then it is saved for them and for this cover. */
@@ -1041,18 +1485,21 @@ private fun PillChip(
     label: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    idle: Color = Color.White.copy(alpha = 0.14f),
+    textPadding: PaddingValues = PaddingValues(0.dp),
     onClick: () -> Unit,
 ) {
     Box(
         modifier = modifier
             .height(30.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (selected) Color.White else Color.White.copy(alpha = 0.14f))
+            .background(if (selected) Color.White else idle)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
+            modifier = Modifier.padding(textPadding),
             style = MaterialTheme.typography.labelMedium,
             color = if (selected) Color.Black else Color.White,
             maxLines = 1,
