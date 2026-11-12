@@ -112,7 +112,8 @@ import kotlin.math.roundToInt
 // "Ajustar el automático" changes the automatic backdrop itself, without markers: one point per section (the four lights)
 // with the colour the backdrop has there, each adjustable on its own (Brillo, Color, Tono, Área), or "Todo" at once.
 // Moving a point onto another colour of the cover puts that colour in its place in the backdrop; "Quitar" takes its
-// colour out of the backdrop (the others cover the place) and "Poner" brings it back.
+// colour out of the backdrop (the others cover the place) and "Poner" brings it back. "Zona" says where in the
+// backdrop a colour goes, and "Fuerza" how much it rules over the automatic colours around it.
 
 /**
  * What the toolbar menu and the Home page agree on. The menu entry only shows while the Home carousel is on
@@ -318,7 +319,7 @@ private fun CoverBackdropEditor(
         IntArray(4) { i ->
             val tones = shownTones
             val home = spotOf(tweak, i, spotBase)
-            tones?.let { BackdropOverrides.colourAround(it, home.x, home.y) }
+            tones?.let { BackdropOverrides.colourAround(it, home.atX, home.atY) }
                 ?: tones?.lights?.getOrNull(i)?.toArgb()
                 ?: 0xFF808080.toInt()
         }
@@ -1604,11 +1605,26 @@ private fun TweakPanel(
                 Text("Listo", maxLines = 1)
             }
         }
+        if (spot != null && !spot.removed) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                for ((zone, label) in ZoneChoices) {
+                    PillChip(label, spot.zone == zone, Modifier.weight(1f)) {
+                        onChange(withSpot(tweak, selected, spot.copy(zone = zone), anchors))
+                    }
+                }
+            }
+        }
         if (spot != null && spot.removed) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(128.dp),
+                    .height(196.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -1632,6 +1648,9 @@ private fun TweakPanel(
             AdjustRow("Área", spot.reach, signed((spot.reach * 100f).roundToInt())) {
                 onChange(withSpot(tweak, selected, spot.copy(reach = it), anchors))
             }
+            AdjustRow("Fuerza", spot.force, signed((spot.force * 100f).roundToInt())) {
+                onChange(withSpot(tweak, selected, spot.copy(force = it), anchors))
+            }
         } else {
             AdjustRow("Brillo", tweak.light, signed((tweak.light * 100f).roundToInt())) {
                 onChange(tweak.copy(light = it))
@@ -1642,7 +1661,7 @@ private fun TweakPanel(
             AdjustRow("Tono", tweak.tone, signed((tweak.tone * BackdropPaint.toneDegrees(1f)).roundToInt()) + "°") {
                 onChange(tweak.copy(tone = it))
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(100.dp))
         }
     }
 }

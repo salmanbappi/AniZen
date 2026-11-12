@@ -82,13 +82,34 @@ internal data class SpotTweak(
     val pickY: Float = -1f,
     /** The colour picked on the cover for this section, or 0 when it keeps the colour the engine found. */
     val pickArgb: Int = 0,
+    /** Where in the backdrop the colour goes: 0 where it lives ([x], [y]), or one of the BackdropPaint zones. */
+    val zone: Int = 0,
+    /** How much the colour rules over the automatic one around it, from -1 (softly) to 1 (fully); 0 = usual. */
+    val force: Float = 0f,
 ) {
     val picked: Boolean
         get() = pickArgb != 0
 
-    /** True when it changes the backdrop (a different reach alone changes nothing). */
+    /** Where in the backdrop (0 to 1, like the cover) the colour of this section sits. */
+    val atX: Float
+        get() = when (zone) {
+            BackdropPaint.ZoneLeft -> 0.12f
+            BackdropPaint.ZoneRight -> 0.88f
+            BackdropPaint.ZoneTop, BackdropPaint.ZoneBottom -> 0.5f
+            else -> x
+        }
+
+    val atY: Float
+        get() = when (zone) {
+            BackdropPaint.ZoneTop -> 0.12f
+            BackdropPaint.ZoneBottom -> 0.88f
+            BackdropPaint.ZoneLeft, BackdropPaint.ZoneRight -> 0.5f
+            else -> y
+        }
+
+    /** True when it changes the backdrop (a different reach or force alone changes nothing). */
     val active: Boolean
-        get() = removed || picked || light != 0f || color != 0f || tone != 0f
+        get() = removed || picked || zone != 0 || light != 0f || color != 0f || tone != 0f
 }
 
 /**
@@ -197,8 +218,8 @@ internal object BackdropOverrides {
             for (j in spots.indices) {
                 if (j == i || spots[j].removed) continue
                 val c = colourOf(j) ?: continue
-                val dx = (spots[j].x - spots[i].x) * 0.7f
-                val dy = spots[j].y - spots[i].y
+                val dx = (spots[j].atX - spots[i].atX) * 0.7f
+                val dy = spots[j].atY - spots[i].atY
                 val weight = 1f / (dx * dx + dy * dy + 0.02f)
                 sr += weight * ((c shr 16) and 255)
                 sg += weight * ((c shr 8) and 255)
@@ -241,15 +262,19 @@ internal object BackdropOverrides {
                     return (0xFF shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (b / n)
                 }
 
-                // the colour each section puts in its place (0 = it keeps the automatic one)
-                val here = IntArray(spots.size) { around(spots[it].x, spots[it].y) }
+                // the colour each section has: the one picked for it, or the one the engine found where it lives
+                val own = IntArray(spots.size) { around(spots[it].x, spots[it].y) }
+                val colourNow = IntArray(spots.size) { picked[it]?.first ?: own[it] }
+                // the colour each section puts in its place (0 = it keeps the automatic one there)
                 val replacement = IntArray(spots.size) { i ->
                     when {
-                        spots[i].removed -> fill(i) { j -> picked[j]?.first ?: here[j] } ?: around(0.5f, 0.5f)
+                        spots[i].removed -> fill(i) { j -> colourNow[j] } ?: around(0.5f, 0.5f)
                         picked[i] != null -> picked[i]!!.first
+                        spots[i].zone != 0 -> own[i]
                         else -> 0
                     }
                 }
+                val forceOf = FloatArray(spots.size) { 2f.pow(spots[it].force.coerceIn(-1f, 1f)) }
 
                 val share = FloatArray(spots.size)
                 for (k in px.indices) {
@@ -259,8 +284,8 @@ internal object BackdropOverrides {
                     for (i in spots.indices) {
                         val s = spots[i]
                         val sigma = 0.22f * 2f.pow(s.reach.coerceIn(-1f, 1f))
-                        val dx = (u - s.x) * 0.7f
-                        val dy = v - s.y
+                        val dx = (u - s.atX) * 0.7f
+                        val dy = v - s.atY
                         val value = if (s.active) exp(-(dx * dx + dy * dy) / (2f * sigma * sigma)) else 0f
                         share[i] = value
                         sum += value
@@ -275,7 +300,7 @@ internal object BackdropOverrides {
                     for (i in spots.indices) {
                         val c = replacement[i]
                         if (c == 0 || share[i] <= 0f) continue
-                        val part = min(1f, share[i] * 1.4f)
+                        val part = min(1f, share[i] * 1.4f * forceOf[i])
                         total += part
                         mr += part * ((c shr 16) and 255)
                         mg += part * ((c shr 8) and 255)
@@ -462,6 +487,8 @@ internal object BackdropOverrides {
                     append(' ').append(spots.joinToString("") { if (it.removed) "1" else "0" })
                     // the colour picked for each section: "x,y,argb" joined by ";"
                     append(' ').append(spots.joinToString(";") { "${it.pickX},${it.pickY},${it.pickArgb}" })
+                    // where each colour goes and how strongly: "zone,force" joined by ";"
+                    append(' ').append(spots.joinToString(";") { "${it.zone},${it.force}" })
                 }
                 append('\n')
             }
@@ -533,6 +560,7 @@ internal object BackdropOverrides {
         if (p.size >= spotsAt + 1 + spotCount * 6) {
             val flags = p.getOrNull(spotsAt + 1 + spotCount * 6)?.takeIf { it.length == spotCount }
             val picks = p.getOrNull(spotsAt + 2 + spotCount * 6)?.split(';')?.takeIf { it.size == spotCount }
+            val places = p.getOrNull(spotsAt + 3 + spotCount * 6)?.split(';')?.takeIf { it.size == spotCount }
             for (i in 0 until spotCount) {
                 val at = spotsAt + 1 + i * 6
                 spots += SpotTweak(
@@ -546,6 +574,8 @@ internal object BackdropOverrides {
                     pickX = picks?.get(i)?.split(',')?.getOrNull(0)?.toFloatOrNull() ?: -1f,
                     pickY = picks?.get(i)?.split(',')?.getOrNull(1)?.toFloatOrNull() ?: -1f,
                     pickArgb = picks?.get(i)?.split(',')?.getOrNull(2)?.toIntOrNull() ?: 0,
+                    zone = (places?.get(i)?.split(',')?.getOrNull(0)?.toIntOrNull() ?: 0).coerceIn(0, 4),
+                    force = (places?.get(i)?.split(',')?.getOrNull(1)?.toFloatOrNull() ?: 0f).coerceIn(-1f, 1f),
                 )
             }
         }
