@@ -2,18 +2,25 @@ package eu.kanade.presentation.library.components
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import com.hippo.unifile.UniFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import tachiyomi.domain.storage.service.StoragePreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
+import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -136,6 +143,9 @@ internal class BackdropEdit(
 internal object BackdropOverrides {
 
     private const val FileName = "backdrop_edits.txt"
+
+    /** The readable report of the edits: kept inside the app and copied to the AniZen folder with the edits. */
+    private const val ReportName = "backdrop_report.txt"
     private const val Header = "ANZ-BACKDROP 4"
     private const val HeaderV3 = "ANZ-BACKDROP 3"
     private const val HeaderV2 = "ANZ-BACKDROP 2"
@@ -152,8 +162,13 @@ internal object BackdropOverrides {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val fileLock = Any()
 
+    /** A readable line about each edit (title, automatic colours, what was changed), by anime id. */
+    private val notes = HashMap<Long, String>()
+
     init {
         load()
+        // edits made before the copy in the AniZen folder existed get their copy now
+        if (edits.isNotEmpty()) persist(announce = false)
     }
 
     fun editOf(animeId: Long): BackdropEdit? = edits[animeId]
@@ -432,25 +447,133 @@ internal object BackdropOverrides {
         )
     }
 
-    fun save(animeId: Long, edit: BackdropEdit) {
+    /** Saves an edit; [title] and [auto] (the automatic colours) only make the report in the AniZen folder clearer. */
+    fun save(animeId: Long, edit: BackdropEdit, title: String? = null, auto: CoverTones? = null) {
         edits[animeId] = edit
+        if (title != null) synchronized(notes) { notes[animeId] = describe(animeId, title, auto, edit) }
         persist()
     }
 
-    /** The same edit for several anime (the other seasons of a series); the file is written once. */
-    fun saveAll(animeIds: Collection<Long>, edit: BackdropEdit) {
+    /** The same edit for several anime (the other seasons of a series); the files are written once. */
+    fun saveAll(animeIds: Collection<Long>, edit: BackdropEdit, title: String? = null, auto: CoverTones? = null) {
         for (id in animeIds) edits[id] = edit
+        if (title != null) {
+            synchronized(notes) {
+                for (id in animeIds) notes[id] = describe(id, "$title (copiado a otras temporadas)", auto, edit)
+            }
+        }
         persist()
     }
 
     fun clear(animeId: Long) {
         if (edits.remove(animeId) != null) {
             built.remove(animeId)
+            synchronized(notes) { notes.remove(animeId) }
             persist()
         }
     }
 
-    private fun persist() {
+    private fun f2(v: Float): String = String.format(Locale.US, "%.2f", v)
+
+    private fun hex(argb: Int): String = String.format(Locale.US, "#%06X", argb and 0xFFFFFF)
+
+    /** One line that says everything about an edit, so the colour engine can learn from what was chosen by hand. */
+    private fun describe(animeId: Long, title: String, auto: CoverTones?, edit: BackdropEdit): String = buildString {
+        append("«").append(title.replace('\n', ' ').replace('\t', ' ')).append("» id=").append(animeId)
+        append(" | automático: ")
+        if (auto == null) {
+            append("no disponible")
+        } else {
+            append("arriba=").append(hex(auto.top.toArgb()))
+            append(" medio=").append(hex(auto.mid.toArgb()))
+            append(" fondo=").append(hex(auto.deep.toArgb()))
+            append(" luces=").append(auto.lights.joinToString(",") { hex(it.toArgb()) })
+        }
+        append(" | fuerza general=").append(f2(edit.strength))
+        val t = edit.tweak
+        append(" | todo: brillo=").append(f2(t.light))
+        append(" color=").append(f2(t.color))
+        append(" tono=").append(f2(t.tone))
+        append(" | marcadores: ")
+        if (edit.markers.isEmpty()) append("ninguno")
+        append(
+            edit.markers.joinToString("; ") { m ->
+                "x=${f2(m.x)} y=${f2(m.y)} ${hex(m.argb)} zona=${m.zone} fuerza=${f2(m.strength)} " +
+                    "brillo=${f2(m.light)} color=${f2(m.color)} tono=${f2(m.tone)} manda=${f2(m.force)} " +
+                    "exacto=${if (m.exact) 1 else 0}"
+            },
+        )
+        append(" | secciones: ")
+        if (t.spots.isEmpty()) append("ninguna")
+        append(
+            t.spots.withIndex().joinToString("; ") { (i, sp) ->
+                "${i + 1}: lugar=(${f2(sp.x)},${f2(sp.y)}) " +
+                    (if (sp.picked) "color elegido=${hex(sp.pickArgb)} en=(${f2(sp.pickX)},${f2(sp.pickY)}) " else "") +
+                    "zona=${sp.zone} fuerza=${f2(sp.force)} alcance=${f2(sp.reach)} " +
+                    "brillo=${f2(sp.light)} color=${f2(sp.color)} tono=${f2(sp.tone)} quitado=${if (sp.removed) 1 else 0}"
+            },
+        )
+    }
+
+    /** The AniZen folder (the storage folder chosen in the app), or null when it cannot be reached. */
+    private fun folder(): UniFile? = try {
+        val uri = Injekt.get<StoragePreferences>().baseStorageDirectory().get()
+        UniFile.fromUri(Injekt.get<Application>(), uri.toUri())?.takeIf { it.exists() }
+    } catch (_: Throwable) {
+        null
+    }
+
+    /** Writes the files into the AniZen folder (each one replaces the one that was there). */
+    private fun copyToFolder(files: List<Pair<String, String>>): Boolean = try {
+        val dir = folder()
+        if (dir == null) {
+            false
+        } else {
+            var all = true
+            for ((name, content) in files) {
+                dir.findFile(name)?.delete()
+                val target = dir.createFile(name)
+                if (target == null) {
+                    all = false
+                } else {
+                    target.openOutputStream().use { it.write(content.toByteArray()) }
+                }
+            }
+            all
+        }
+    } catch (_: Throwable) {
+        false
+    }
+
+    /** Brings back the files from the AniZen folder (after the app was reinstalled, say). */
+    private fun restoreFromFolder(dir: File) {
+        try {
+            val base = folder() ?: return
+            for (name in listOf(FileName, ReportName)) {
+                val source = base.findFile(name) ?: continue
+                val bytes = source.openInputStream().use { it.readBytes() }
+                if (bytes.isNotEmpty()) File(dir, name).writeBytes(bytes)
+            }
+        } catch (_: Throwable) {
+            // without the copy the automatic colours are used
+        }
+    }
+
+    private fun tellCopyResult(ok: Boolean) {
+        try {
+            val context = Injekt.get<Application>()
+            val text = if (ok) {
+                "Respaldo guardado en la carpeta AniZen"
+            } else {
+                "No se pudo guardar el respaldo en la carpeta AniZen"
+            }
+            Handler(Looper.getMainLooper()).post { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() }
+        } catch (_: Throwable) {
+            // only a message
+        }
+    }
+
+    private fun persist(announce: Boolean = true) {
         val text = buildString {
             append(Header).append('\n')
             for ((id, e) in edits.entries.sortedBy { it.key }) {
@@ -493,27 +616,44 @@ internal object BackdropOverrides {
                 append('\n')
             }
         }
+        // the readable report: one line for every edit (those saved before the report existed have no title)
+        val report = buildString {
+            append("# AniZen - fondos editados a mano (informe para mejorar el motor de colores)\n")
+            append("# Cada línea: id, tabulador y la descripción. Los ajustes van de -1 a 1; x e y son fracciones de la portada.\n")
+            synchronized(notes) {
+                for ((id, e) in edits.entries.sortedBy { it.key }) {
+                    append(id).append('\t').append(notes[id] ?: describe(id, "(sin título)", null, e)).append('\n')
+                }
+            }
+        }
         scope.launch {
             try {
                 synchronized(fileLock) {
                     val dir = Injekt.get<Application>().filesDir
-                    val tmp = File(dir, "$FileName.tmp")
-                    tmp.writeText(text)
-                    val target = File(dir, FileName)
-                    if (!tmp.renameTo(target)) {
-                        target.writeText(text)
-                        tmp.delete()
+                    for ((name, content) in listOf(FileName to text, ReportName to report)) {
+                        val tmp = File(dir, "$name.tmp")
+                        tmp.writeText(content)
+                        val target = File(dir, name)
+                        if (!tmp.renameTo(target)) {
+                            target.writeText(content)
+                            tmp.delete()
+                        }
                     }
                 }
             } catch (_: Throwable) {
                 // the edit still works until the app closes
             }
+            val copied = copyToFolder(listOf(FileName to text, ReportName to report))
+            if (announce) tellCopyResult(copied)
         }
     }
 
     private fun load() {
         try {
-            val file = File(Injekt.get<Application>().filesDir, FileName)
+            val dir = Injekt.get<Application>().filesDir
+            val file = File(dir, FileName)
+            if (!file.exists()) restoreFromFolder(dir)
+            loadNotes(File(dir, ReportName))
             if (!file.exists()) return
             val lines = file.readLines()
             when (lines.firstOrNull()?.trim()) {
@@ -524,6 +664,23 @@ internal object BackdropOverrides {
             }
         } catch (_: Throwable) {
             // an unreadable file only means the automatic colours are used
+        }
+    }
+
+    private fun loadNotes(file: File) {
+        try {
+            if (!file.exists()) return
+            synchronized(notes) {
+                for (line in file.readLines()) {
+                    if (line.startsWith("#")) continue
+                    val cut = line.indexOf('\t')
+                    if (cut <= 0) continue
+                    val id = line.substring(0, cut).toLongOrNull() ?: continue
+                    notes[id] = line.substring(cut + 1)
+                }
+            }
+        } catch (_: Throwable) {
+            // the report is only an extra
         }
     }
 

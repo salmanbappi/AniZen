@@ -915,7 +915,7 @@ private fun CoverBackdropEditor(
                             onClick = {
                                 if (hasEdit) {
                                     val edit = BackdropEdit(markers, generalNow, tweakNow)
-                                    BackdropOverrides.save(anime.id, edit)
+                                    BackdropOverrides.save(anime.id, edit, anime.title, autoTones)
                                     saved = edit
                                     onClose()
                                 }
@@ -940,7 +940,7 @@ private fun CoverBackdropEditor(
                     onDismiss = { showCopy = false },
                     onConfirm = { ids ->
                         val edit = BackdropEdit(markers, generalNow, tweakNow)
-                        BackdropOverrides.saveAll(ids + anime.id, edit)
+                        BackdropOverrides.saveAll(ids + anime.id, edit, anime.title, autoTones)
                         saved = edit
                         showCopy = false
                         onClose()
