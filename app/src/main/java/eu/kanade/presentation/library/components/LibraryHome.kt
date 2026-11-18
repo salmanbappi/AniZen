@@ -1,7 +1,9 @@
 package eu.kanade.presentation.library.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
@@ -16,6 +18,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.State
 import android.content.res.Configuration
@@ -99,6 +102,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
@@ -119,7 +123,9 @@ import kotlin.math.absoluteValue
 import kotlin.random.Random
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.domain.library.model.LibraryAnime
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -198,7 +204,10 @@ private val SessionSeed: Long = System.nanoTime()
 
 private const val HeroHeightRatio = 1.45f
 private const val HeroScreenFraction = 0.6f
-private const val HeroAutoAdvanceMs = 5000L
+// Carousel timing (ANZ): how long a cover rests, and how long the slide to the next one takes.
+private const val HeroAutoAdvanceMs = 6500
+private const val HeroSlideMs = 900
+private val HeroSlideEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 private const val AmbientStrength = 0.55f
 private const val AmbientFallback = 0.14f
 private const val SelectedScale = 0.95f
@@ -1318,15 +1327,23 @@ private fun Hero(
 ) {
     val screenHeight = LocalConfiguration.current.screenHeightDp
 
-    // Auto advance, restarted after every page change; it waits while the user is dragging.
-    LaunchedEffect(pagerState.currentPage, heroes.size) {
-        if (heroes.size > 1) {
-            delay(HeroAutoAdvanceMs)
-            while (pagerState.isScrollInProgress) delay(500)
-            pagerState.animateScrollToPage(
-                page = (pagerState.currentPage + 1) % heroes.size,
-                animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
-            )
+    // Auto advance, restarted after every page change. [timer] (0..1) is the time the current cover has
+    // been resting: the active dot fills with it, so you can see when the next slide comes.
+    val timer = remember { Animatable(0f) }
+    // Touching the carousel pauses it; it starts counting again when the finger leaves.
+    val dragged by pagerState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(pagerState.currentPage, heroes.size, dragged) {
+        timer.snapTo(0f)
+        if (heroes.size > 1 && !dragged) {
+            timer.animateTo(1f, tween(durationMillis = HeroAutoAdvanceMs, easing = LinearEasing))
+            while (pagerState.isScrollInProgress) delay(300)
+            // Not cancellable: the page counter flips half way through the slide and must not cut it.
+            withContext(NonCancellable) {
+                pagerState.animateScrollToPage(
+                    page = (pagerState.currentPage + 1) % heroes.size,
+                    animationSpec = tween(durationMillis = HeroSlideMs, easing = HeroSlideEase),
+                )
+            }
         }
     }
 
@@ -1339,11 +1356,11 @@ private fun Hero(
         val sidePadding = (maxWidth - cardWidth) / 2
         val ratio = cardWidth.value / cardHeight.value
 
-        // Quicker snap after a swipe (the stock spring felt sluggish).
+        // Swipe landing: quicker than the stock spring but with a soft finish.
         val fling = PagerDefaults.flingBehavior(
             state = pagerState,
             pagerSnapDistance = PagerSnapDistance.atMost(1),
-            snapAnimationSpec = spring(dampingRatio = 0.9f, stiffness = 900f),
+            snapAnimationSpec = spring(dampingRatio = 0.88f, stiffness = 650f),
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             HorizontalPager(
@@ -1372,7 +1389,7 @@ private fun Hero(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            PagerDots(pagerState = pagerState, count = heroes.size)
+            PagerDots(pagerState = pagerState, count = heroes.size, timer = { timer.value })
             Spacer(Modifier.height(4.dp))
         }
     }
@@ -1476,6 +1493,26 @@ private fun HeroCard(
     }
 }
 
+/**
+ * "SHY: Tokyo Dakkan-hen" -> "SHY" + "Tokyo Dakkan-hen": the name of the franchise gets the big type and the
+ * rest becomes a subtitle. Titles without a clean split stay whole.
+ */
+private fun splitTitle(title: String): Pair<String, String?> {
+    val clean = title.trim()
+    var cutAt = -1
+    var cutLen = 0
+    for (sep in listOf(": ", " - ")) {
+        val i = clean.indexOf(sep)
+        if (i in 2..26 && (cutAt < 0 || i < cutAt)) {
+            cutAt = i
+            cutLen = sep.length
+        }
+    }
+    if (cutAt < 0) return clean to null
+    val rest = clean.substring(cutAt + cutLen).trim()
+    return if (rest.length >= 3) clean.substring(0, cutAt).trim() to rest else clean to null
+}
+
 @Composable
 private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier = Modifier) {
     val entry = item.libraryAnime
@@ -1483,10 +1520,22 @@ private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier
     val play = actions.onPlay
     val canPlay = play != null && entry.unseenCount > 0
     val label = when {
-        !canPlay -> "Ver detalles"
-        entry.hasStarted -> "Continuar viendo"
-        else -> "Empezar a ver"
+        !canPlay -> "Detalles"
+        entry.hasStarted -> "Continuar"
+        else -> "Ver"
     }
+    val (mainTitle, subTitle) = remember(anime.title) { splitTitle(anime.title) }
+    val titleSize = when {
+        mainTitle.length <= 8 -> 40.sp
+        mainTitle.length <= 15 -> 34.sp
+        mainTitle.length <= 26 -> 28.sp
+        else -> 24.sp
+    }
+    val textShadow = Shadow(
+        color = Color.Black.copy(alpha = 0.55f),
+        offset = Offset(0f, 2f),
+        blurRadius = 14f,
+    )
 
     Column(
         modifier = modifier
@@ -1494,57 +1543,90 @@ private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier
             .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
     ) {
         Text(
-            text = anime.title,
+            text = mainTitle,
             style = MaterialTheme.typography.headlineSmall.copy(
-                shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.55f),
-                    offset = Offset(0f, 2f),
-                    blurRadius = 14f,
-                ),
+                fontSize = titleSize,
+                lineHeight = titleSize * 1.12f,
+                letterSpacing = (-0.5).sp,
+                shadow = textShadow,
             ),
             fontWeight = FontWeight.ExtraBold,
             color = Color.White,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        if (entry.hasStarted && !entry.isFinished() && entry.totalEpisodes > 0) {
-            SlimProgress(
-                progress = progressOf(entry),
-                track = Color.White.copy(alpha = 0.25f),
-                fill = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 12.dp),
+        if (subTitle != null) {
+            Text(
+                text = subTitle,
+                modifier = Modifier.padding(top = 2.dp),
+                style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow),
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.86f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        // One single action: the whole card also opens the details.
-        Button(
-            onClick = {
-                if (canPlay && play != null) play(entry) else actions.onClick(entry)
-            },
-            modifier = Modifier
-                .padding(top = 14.dp)
-                .fillMaxWidth()
-                .height(48.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = Color.Black,
-            ),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+        // One compact action (the whole card also opens the details), plus a slim progress line.
+        Row(
+            modifier = Modifier.padding(top = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (canPlay) {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
+            HeroPlayPill(
+                label = label,
+                icon = if (canPlay) Icons.Filled.PlayArrow else Icons.Outlined.Info,
+                onClick = { if (canPlay && play != null) play(entry) else actions.onClick(entry) },
+            )
+            if (entry.hasStarted && !entry.isFinished() && entry.totalEpisodes > 0) {
+                Spacer(Modifier.width(16.dp))
+                SlimProgress(
+                    progress = progressOf(entry),
+                    track = Color.White.copy(alpha = 0.22f),
+                    fill = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.weight(1f),
+                    height = 3.dp,
                 )
-                Spacer(Modifier.width(6.dp))
             }
-            Text(text = label, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
 }
 
+/** The main action: a compact white pill ("Ver" / "Continuar") that squeezes when pressed. */
 @Composable
-private fun PagerDots(pagerState: PagerState, count: Int, modifier: Modifier = Modifier) {
+private fun HeroPlayPill(label: String, icon: ImageVector, onClick: () -> Unit) {
+    val (source, scale) = rememberPress(0.9f)
+    Row(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }
+            .height(42.dp)
+            .clip(CircleShape)
+            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFE6E7EC))))
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+            .padding(start = 14.dp, end = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.Black,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Page dots; the active one is a pill that fills while the current cover rests ([timer] goes 0..1). */
+@Composable
+private fun PagerDots(pagerState: PagerState, count: Int, timer: () -> Float, modifier: Modifier = Modifier) {
     if (count > 1) {
         val onBackground = MaterialTheme.colorScheme.onBackground
         Row(
@@ -1554,13 +1636,22 @@ private fun PagerDots(pagerState: PagerState, count: Int, modifier: Modifier = M
         ) {
             repeat(count) { index ->
                 val selected = pagerState.currentPage == index
-                val width by animateDpAsState(targetValue = if (selected) 18.dp else 6.dp, label = "heroDot")
+                val width by animateDpAsState(targetValue = if (selected) 26.dp else 6.dp, label = "heroDot")
+                val fill = onBackground.copy(alpha = 0.9f)
                 Box(
                     modifier = Modifier
                         .height(6.dp)
                         .width(width)
                         .clip(CircleShape)
-                        .background(onBackground.copy(alpha = if (selected) 0.9f else 0.3f)),
+                        .background(onBackground.copy(alpha = 0.3f))
+                        .drawBehind {
+                            if (selected) {
+                                drawRect(
+                                    color = fill,
+                                    size = Size(size.width * timer().coerceIn(0f, 1f), size.height),
+                                )
+                            }
+                        },
                 )
             }
         }
@@ -2228,11 +2319,11 @@ private fun GridRowContent(
 
 /** Springy "pressed" feedback shared by every card: returns the interaction source and the scale. */
 @Composable
-private fun rememberPress(): Pair<MutableInteractionSource, State<Float>> {
+private fun rememberPress(pressedScale: Float = 0.96f): Pair<MutableInteractionSource, State<Float>> {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val scale = animateFloatAsState(
-        targetValue = if (pressed) 0.96f else 1f,
+        targetValue = if (pressed) pressedScale else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
         label = "press",
     )
