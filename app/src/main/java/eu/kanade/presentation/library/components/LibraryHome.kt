@@ -1512,7 +1512,13 @@ private fun HeroCard(
 @Immutable
 private class HeroTitlePlan(val main: String, val sub: String?, val size: Int, val subLines: Int)
 
-private val HeroTitleSizes = intArrayOf(40, 34, 30, 27, 25, 23, 21, 19)
+private val HeroBigSizes = intArrayOf(40, 34, 30, 27, 25, 23, 22)
+
+// Words that should not end the big part of a title ("Isshun de ..." / "... no ...").
+private val DanglingWords = setOf(
+    "no", "to", "ni", "de", "wo", "o", "e", "mo", "ka", "na", "he", "ya",
+    "the", "of", "a", "an", "and", "in", "on", "for", "at", "as", "from", "with",
+)
 
 // "2nd Season", "Season 2", "Part 2", "Final Season" at the very end of a title.
 private val SeasonTail = Regex(
@@ -1539,7 +1545,7 @@ private fun splitAtSeparator(title: String): Pair<String, String>? {
     var cutLen = 0
     for (sep in listOf(": ", " - ")) {
         val i = title.indexOf(sep)
-        if (i in 2..26 && (cutAt < 0 || i < cutAt)) {
+        if (i in 2..34 && (cutAt < 0 || i < cutAt)) {
             cutAt = i
             cutLen = sep.length
         }
@@ -1550,9 +1556,12 @@ private fun splitAtSeparator(title: String): Pair<String, String>? {
 }
 
 /**
- * Keeps every title calm: the main title always fits in two lines at a comfortable size; whatever does not fit
- * moves to a single quiet subtitle line (season / part / the tail of a long name). [fits] and [lines] measure
- * text with the real font (and the user's font scale), so it works on any screen.
+ * Keeps every title calm and in order:
+ *  1. a short name stays on one big line;
+ *  2. a medium name stays whole on two lines;
+ *  3. a long name: its first 2-3 words go big on ONE line and the rest drops to a small subtitle.
+ * Season / part tags ("2nd Season", "Part 2") also go to the subtitle. [fits] and [lines] measure text with the
+ * real font and the user's text size, so it adapts to any phone and font scale.
  */
 private fun planHeroTitle(
     title: String,
@@ -1567,49 +1576,47 @@ private fun planHeroTitle(
         extra.add(rest)
     }
 
-    fun sizeFor(text: String, min: Int): Int? {
-        // 1) one calm line, as big as it gets
-        for (s in HeroTitleSizes) {
-            if (s < 27) break
+    // The biggest size at which [text] still fits on one line (never below [min]).
+    fun oneLine(text: String, min: Int): Int? {
+        for (s in HeroBigSizes) {
+            if (s < min) break
             if (s > 34 && text.length > 8) continue
             if (fits(text, s, 1)) return s
-        }
-        // 2) two lines, never shouting
-        for (s in HeroTitleSizes) {
-            if (s > 30) continue
-            if (s < min) break
-            if (fits(text, s, 2)) return s
         }
         return null
     }
 
-    // A title that fits in two lines at 21sp or more stays whole and together; only longer ones are rearranged.
-    var size = sizeFor(main, 21)
+    var size = oneLine(main, 27)
+    if (size == null && main.length <= 32 && main.count { it == ' ' } <= 3) {
+        size = HeroBigSizes.firstOrNull { it in 25..30 && fits(main, it, 2) }
+    }
     if (size == null) {
-        // Too long for a calm two-line title: cut it at its most natural break.
         val words = main.split(' ').filter { it.isNotEmpty() }
-        var k = 0
-        for (i in words.size - 1 downTo 1) {
-            if (fits(words.take(i).joinToString(" "), 25, 2)) {
-                k = i
-                break
+        var bestK = 0
+        var bestScore = -1f
+        var bestSize = 0
+        for (k in 1..minOf(4, words.size - 1)) {
+            val last = words[k - 1]
+            val bare = last.trimEnd(',', ':').lowercase()
+            val natural = last.endsWith(",") || last.endsWith(":") || bare == "wa" || bare == "ga"
+            if (!natural && bare in DanglingWords) continue
+            val head = words.take(k).joinToString(" ").trimEnd(',', ':')
+            val s = oneLine(head, 22) ?: continue
+            // A natural break (comma, wa, ga) wins; otherwise more words (up to 3) and a bigger size.
+            val score = (if (natural) 4f else 0f) + minOf(k, 3) + s / 100f
+            if (score > bestScore) {
+                bestScore = score
+                bestK = k
+                bestSize = s
             }
         }
-        if (k > 0) {
-            // Prefer a comma or the topic particles wa / ga, when they sit in the second half of what fits.
-            for (j in k downTo 1) {
-                if (j * 2 < k) break
-                val w = words[j - 1]
-                val natural = w.endsWith(",") || w.equals("wa", ignoreCase = true) || w.equals("ga", ignoreCase = true)
-                if (natural && words.take(j).joinToString(" ").length >= 8) {
-                    k = j
-                    break
-                }
-            }
-            extra.add(0, words.drop(k).joinToString(" "))
-            main = words.take(k).joinToString(" ").trimEnd(',', ':')
+        if (bestK > 0) {
+            extra.add(0, words.drop(bestK).joinToString(" "))
+            main = words.take(bestK).joinToString(" ").trimEnd(',', ':')
+            size = bestSize
+        } else {
+            size = HeroBigSizes.firstOrNull { it <= 25 && fits(main, it, 2) } ?: 22
         }
-        size = sizeFor(main, 19) ?: 19
     }
 
     val subParts = ArrayList<String>()
@@ -1692,13 +1699,9 @@ private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier
                 Text(
                     text = plan.sub,
                     modifier = Modifier.padding(top = 3.dp),
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                        shadow = textShadow,
-                    ),
+                    style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow),
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.82f),
+                    color = Color.White.copy(alpha = 0.86f),
                     maxLines = plan.subLines,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1728,35 +1731,57 @@ private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier
     }
 }
 
-/** The main action: a compact white pill ("Ver" / "Continuar") that squeezes when pressed. */
+/**
+ * The main action: a small glass pill with a white play badge ("Ver" / "Continuar"). Translucent, so it takes the
+ * colour of every cover instead of sitting on it like a white block, and it squeezes when pressed.
+ */
 @Composable
 private fun HeroPlayPill(label: String, icon: ImageVector, onClick: () -> Unit) {
-    val (source, scale) = rememberPress(0.9f)
+    val (source, scale) = rememberPress(0.92f)
     Row(
         modifier = Modifier
             .graphicsLayer {
                 scaleX = scale.value
                 scaleY = scale.value
             }
-            .height(42.dp)
+            .height(40.dp)
             .clip(CircleShape)
-            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFE6E7EC))))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.12f)),
+                ),
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.5f), Color.White.copy(alpha = 0.12f)),
+                ),
+                CircleShape,
+            )
             .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
-            .padding(start = 14.dp, end = 20.dp),
+            .padding(start = 6.dp, end = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.Black,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.width(5.dp))
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
             maxLines = 1,
         )
     }
