@@ -109,6 +109,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -1505,25 +1508,127 @@ private fun HeroCard(
     }
 }
 
-/**
- * "SHY: Tokyo Dakkan-hen" -> "SHY" + "Tokyo Dakkan-hen": the name of the franchise gets the big type and the
- * rest becomes a subtitle. Titles without a clean split stay whole.
- */
-private fun splitTitle(title: String): Pair<String, String?> {
-    val clean = title.trim()
+/** How a title is laid out: big main title, quiet subtitle line, and the size that fits. */
+@Immutable
+private class HeroTitlePlan(val main: String, val sub: String?, val size: Int, val subLines: Int)
+
+private val HeroTitleSizes = intArrayOf(40, 34, 30, 27, 25, 23, 21, 19)
+
+// "2nd Season", "Season 2", "Part 2", "Final Season" at the very end of a title.
+private val SeasonTail = Regex(
+    "(?i)[\\s,:.\\-–]*\\b(?:(\\d+)(?:st|nd|rd|th)\\s+season|season\\s*(\\d+)|part\\s*(\\d+)|(?:the\\s+)?(final)\\s+season)\\s*\\.?\\s*$",
+)
+
+private fun splitSeason(title: String): Pair<String, String?> {
+    val m = SeasonTail.find(title) ?: return title to null
+    val base = title.substring(0, m.range.first).trim().trimEnd(',', ':', '-', '.').trim()
+    if (base.length < 3) return title to null
+    val g = m.groupValues
+    val tag = when {
+        g[1].isNotEmpty() -> "Temporada ${g[1]}"
+        g[2].isNotEmpty() -> "Temporada ${g[2]}"
+        g[3].isNotEmpty() -> "Parte ${g[3]}"
+        else -> "Temporada final"
+    }
+    return base to tag
+}
+
+/** "SHY: Tokyo Dakkan-hen" -> "SHY" / "Tokyo Dakkan-hen". */
+private fun splitAtSeparator(title: String): Pair<String, String>? {
     var cutAt = -1
     var cutLen = 0
     for (sep in listOf(": ", " - ")) {
-        val i = clean.indexOf(sep)
+        val i = title.indexOf(sep)
         if (i in 2..26 && (cutAt < 0 || i < cutAt)) {
             cutAt = i
             cutLen = sep.length
         }
     }
-    if (cutAt < 0) return clean to null
-    val rest = clean.substring(cutAt + cutLen).trim()
-    return if (rest.length >= 3) clean.substring(0, cutAt).trim() to rest else clean to null
+    if (cutAt < 0) return null
+    val rest = title.substring(cutAt + cutLen).trim()
+    return if (rest.length >= 3) title.substring(0, cutAt).trim() to rest else null
 }
+
+/**
+ * Keeps every title calm: the main title always fits in two lines at a comfortable size; whatever does not fit
+ * moves to a single quiet subtitle line (season / part / the tail of a long name). [fits] and [lines] measure
+ * text with the real font (and the user's font scale), so it works on any screen.
+ */
+private fun planHeroTitle(
+    title: String,
+    fits: (text: String, size: Int, maxLines: Int) -> Boolean,
+    lines: (text: String, size: Int) -> Int,
+): HeroTitlePlan {
+    val (base, tag) = splitSeason(title.trim())
+    var main = base
+    val extra = ArrayList<String>()
+    splitAtSeparator(base)?.let { (head, rest) ->
+        main = head
+        extra.add(rest)
+    }
+
+    fun sizeFor(text: String, min: Int): Int? {
+        // 1) one calm line, as big as it gets
+        for (s in HeroTitleSizes) {
+            if (s < 27) break
+            if (s > 34 && text.length > 8) continue
+            if (fits(text, s, 1)) return s
+        }
+        // 2) two lines, never shouting
+        for (s in HeroTitleSizes) {
+            if (s > 30) continue
+            if (s < min) break
+            if (fits(text, s, 2)) return s
+        }
+        return null
+    }
+
+    // A title that fits in two lines at 21sp or more stays whole and together; only longer ones are rearranged.
+    var size = sizeFor(main, 21)
+    if (size == null) {
+        // Too long for a calm two-line title: cut it at its most natural break.
+        val words = main.split(' ').filter { it.isNotEmpty() }
+        var k = 0
+        for (i in words.size - 1 downTo 1) {
+            if (fits(words.take(i).joinToString(" "), 25, 2)) {
+                k = i
+                break
+            }
+        }
+        if (k > 0) {
+            // Prefer a comma or the topic particles wa / ga, when they sit in the second half of what fits.
+            for (j in k downTo 1) {
+                if (j * 2 < k) break
+                val w = words[j - 1]
+                val natural = w.endsWith(",") || w.equals("wa", ignoreCase = true) || w.equals("ga", ignoreCase = true)
+                if (natural && words.take(j).joinToString(" ").length >= 8) {
+                    k = j
+                    break
+                }
+            }
+            extra.add(0, words.drop(k).joinToString(" "))
+            main = words.take(k).joinToString(" ").trimEnd(',', ':')
+        }
+        size = sizeFor(main, 19) ?: 19
+    }
+
+    val subParts = ArrayList<String>()
+    subParts.addAll(extra)
+    if (tag != null) subParts.add(tag)
+    val sub = subParts.joinToString("  ·  ").takeIf { it.isNotBlank() }
+    // A one-line title leaves room for a two-line subtitle; a two-line title keeps the subtitle to one line.
+    val subLines = if (lines(main, size) <= 1) 2 else 1
+    return HeroTitlePlan(main, sub, size, subLines)
+}
+
+private fun heroTitleStyle(base: TextStyle, size: Int): TextStyle = base.copy(
+    fontSize = size.sp,
+    lineHeight = (size * 1.12f).sp,
+    letterSpacing = (-0.5).sp,
+    fontWeight = FontWeight.ExtraBold,
+    // Balanced lines: no lonely word hanging on the second line.
+    lineBreak = LineBreak.Heading,
+)
 
 @Composable
 private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier = Modifier) {
@@ -1536,67 +1641,88 @@ private fun HeroInfo(item: LibraryItem, actions: HomeActions, modifier: Modifier
         entry.hasStarted -> "Continuar"
         else -> "Ver"
     }
-    val (mainTitle, subTitle) = remember(anime.title) { splitTitle(anime.title) }
-    val titleSize = when {
-        mainTitle.length <= 8 -> 40.sp
-        mainTitle.length <= 15 -> 34.sp
-        mainTitle.length <= 26 -> 28.sp
-        else -> 24.sp
-    }
+    val measurer = rememberTextMeasurer()
+    val baseStyle = MaterialTheme.typography.headlineSmall
+    val fontScale = LocalDensity.current.fontScale
     val textShadow = Shadow(
         color = Color.Black.copy(alpha = 0.55f),
         offset = Offset(0f, 2f),
         blurRadius = 14f,
     )
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
     ) {
-        Text(
-            text = mainTitle,
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontSize = titleSize,
-                lineHeight = titleSize * 1.12f,
-                letterSpacing = (-0.5).sp,
-                shadow = textShadow,
-            ),
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (subTitle != null) {
-            Text(
-                text = subTitle,
-                modifier = Modifier.padding(top = 2.dp),
-                style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow),
-                fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.86f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        val maxW = constraints.maxWidth
+        // The title is measured with the real font and the user's text size, so a long name never gets cut
+        // in the middle of the big type: it is rearranged into a main title and a quiet subtitle instead.
+        val plan = remember(anime.title, maxW, fontScale) {
+            planHeroTitle(
+                title = anime.title,
+                fits = { text, size, maxLines ->
+                    !measurer.measure(
+                        text = text,
+                        style = heroTitleStyle(baseStyle, size),
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = maxLines,
+                        constraints = Constraints(maxWidth = maxW),
+                    ).hasVisualOverflow
+                },
+                lines = { text, size ->
+                    measurer.measure(
+                        text = text,
+                        style = heroTitleStyle(baseStyle, size),
+                        constraints = Constraints(maxWidth = maxW),
+                    ).lineCount
+                },
             )
         }
-        // One compact action (the whole card also opens the details), plus a slim progress line.
-        Row(
-            modifier = Modifier.padding(top = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HeroPlayPill(
-                label = label,
-                icon = if (canPlay) Icons.Filled.PlayArrow else Icons.Outlined.Info,
-                onClick = { if (canPlay && play != null) play(entry) else actions.onClick(entry) },
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = plan.main,
+                style = heroTitleStyle(baseStyle, plan.size).copy(shadow = textShadow),
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            if (entry.hasStarted && !entry.isFinished() && entry.totalEpisodes > 0) {
-                Spacer(Modifier.width(16.dp))
-                SlimProgress(
-                    progress = progressOf(entry),
-                    track = Color.White.copy(alpha = 0.22f),
-                    fill = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.weight(1f),
-                    height = 3.dp,
+            if (plan.sub != null) {
+                Text(
+                    text = plan.sub,
+                    modifier = Modifier.padding(top = 3.dp),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        shadow = textShadow,
+                    ),
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.82f),
+                    maxLines = plan.subLines,
+                    overflow = TextOverflow.Ellipsis,
                 )
+            }
+            // One compact action (the whole card also opens the details), plus a slim progress line.
+            Row(
+                modifier = Modifier.padding(top = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HeroPlayPill(
+                    label = label,
+                    icon = if (canPlay) Icons.Filled.PlayArrow else Icons.Outlined.Info,
+                    onClick = { if (canPlay && play != null) play(entry) else actions.onClick(entry) },
+                )
+                if (entry.hasStarted && !entry.isFinished() && entry.totalEpisodes > 0) {
+                    Spacer(Modifier.width(16.dp))
+                    SlimProgress(
+                        progress = progressOf(entry),
+                        track = Color.White.copy(alpha = 0.22f),
+                        fill = Color.White.copy(alpha = 0.9f),
+                        modifier = Modifier.weight(1f),
+                        height = 3.dp,
+                    )
+                }
             }
         }
     }
