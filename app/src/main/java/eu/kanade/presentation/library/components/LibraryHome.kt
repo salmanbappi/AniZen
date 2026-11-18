@@ -1,9 +1,7 @@
 package eu.kanade.presentation.library.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
@@ -90,6 +88,8 @@ import eu.kanade.presentation.components.revealOnce
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -208,6 +208,11 @@ private const val HeroScreenFraction = 0.6f
 private const val HeroAutoAdvanceMs = 6500
 private const val HeroSlideMs = 900
 private val HeroSlideEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
+/** Keeps the automatic slide at full speed even when the phone's animation scale is off or reduced. */
+private object HeroFullSpeed : MotionDurationScale {
+    override val scaleFactor: Float get() = 1f
+}
 private const val AmbientStrength = 0.55f
 private const val AmbientFallback = 0.14f
 private const val SelectedScale = 0.95f
@@ -1329,16 +1334,23 @@ private fun Hero(
 
     // Auto advance, restarted after every page change. [timer] (0..1) is the time the current cover has
     // been resting: the active dot fills with it, so you can see when the next slide comes.
-    val timer = remember { Animatable(0f) }
+    val timer = remember { mutableFloatStateOf(0f) }
     // Touching the carousel pauses it; it starts counting again when the finger leaves.
     val dragged by pagerState.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(pagerState.currentPage, heroes.size, dragged) {
-        timer.snapTo(0f)
+        timer.floatValue = 0f
         if (heroes.size > 1 && !dragged) {
-            timer.animateTo(1f, tween(durationMillis = HeroAutoAdvanceMs, easing = LinearEasing))
+            // Timed with the frame clock, not with an animation: the phone's "animation scale" setting
+            // must not be able to shorten the rest between covers.
+            val start = withFrameNanos { it }
+            var elapsed = 0f
+            while (elapsed < HeroAutoAdvanceMs) {
+                elapsed = (withFrameNanos { it } - start) / 1_000_000f
+                timer.floatValue = (elapsed / HeroAutoAdvanceMs).coerceIn(0f, 1f)
+            }
             while (pagerState.isScrollInProgress) delay(300)
             // Not cancellable: the page counter flips half way through the slide and must not cut it.
-            withContext(NonCancellable) {
+            withContext(NonCancellable + HeroFullSpeed) {
                 pagerState.animateScrollToPage(
                     page = (pagerState.currentPage + 1) % heroes.size,
                     animationSpec = tween(durationMillis = HeroSlideMs, easing = HeroSlideEase),
@@ -1389,7 +1401,7 @@ private fun Hero(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            PagerDots(pagerState = pagerState, count = heroes.size, timer = { timer.value })
+            PagerDots(pagerState = pagerState, count = heroes.size, timer = { timer.floatValue })
             Spacer(Modifier.height(4.dp))
         }
     }
