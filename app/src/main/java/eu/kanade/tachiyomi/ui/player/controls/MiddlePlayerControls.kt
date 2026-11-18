@@ -22,11 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -56,7 +52,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -96,28 +91,13 @@ fun MiddlePlayerControls(
     exit: ExitTransition,
     modifier: Modifier = Modifier,
 ) {
+    // ANZ: previous / next episode buttons removed on purpose; only play / pause stays in the middle.
+    // (hasPrevious / onSkipPrevious / hasNext / onSkipNext are kept so the callers do not change.)
     Row(
         modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(26.dp),
     ) {
-        AnimatedVisibility(
-            visible = controlsShown && !areControlsLocked,
-            enter = enter,
-            exit = exit,
-        ) {
-            if (gestureSeekAmount == null) {
-                // ANZ -->
-                SkipCircleButton(
-                    icon = Icons.Rounded.SkipPrevious,
-                    onClick = onSkipPrevious,
-                    enabled = hasPrevious,
-                    form = PopForm.TriangleLeft,
-                )
-                // ANZ <--
-            }
-        }
-
         // ANZ -->
         when {
             (isLoading || isLoadingEpisode) && showLoadingCircle -> {
@@ -176,29 +156,11 @@ fun MiddlePlayerControls(
             }
         }
         // ANZ <--
-
-        AnimatedVisibility(
-            visible = controlsShown && !areControlsLocked,
-            enter = enter,
-            exit = exit,
-        ) {
-            if (gestureSeekAmount == null) {
-                // ANZ -->
-                SkipCircleButton(
-                    icon = Icons.Rounded.SkipNext,
-                    onClick = onSkipNext,
-                    enabled = hasNext,
-                    form = PopForm.TriangleRight,
-                )
-                // ANZ <--
-            }
-        }
     }
 }
 
 // ANZ -->
 private val PLAY_SIZE = 80.dp
-private val SKIP_SIZE = 54.dp
 
 /**
  * Accent tones taken from the app theme (light top, saturated base), the same idea as the liquid fill
@@ -224,39 +186,6 @@ private fun Modifier.accentGradientFill(top: Color, bottom: Color): Modifier = t
             blendMode = BlendMode.SrcIn,
         )
     }
-
-@Composable
-private fun SkipCircleButton(
-    icon: ImageVector,
-    onClick: () -> Unit,
-    enabled: Boolean,
-    form: PopForm,
-) {
-    val (accentTop, accentBase) = rememberGlassAccent()
-    val k = if (enabled) 1f else 0.35f
-    // nudge the icon towards the visual centre of the triangle
-    val shift = when (form) {
-        PopForm.TriangleRight -> (-4).dp
-        PopForm.TriangleLeft -> 4.dp
-        PopForm.Squircle -> 0.dp
-    }
-    GlassCircleButton(
-        onClick = onClick,
-        diameter = SKIP_SIZE,
-        shape = PopShape(form),
-        enabled = enabled,
-        contentShift = shift,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier
-                .size(30.dp)
-                .accentGradientFill(accentTop.copy(alpha = k), accentBase.copy(alpha = k)),
-        )
-    }
-}
 
 /**
  * Domed dark glass, built only from cheap draw ops (no blur):
