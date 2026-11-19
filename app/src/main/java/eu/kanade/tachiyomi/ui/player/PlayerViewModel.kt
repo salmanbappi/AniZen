@@ -394,6 +394,9 @@ class PlayerViewModel @JvmOverloads constructor(
     val thumbnailImage = _thumbnailImage.asStateFlow()
     private val thumbnailInfo = MutableStateFlow<ThumbnailInfo?>(null)
     private val thumbnailTileCache = mutableMapOf<Int, Bitmap>()
+    // ANZ -->
+    private var thumbnailFetchJob: Job? = null
+    // ANZ <--
 
     private var fillerEpisodes: Set<Float> = emptySet()
     val relativeTime: Boolean = uiPreferences.relativeTime().get()
@@ -2207,6 +2210,12 @@ class PlayerViewModel @JvmOverloads constructor(
 
         qualityIndex = Pair(hosterIndex, videoIndex)
 
+        // ANZ -->
+        viewModelScope.launchIO {
+            loadThumbnails(resolvedVideo, source)
+        }
+        // ANZ <--
+
         // ANK --> Playback resumed, so drop any postponed selection
         hasPendingVideoFallback.set(false)
         // ANK <--
@@ -2922,13 +2931,20 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    // ANZ -->
     fun updateIsSeeking(value: Boolean) {
         isSeekingUI.update { value }
+        if (!value) {
+            thumbnailFetchJob?.cancel()
+            _thumbnailImage.update { null }
+        }
     }
 
     fun updateSeekPos(value: Float) {
         seekPosition.update { value }
+        fetchThumbnailTile(value)
     }
+    // ANZ <--
 
     fun selectChapter(index: Int) {
         mpv.command("set", "chapter", index.toString())
@@ -3033,7 +3049,11 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    // ANZ -->
     suspend fun loadThumbnails(video: Video, source: AnimeSource?) {
+        thumbnailFetchJob?.cancel()
+        _thumbnailImage.update { null }
+        thumbnailInfo.update { null }
         synchronized(thumbnailTileCache) {
             thumbnailTileCache.clear()
         }
@@ -3073,26 +3093,34 @@ class PlayerViewModel @JvmOverloads constructor(
 
         val tileBitmap = synchronized(thumbnailTileCache) { thumbnailTileCache[info.imageIndex] }
         if (tileBitmap != null) {
-            try {
-                val cropped = android.graphics.Bitmap.createBitmap(
-                    tileBitmap,
-                    info.x,
-                    info.y,
-                    info.width,
-                    info.height,
-                )
-                _thumbnailImage.update { cropped.asImageBitmap() }
-            } catch (_: Exception) {}
+            thumbnailFetchJob?.cancel()
+            thumbnailFetchJob = viewModelScope.launchIO {
+                try {
+                    val cropped = Bitmap.createBitmap(
+                        tileBitmap,
+                        info.x,
+                        info.y,
+                        info.width,
+                        info.height,
+                    )
+                    _thumbnailImage.update { cropped.asImageBitmap() }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    logcat(LogPriority.ERROR, e) { "Failed to crop cached thumbnail" }
+                }
+            }
         } else {
             val tileUrl = thumbInfo.imageTileUrls.getOrNull(info.imageIndex) ?: return
-            viewModelScope.launchIO {
-                val bitmap = source.getImageTile(tileUrl)
-                if (bitmap != null) {
-                    synchronized(thumbnailTileCache) {
-                        thumbnailTileCache[info.imageIndex] = bitmap
-                    }
-                    try {
-                        val cropped = android.graphics.Bitmap.createBitmap(
+            thumbnailFetchJob?.cancel()
+            thumbnailFetchJob = viewModelScope.launchIO {
+                delay(150)
+                try {
+                    val bitmap = source.getImageTile(tileUrl)
+                    if (bitmap != null) {
+                        synchronized(thumbnailTileCache) {
+                            thumbnailTileCache[info.imageIndex] = bitmap
+                        }
+                        val cropped = Bitmap.createBitmap(
                             bitmap,
                             info.x,
                             info.y,
@@ -3100,7 +3128,10 @@ class PlayerViewModel @JvmOverloads constructor(
                             info.height,
                         )
                         _thumbnailImage.update { cropped.asImageBitmap() }
-                    } catch (_: Exception) {}
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    logcat(LogPriority.ERROR, e) { "Failed to fetch thumbnail tile" }
                 }
             }
         }
