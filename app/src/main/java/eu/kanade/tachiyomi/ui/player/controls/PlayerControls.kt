@@ -240,7 +240,7 @@ fun PlayerControls(
                     unlockControlsButton,
                     bottomRightControls, bottomLeftControls,
                     centerControls, seekbar, playerUpdates,
-                    portraitBottomBar, thumbnail,
+                    portraitBottomBar, thumbnail, skipButton,
                 ) = createRefs()
 
                 val hasPreviousEpisode by viewModel.hasPreviousEpisode.collectAsState()
@@ -435,6 +435,43 @@ fun PlayerControls(
                     )
                 }
                 // ANZ <--
+                // ANZ -->
+                var durationInkWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                val pillEndInset = with(LocalDensity.current) {
+                    (videoTimerWidth - durationInkWidthPx.toDp()) / 2
+                }.coerceAtLeast(0.dp)
+                val skipIntroButton by viewModel.skipIntroText.collectAsState()
+                val customButtonTitle by viewModel.primaryButtonTitle.collectAsState()
+                val actionButton = customButton
+
+                AnimatedVisibility(
+                    visible = (controlsShown || seekBarShown) && !areControlsLocked && !isLongPressing &&
+                        (skipIntroButton != null || (actionButton != null && customButtonTitle.isNotEmpty())),
+                    enter = fadeIn(playerControlsEnterAnimationSpec()) +
+                        expandVertically(expandFrom = Alignment.Bottom),
+                    exit = fadeOut(playerControlsExitAnimationSpec()) +
+                        shrinkVertically(shrinkTowards = Alignment.Bottom),
+                    modifier = Modifier.constrainAs(skipButton) {
+                        end.linkTo(seekbar.end, pillEndInset)
+                        bottom.linkTo(seekbar.top, spacing.extraSmall)
+                    },
+                ) {
+                    val skipIntroLabel = skipIntroButton
+                    if (skipIntroLabel != null) {
+                        FilledControlsButton(
+                            text = skipIntroLabel,
+                            onClick = viewModel::onSkipIntro,
+                            onLongClick = viewModel::onSkipIntro,
+                        )
+                    } else if (actionButton != null && customButtonTitle.isNotEmpty()) {
+                        FilledControlsButton(
+                            text = customButtonTitle,
+                            onClick = { actionButton.execute(viewModel.mpv) },
+                            onLongClick = { actionButton.executeLongPress(viewModel.mpv) },
+                        )
+                    }
+                }
+
                 AnimatedVisibility(
                     visible = (controlsShown || seekBarShown) && !areControlsLocked && !isLongPressing,
                     enter = if (!reduceMotion) {
@@ -455,104 +492,56 @@ fun PlayerControls(
                         } else {
                             bottom.linkTo(portraitBottomBar.top)
                         }
-                    }.offset(y = spacing.medium),
+                    },
                 ) {
-                    Column {
-                        // Skip intro prompt / custom action button, anchored to the seekbar:
-                        // it slides in and out with it, right edge aligned with the duration
-                        // time text, body extending left of it
-                        val skipIntroButton by viewModel.skipIntroText.collectAsState()
-                        val customButtonTitle by viewModel.primaryButtonTitle.collectAsState()
-                        val actionButton = customButton
-                        // Ink width of the duration time text, reported by the seekbar's timer;
-                        // the text is centered in its slot, so its right edge sits
-                        // (slotWidth - inkWidth) / 2 left of the slot's right edge
-                        var durationInkWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-                        val pillEndInset = with(LocalDensity.current) {
-                            (videoTimerWidth - durationInkWidthPx.toDp()) / 2
-                        }.coerceAtLeast(0.dp)
-                        AnimatedVisibility(
-                            visible = skipIntroButton != null ||
-                                (actionButton != null && customButtonTitle.isNotEmpty()),
-                            enter = fadeIn(playerControlsEnterAnimationSpec()) +
-                                expandVertically(expandFrom = Alignment.Bottom),
-                            exit = fadeOut(playerControlsExitAnimationSpec()) +
-                                shrinkVertically(shrinkTowards = Alignment.Bottom),
-                            modifier = Modifier
-                                .align(Alignment.End)
-                                .padding(end = pillEndInset)
-                                .offset(y = spacing.small),
-                        ) {
-                            val skipIntroLabel = skipIntroButton
-                            if (skipIntroLabel != null) {
-                                FilledControlsButton(
-                                    text = skipIntroLabel,
-                                    onClick = viewModel::onSkipIntro,
-                                    onLongClick = viewModel::onSkipIntro,
-                                )
-                            } else if (actionButton != null && customButtonTitle.isNotEmpty()) {
-                                // ANZ -->
-                                FilledControlsButton(
-                                    text = customButtonTitle,
-                                    onClick = { actionButton.execute(viewModel.mpv) },
-                                    onLongClick = { actionButton.executeLongPress(viewModel.mpv) },
-                                )
-                                // ANZ <--
+                    val invertDuration by playerPreferences.invertDuration().collectAsState()
+                    val readAhead by viewModel.demuxerCacheTime.collectAsState()
+                    val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
+                    val position by viewModel.pos.collectAsState()
+                    val currentPosition = (position ?: 0).toFloat()
+
+                    var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
+                    var scrubbingPosition by remember { mutableStateOf<Float?>(null) }
+
+                    val displayPosition = scrubbingPosition ?: if (isSeekingUI) seekPosition else currentPosition
+
+                    SeekbarWithTimers(
+                        position = displayPosition,
+                        duration = totalDuration,
+                        readAheadValue = readAhead ?: 0f,
+                        onValueChange = { newPos ->
+                            if (scrubbingPosition == null) {
+                                wasPlayerAlreadyPause = viewModel.paused.value == true
+                                viewModel.pause()
+                                viewModel.updateIsSeeking(true)
                             }
-                        }
-
-                        val invertDuration by playerPreferences.invertDuration().collectAsState()
-                        // ANZ -->
-                        val readAhead by viewModel.demuxerCacheTime.collectAsState()
-                        // ANZ <--
-                        val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
-                        // ANZ -->
-                        val position by viewModel.pos.collectAsState()
-                        val currentPosition = (position ?: 0).toFloat()
-
-                        var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
-                        var scrubbingPosition by remember { mutableStateOf<Float?>(null) }
-
-                        val displayPosition = scrubbingPosition ?: if (isSeekingUI) seekPosition else currentPosition
-
-                        SeekbarWithTimers(
-                            position = displayPosition,
-                            duration = totalDuration,
-                            readAheadValue = readAhead ?: 0f,
-                            onValueChange = { newPos ->
-                                if (scrubbingPosition == null) {
-                                    wasPlayerAlreadyPause = viewModel.paused.value == true
-                                    viewModel.pause()
-                                    viewModel.updateIsSeeking(true)
-                                }
-                                scrubbingPosition = newPos
-                                viewModel.updateSeekPos(newPos)
-                                viewModel.scrubSeekTo(newPos.toInt(), false)
-                            },
-                            onValueChangeFinished = {
-                                val target = scrubbingPosition ?: currentPosition
-                                scrubbingPosition = null
-                                viewModel.updateSeekPos(target)
-                                viewModel.updateIsSeeking(false)
-                                viewModel.seekTo(target.toInt(), preciseSeeking)
-                                if (!wasPlayerAlreadyPause) {
-                                    viewModel.unpause()
-                                }
-                            },
-                            timersInverted = Pair(false, invertDuration),
-                            durationTimerOnCLick = { playerPreferences.invertDuration().set(!invertDuration) },
-                            positionTimerOnClick = {},
-                            onDurationTextLayout = { layoutResult ->
-                                if (layoutResult.lineCount > 0) {
-                                    durationInkWidthPx =
-                                        layoutResult.getLineRight(0) - layoutResult.getLineLeft(0)
-                                }
-                            },
-                            chapters = chaptersList,
-                        )
-                        // ANZ <--
-                    }
+                            scrubbingPosition = newPos
+                            viewModel.updateSeekPos(newPos)
+                            viewModel.scrubSeekTo(newPos.toInt(), false)
+                        },
+                        onValueChangeFinished = {
+                            val target = scrubbingPosition ?: currentPosition
+                            scrubbingPosition = null
+                            viewModel.updateSeekPos(target)
+                            viewModel.updateIsSeeking(false)
+                            viewModel.seekTo(target.toInt(), preciseSeeking)
+                            if (!wasPlayerAlreadyPause) {
+                                viewModel.unpause()
+                            }
+                        },
+                        timersInverted = Pair(false, invertDuration),
+                        durationTimerOnCLick = { playerPreferences.invertDuration().set(!invertDuration) },
+                        positionTimerOnClick = {},
+                        onDurationTextLayout = { layoutResult ->
+                            if (layoutResult.lineCount > 0) {
+                                durationInkWidthPx =
+                                    layoutResult.getLineRight(0) - layoutResult.getLineLeft(0)
+                            }
+                        },
+                        chapters = chaptersList,
+                    )
                 }
+                // ANZ <--
                 val mediaTitle by viewModel.mediaTitle.collectAsState()
                 val animeTitle by viewModel.animeTitle.collectAsState()
                 AnimatedVisibility(
@@ -713,7 +702,7 @@ fun PlayerControls(
                     durationS = (duration ?: 0).toLong(),
                     chapters = chaptersList,
                     modifier = Modifier.fillMaxWidth().constrainAs(thumbnail) {
-                        bottom.linkTo(seekbar.top, spacing.medium)
+                        bottom.linkTo(seekbar.top, spacing.extraSmall)
                     },
                 )
                 // ANZ <--
