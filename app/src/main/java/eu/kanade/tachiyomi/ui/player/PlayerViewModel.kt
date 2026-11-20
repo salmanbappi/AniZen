@@ -1433,6 +1433,14 @@ class PlayerViewModel @JvmOverloads constructor(
         _hosterList.update { _ -> emptyList() }
         _hosterExpandedList.update { _ -> emptyList() }
         _selectedHosterVideoIndex.update { _ -> Pair(-1, -1) }
+        // ANZ -->
+        thumbnailFetchJob?.cancel()
+        _thumbnailImage.update { null }
+        thumbnailInfo.update { null }
+        synchronized(thumbnailTileCache) {
+            thumbnailTileCache.clear()
+        }
+        // ANZ <--
     }
 
     fun changeEpisode(previous: Boolean, autoPlay: Boolean = false) {

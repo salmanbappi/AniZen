@@ -705,19 +705,18 @@ fun PlayerControls(
                 }
 
                 val thumbnailImage by viewModel.thumbnailImage.collectAsState()
+                // ANZ -->
                 ThumbnailPreview(
                     visible = isSeekingUI,
                     image = thumbnailImage,
-                    positionSProvider = run {
-                        val currentSeekPosition = androidx.compose.runtime.rememberUpdatedState(seekPosition.toLong())
-                        remember { { currentSeekPosition.value } }
-                    },
+                    positionS = (scrubbingPosition ?: seekPosition).toLong(),
                     durationS = (duration ?: 0).toLong(),
                     chapters = chaptersList,
                     modifier = Modifier.fillMaxWidth().constrainAs(thumbnail) {
                         bottom.linkTo(seekbar.top, spacing.medium)
                     },
                 )
+                // ANZ <--
             }
         }
 
