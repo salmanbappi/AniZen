@@ -709,7 +709,7 @@ fun PlayerControls(
                 ThumbnailPreview(
                     visible = isSeekingUI,
                     image = thumbnailImage,
-                    positionS = (scrubbingPosition ?: seekPosition).toLong(),
+                    positionS = seekPosition.toLong(),
                     durationS = (duration ?: 0).toLong(),
                     chapters = chaptersList,
                     modifier = Modifier.fillMaxWidth().constrainAs(thumbnail) {
