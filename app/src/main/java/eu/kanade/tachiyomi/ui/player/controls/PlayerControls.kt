@@ -36,11 +36,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.LocalContentColor
@@ -445,7 +443,9 @@ fun PlayerControls(
                 val actionButton = customButton
 
                 AnimatedVisibility(
-                    visible = (controlsShown || seekBarShown) && !areControlsLocked && !isLongPressing &&
+                    visible = (controlsShown || seekBarShown) &&
+                        !areControlsLocked &&
+                        !isLongPressing &&
                         (skipIntroButton != null || (actionButton != null && customButtonTitle.isNotEmpty())),
                     enter = fadeIn(playerControlsEnterAnimationSpec()) +
                         expandVertically(expandFrom = Alignment.Bottom),
