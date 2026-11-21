@@ -125,21 +125,23 @@ jobs:
               generationConfig: {temperature: 0.7, maxOutputTokens: 1024}
             }')
           
-          echo "Requesting AI summary from Gemini (gemini-flash-latest)..."
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=$GEMINI_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
-          
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
-          
-          # Fallback to gemini-flash-lite-latest if primary fails or is empty
-          if [ -z "$SUMMARY" ] || [ "$SUMMARY" == "null" ]; then
-            echo "Primary model failed or empty. Requesting fallback from Gemini (gemini-flash-lite-latest)..."
-            RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=$GEMINI_API_KEY" \
+          MODELS=("gemini-2.5-flash" "gemini-2.5-flash-lite" "gemini-3.5-flash-lite" "gemini-flash-latest" "gemini-flash-lite-latest")
+          SUMMARY=""
+          for MODEL in "${MODELS[@]}"; do
+            echo "Requesting AI summary from Gemini ($MODEL)..."
+            RESPONSE=$(curl --max-time 20 -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=$GEMINI_API_KEY" \
               -H "Content-Type: application/json" \
-              -d "$PAYLOAD")
-            SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
-          fi
+              -d "$PAYLOAD" || true)
+            
+            PARSED=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null || true)
+            if [ -n "$PARSED" ] && [ "$PARSED" != "null" ]; then
+              SUMMARY="$PARSED"
+              echo "Successfully generated changelog using $MODEL."
+              break
+            else
+              echo "Model $MODEL failed or timed out. Trying next fallback..."
+            fi
+          done
           
           if [ -z "$SUMMARY" ] || [ "$SUMMARY" == "null" ]; then
             SUMMARY="We've implemented fresh UI refinements and optimized the engine for a better experience! ✨"
