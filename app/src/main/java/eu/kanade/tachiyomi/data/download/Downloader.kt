@@ -9,6 +9,7 @@ import android.os.StatFs
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.Level
 import com.arthenica.ffmpegkit.LogCallback
+import com.arthenica.ffmpegkit.ReturnCode
 import com.arthenica.ffmpegkit.StatisticsCallback
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.animesource.AnimeSource
@@ -839,7 +840,7 @@ class Downloader(
         return suspendCancellableCoroutine { continuation ->
             val session = FFmpegKit.executeWithArgumentsAsync(
                 arguments,
-                { continuation.resume(it.returnCode.isValueSuccess) },
+                { continuation.resume(ReturnCode.isSuccess(it.getReturnCode())) },
                 logCallback,
                 statCallback,
             )
@@ -1699,7 +1700,7 @@ class Downloader(
             val session = FFmpegKit.executeWithArgumentsAsync(
                 ffmpegOptions,
                 {
-                    if (it.returnCode.isValueSuccess) {
+                    if (ReturnCode.isSuccess(it.getReturnCode())) {
                         // ANZ -->
                         download.progress = 100
                         // ANZ <--
@@ -1715,10 +1716,10 @@ class Downloader(
                         // ANZ -->
                         tmpFile.delete()
                         // ANZ <--
-                        if (it.returnCode.isValueCancel) {
+                        if (ReturnCode.isCancel(it.getReturnCode())) {
                             continuation.cancel()
                         } else {
-                            continuation.resumeWithException(Exception("FFmpeg failed: ${it.returnCode}"))
+                            continuation.resumeWithException(Exception("FFmpeg failed: ${it.getReturnCode()}"))
                         }
                     }
                 },
