@@ -116,6 +116,7 @@ import tachiyomi.domain.anime.model.toAnimeUpdate
 import tachiyomi.domain.anime.model.toDomainAnime
 import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.domain.anime.repository.AnimeRepository
+import tachiyomi.domain.anime.service.SeasonRecognition
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
@@ -864,6 +865,7 @@ class AnimeScreenModel(
                     if (type == SuggestionSection.Type.Franchise) {
                         return items.distinctBy { it.id to it.url }
                             .filter { it.id != currentAnime.id && it.url != currentAnime.url }
+                            .filter { SeasonRecognition.isFranchiseMatch(currentAnime.title, it.title, currentAnime.ogTitle, it.ogTitle) }
                     }
                     // ANZ <--
                     val currentClean = eu.kanade.tachiyomi.util.lang.StringSimilarity.cleanTitle(currentAnime.title)
@@ -929,15 +931,43 @@ class AnimeScreenModel(
                                 if (source.supportsRelatedAnime) {
                                     val relations = source.getRelatedAnimeList(anime.toSAnime())
                                     if (relations.isNotEmpty()) {
-                                        val domainAnimes = relations
+                                        val franchiseRelations = relations.filterNot { rel ->
+                                            rel.name.contains("recommend", ignoreCase = true) ||
+                                            rel.name.contains("similar", ignoreCase = true) ||
+                                            rel.name.contains("suggest", ignoreCase = true) ||
+                                            rel.name.contains("you might", ignoreCase = true)
+                                        }
+
+                                        val franchiseAnimes = franchiseRelations
                                             .flatMap { it.animes }
                                             .distinctBy { it.url }
                                             .filterNot { it.url == anime.url }
                                             .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
                                             .awaitAll()
                                             .mapNotNull { getAnime.await(it.id) }
-                                        if (domainAnimes.isNotEmpty()) {
-                                            updateSection(SuggestionSection.Type.Franchise, domainAnimes)
+                                            .filter { SeasonRecognition.isFranchiseMatch(anime.title, it.title, anime.ogTitle, it.ogTitle) }
+
+                                        val recommendationRelations = relations.filter { rel ->
+                                            rel.name.contains("recommend", ignoreCase = true) ||
+                                            rel.name.contains("similar", ignoreCase = true) ||
+                                            rel.name.contains("suggest", ignoreCase = true) ||
+                                            rel.name.contains("you might", ignoreCase = true)
+                                        }
+                                        if (recommendationRelations.isNotEmpty()) {
+                                            val recAnimes = recommendationRelations
+                                                .flatMap { it.animes }
+                                                .distinctBy { it.url }
+                                                .filterNot { it.url == anime.url }
+                                                .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                                .awaitAll()
+                                                .mapNotNull { getAnime.await(it.id) }
+                                            if (recAnimes.isNotEmpty()) {
+                                                updateSection(SuggestionSection.Type.Source, recAnimes)
+                                            }
+                                        }
+
+                                        if (franchiseAnimes.isNotEmpty()) {
+                                            updateSection(SuggestionSection.Type.Franchise, franchiseAnimes)
                                             return@launch
                                         }
                                     }
@@ -947,9 +977,11 @@ class AnimeScreenModel(
                                 if (rawVirtualSeasons.isNotEmpty()) {
                                     val validSeasons = rawVirtualSeasons
                                         .filterNot { it.url == anime.url }
+                                        .filter { SeasonRecognition.isFranchiseMatch(anime.title, it.title, anime.ogTitle, it.ogTitle) }
                                         .map { async { networkToLocalAnime.await(it) } }
                                         .awaitAll()
                                         .mapNotNull { getAnime.await(it.id) }
+                                        .filter { SeasonRecognition.isFranchiseMatch(anime.title, it.title, anime.ogTitle, it.ogTitle) }
 
                                     if (validSeasons.isNotEmpty()) {
                                         updateSection(SuggestionSection.Type.Franchise, validSeasons)
