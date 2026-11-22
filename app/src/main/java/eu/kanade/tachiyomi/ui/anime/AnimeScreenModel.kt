@@ -933,9 +933,9 @@ class AnimeScreenModel(
                                     if (relations.isNotEmpty()) {
                                         val franchiseRelations = relations.filterNot { rel ->
                                             rel.name.contains("recommend", ignoreCase = true) ||
-                                            rel.name.contains("similar", ignoreCase = true) ||
-                                            rel.name.contains("suggest", ignoreCase = true) ||
-                                            rel.name.contains("you might", ignoreCase = true)
+                                                rel.name.contains("similar", ignoreCase = true) ||
+                                                rel.name.contains("suggest", ignoreCase = true) ||
+                                                rel.name.contains("you might", ignoreCase = true)
                                         }
 
                                         val franchiseAnimes = franchiseRelations
@@ -949,9 +949,9 @@ class AnimeScreenModel(
 
                                         val recommendationRelations = relations.filter { rel ->
                                             rel.name.contains("recommend", ignoreCase = true) ||
-                                            rel.name.contains("similar", ignoreCase = true) ||
-                                            rel.name.contains("suggest", ignoreCase = true) ||
-                                            rel.name.contains("you might", ignoreCase = true)
+                                                rel.name.contains("similar", ignoreCase = true) ||
+                                                rel.name.contains("suggest", ignoreCase = true) ||
+                                                rel.name.contains("you might", ignoreCase = true)
                                         }
                                         if (recommendationRelations.isNotEmpty()) {
                                             val recAnimes = recommendationRelations
