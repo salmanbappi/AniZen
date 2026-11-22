@@ -108,7 +108,16 @@ private val defaultContent: @Composable RowScope.(SourceUiModel.Item) -> Unit = 
                 )
             }
 
-            if (item.isNsfw) {
+            // ANZ -->
+            if (item.isMixed) {
+                Text(
+                    text = "MIXED",
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Black,
+                )
+            } else if (item.isNsfw) {
                 Text(
                     text = "18+",
                     color = MaterialTheme.colorScheme.error,
@@ -117,6 +126,7 @@ private val defaultContent: @Composable RowScope.(SourceUiModel.Item) -> Unit = 
                     fontWeight = FontWeight.Black,
                 )
             }
+            // ANZ <--
         }
     }
 }

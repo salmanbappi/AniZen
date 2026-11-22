@@ -42,6 +42,9 @@
 -keep class is.xyz.mpv.** { *; }
 # ANZ <--
 -keep class com.arthenica.** { public protected *; }
+# ANZ -->
+-keep class fi.iki.elonen.** { public protected *; }
+# ANZ <--
 
 # From extensions-lib
 -keep class eu.kanade.tachiyomi.network.interceptor.RateLimitInterceptorKt { public protected *; }

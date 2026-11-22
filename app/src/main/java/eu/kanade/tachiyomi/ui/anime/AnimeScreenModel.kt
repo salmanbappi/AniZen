@@ -25,6 +25,7 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.TrackEpisode
 import eu.kanade.domain.track.model.AutoTrackState
+import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.presentation.anime.DownloadAction
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
@@ -115,6 +116,7 @@ import tachiyomi.domain.anime.model.toAnimeUpdate
 import tachiyomi.domain.anime.model.toDomainAnime
 import tachiyomi.domain.anime.model.toSAnime
 import tachiyomi.domain.anime.repository.AnimeRepository
+import tachiyomi.domain.anime.service.SeasonRecognition
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
@@ -859,6 +861,13 @@ class AnimeScreenModel(
                 }.toMutableList()
 
                 fun rankAndSortItems(items: List<Anime>, currentAnime: Anime, type: SuggestionSection.Type): List<Anime> {
+                    // ANZ -->
+                    if (type == SuggestionSection.Type.Franchise) {
+                        return items.distinctBy { it.id to it.url }
+                            .filter { it.id != currentAnime.id && it.url != currentAnime.url }
+                            .filter { SeasonRecognition.isFranchiseMatch(currentAnime.title, it.title, currentAnime.ogTitle, it.ogTitle) }
+                    }
+                    // ANZ <--
                     val currentClean = eu.kanade.tachiyomi.util.lang.StringSimilarity.cleanTitle(currentAnime.title)
                     return items.distinctBy { it.id to it.url }
                         .filter { it.id != currentAnime.id && it.url != currentAnime.url }
@@ -915,15 +924,64 @@ class AnimeScreenModel(
                 // Discovery Load
                 kotlinx.coroutines.withTimeoutOrNull(20000L) {
                     kotlinx.coroutines.coroutineScope {
-                        // 0. Franchise & Sequels (Strict Verification)
+                        // ANZ -->
+                        // 0. Franchise & Sequels (Direct from Animiru/source relations)
                         launch {
                             try {
+                                if (source.supportsRelatedAnime) {
+                                    val relations = source.getRelatedAnimeList(anime.toSAnime())
+                                    if (relations.isNotEmpty()) {
+                                        val franchiseRelations = relations.filterNot { rel ->
+                                            rel.name.contains("recommend", ignoreCase = true) ||
+                                            rel.name.contains("similar", ignoreCase = true) ||
+                                            rel.name.contains("suggest", ignoreCase = true) ||
+                                            rel.name.contains("you might", ignoreCase = true)
+                                        }
+
+                                        val franchiseAnimes = franchiseRelations
+                                            .flatMap { it.animes }
+                                            .distinctBy { it.url }
+                                            .filterNot { it.url == anime.url }
+                                            .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                            .awaitAll()
+                                            .mapNotNull { getAnime.await(it.id) }
+                                            .filter { SeasonRecognition.isFranchiseMatch(anime.title, it.title, anime.ogTitle, it.ogTitle) }
+
+                                        val recommendationRelations = relations.filter { rel ->
+                                            rel.name.contains("recommend", ignoreCase = true) ||
+                                            rel.name.contains("similar", ignoreCase = true) ||
+                                            rel.name.contains("suggest", ignoreCase = true) ||
+                                            rel.name.contains("you might", ignoreCase = true)
+                                        }
+                                        if (recommendationRelations.isNotEmpty()) {
+                                            val recAnimes = recommendationRelations
+                                                .flatMap { it.animes }
+                                                .distinctBy { it.url }
+                                                .filterNot { it.url == anime.url }
+                                                .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                                .awaitAll()
+                                                .mapNotNull { getAnime.await(it.id) }
+                                            if (recAnimes.isNotEmpty()) {
+                                                updateSection(SuggestionSection.Type.Source, recAnimes)
+                                            }
+                                        }
+
+                                        if (franchiseAnimes.isNotEmpty()) {
+                                            updateSection(SuggestionSection.Type.Franchise, franchiseAnimes)
+                                            return@launch
+                                        }
+                                    }
+                                }
+
                                 val rawVirtualSeasons = discoverSeasons.await(anime)
                                 if (rawVirtualSeasons.isNotEmpty()) {
                                     val validSeasons = rawVirtualSeasons
+                                        .filterNot { it.url == anime.url }
+                                        .filter { SeasonRecognition.isFranchiseMatch(anime.title, it.title, anime.ogTitle, it.ogTitle) }
                                         .map { async { networkToLocalAnime.await(it) } }
                                         .awaitAll()
                                         .mapNotNull { getAnime.await(it.id) }
+                                        .filter { SeasonRecognition.isFranchiseMatch(anime.title, it.title, anime.ogTitle, it.ogTitle) }
 
                                     if (validSeasons.isNotEmpty()) {
                                         updateSection(SuggestionSection.Type.Franchise, validSeasons)
@@ -931,6 +989,7 @@ class AnimeScreenModel(
                                 }
                             } catch (_: Exception) {}
                         }
+                        // ANZ <--
 
                         // 1. Similar Media (Broad Search Probe)
                         launch {
@@ -945,38 +1004,26 @@ class AnimeScreenModel(
                             } catch (_: Exception) {}
                         }
 
-                        // 3. Official Related (Source Provided)
+                        // ANZ -->
+                        // 3. Recommended (Source Provided)
                         launch {
                             try {
-                                if (source.supportsRelatedAnime) {
-                                    // extensions-lib 17 related entries API
-                                    val relations = source.getRelatedAnimeList(anime.toSAnime())
-                                    if (relations.isNotEmpty()) {
-                                        val domainAnimes = relations
-                                            .flatMap { it.animes }
-                                            .distinctBy { it.url }
-                                            .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
-                                            .awaitAll()
-                                            .mapNotNull { getAnime.await(it.id) }
-                                        if (domainAnimes.isNotEmpty()) {
+                                getRelatedAnime.subscribe(anime).collect { (_, animes) ->
+                                    if (animes.isNotEmpty()) {
+                                        kotlinx.coroutines.coroutineScope {
+                                            val domainAnimes = animes
+                                                .distinctBy { it.url }
+                                                .filterNot { it.url == anime.url }
+                                                .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                                .awaitAll()
+                                                .mapNotNull { getAnime.await(it.id) }
                                             updateSection(SuggestionSection.Type.Source, domainAnimes)
-                                        }
-                                    }
-                                } else {
-                                    getRelatedAnime.subscribe(anime).collect { (_, animes) ->
-                                        if (animes.isNotEmpty()) {
-                                            kotlinx.coroutines.coroutineScope {
-                                                val domainAnimes = animes
-                                                    .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
-                                                    .awaitAll()
-                                                    .mapNotNull { getAnime.await(it.id) }
-                                                updateSection(SuggestionSection.Type.Source, domainAnimes)
-                                            }
                                         }
                                     }
                                 }
                             } catch (_: Exception) {}
                         }
+                        // ANZ <--
 
                         // 4. Smart Recommendations (Parallel Tag Search)
                         launch {
@@ -1049,6 +1096,29 @@ class AnimeScreenModel(
             }
         }
     }
+
+    // ANZ -->
+    fun setLocalTrack(score: Double, status: Long) { // ANZ
+        val state = successState ?: return
+        val anime = state.anime
+        screenModelScope.launchIO {
+            val tracks = getTracks.await(anime.id)
+            val existingTrack = tracks.find { it.trackerId == TrackerManager.LOCAL }
+
+            if (existingTrack != null) {
+                insertTrack.await(existingTrack.copy(status = status, score = score))
+            } else {
+                val dbTrack = eu.kanade.tachiyomi.data.database.models.Track.create(TrackerManager.LOCAL).apply {
+                    anime_id = anime.id
+                    this.title = anime.title.ifBlank { anime.ogTitle }
+                    this.status = status
+                    this.score = score
+                }
+                insertTrack.await(dbTrack.toDomainTrack(idRequired = false)!!)
+            }
+        }
+    }
+    // ANZ <--
 
     fun updateAnimeInfo(
         title: String?,
@@ -1136,6 +1206,24 @@ class AnimeScreenModel(
             val anime = state.anime
             if (isFavorited) {
                 if (updateAnime.awaitUpdateFavorite(anime.id, false)) {
+                    // ANZ -->
+                    if (trackPreferences.autoTrackWhenWatching().get()) {
+                        val tracks = getTracks.await(anime.id)
+                        val localTrack = tracks.find { it.trackerId == TrackerManager.LOCAL }
+                        if (localTrack != null) {
+                            when {
+                                // If never started, delete track to keep history clean
+                                localTrack.lastEpisodeSeen == 0.0 -> {
+                                    deleteTrack.await(anime.id, TrackerManager.LOCAL)
+                                }
+                                // If already completed, leave it as completed
+                                localTrack.status == eu.kanade.tachiyomi.data.track.local.LocalTracker.COMPLETED -> {}
+                                // Otherwise, mark as dropped (including movies with progress)
+                                else -> insertTrack.await(localTrack.copy(status = eu.kanade.tachiyomi.data.track.local.LocalTracker.DROPPED))
+                            }
+                        }
+                    }
+                    // ANZ <--
                     if (anime.removeCovers() != anime) {
                         updateAnime.awaitUpdateCoverLastModified(anime.id)
                     }
@@ -1165,8 +1253,32 @@ class AnimeScreenModel(
                     }
                 }
 
-                if (trackPreferences.trackOnAddingToLibrary().get()) {
+                if (trackPreferences.trackOnAddingToLibrary().get() || trackPreferences.autoAddTrack().get()) {
                     addTracks.bindEnhancedTrackers(anime, state.source)
+
+                    // ANZ -->
+                    val tracks = getTracks.await(anime.id)
+                    var localTrack = tracks.find { it.trackerId == TrackerManager.LOCAL }
+                    if (localTrack == null) {
+                        val episodes = getAnimeAndEpisodesAndSeasons.awaitEpisodes(anime.id)
+                        val seenCount = episodes.count { it.seen }
+                        val dbTrack = eu.kanade.tachiyomi.data.database.models.Track.create(TrackerManager.LOCAL).apply {
+                            this.anime_id = anime.id
+                            this.title = anime.title
+                            this.last_episode_seen = seenCount.toDouble()
+                            this.total_episodes = episodes.size.toLong()
+                            this.status = when {
+                                episodes.isNotEmpty() && (seenCount == episodes.size) -> eu.kanade.tachiyomi.data.track.local.LocalTracker.COMPLETED
+                                seenCount > 0 -> eu.kanade.tachiyomi.data.track.local.LocalTracker.WATCHING
+                                else -> eu.kanade.tachiyomi.data.track.local.LocalTracker.PLAN_TO_WATCH
+                            }
+                        }
+                        localTrack = dbTrack.toDomainTrack(idRequired = false)
+                    } else if (localTrack.status == eu.kanade.tachiyomi.data.track.local.LocalTracker.DROPPED) {
+                        localTrack = localTrack.copy(status = eu.kanade.tachiyomi.data.track.local.LocalTracker.PLAN_TO_WATCH)
+                    }
+                    localTrack?.let { insertTrack.await(it) }
+                    // ANZ <--
                 }
 
                 syncAnimeOnAdd(anime)
@@ -2021,6 +2133,11 @@ class AnimeScreenModel(
         data class SetAnimeFetchInterval(val anime: Anime) : Dialog
         data class ShowQualities(val episode: Episode, val anime: Anime, val source: Source) : Dialog
         data class EditAnimeInfo(val anime: Anime) : Dialog
+
+        // ANZ -->
+        data class LocalScorePicker(val score: Double, val status: Long) : Dialog
+
+        // ANZ <--
         data class EditMergedAnimeSettings(val data: MergedAnimeData) : Dialog
         data object ChangeAnimeSkipIntro : Dialog
         data object ClearAnime : Dialog
@@ -2052,6 +2169,16 @@ class AnimeScreenModel(
     fun showTrackDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.TrackSheet) }
     fun showCoverDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.FullCover) }
     fun showEditAnimeInfoDialog() = updateSuccessState { it.copySuccess(dialog = Dialog.EditAnimeInfo(it.anime)) }
+
+    // ANZ -->
+    fun showLocalScoreDialog() {
+        val state = successState ?: return
+        val localTrack = state.trackItems.find { it.tracker.id == TrackerManager.LOCAL }?.track
+        val currentScore = localTrack?.score ?: 0.0
+        val currentStatus = localTrack?.status ?: eu.kanade.tachiyomi.data.track.local.LocalTracker.WATCHING
+        updateSuccessState { it.copySuccess(dialog = Dialog.LocalScorePicker(currentScore, currentStatus)) }
+    }
+    // ANZ <--
 
     fun toggleExcludedScanlator(scanlator: String) {
         val state = successState ?: return
@@ -2456,7 +2583,10 @@ class AnimeScreenModel(
                 }
             }
             val totalScore: Double? by lazy {
-                anime.score ?: trackItems.mapNotNull { item ->
+                // ANZ -->
+                val localTrackScore = trackItems.find { it.tracker.id == 999L }?.track?.score?.takeIf { it > 0 }
+                localTrackScore ?: anime.score ?: trackItems.mapNotNull { item ->
+                    // ANZ <--
                     item.track?.let { item.tracker.animeService.get10PointScore(it) }
                 }.filter { it > 0 }.average().takeIf { !it.isNaN() }
             }

@@ -171,7 +171,9 @@ class DomainModule : InjektModule {
         addFactory { GetApplicationRelease(get(), get()) }
 
         addSingletonFactory<TrackRepository> { TrackRepositoryImpl(get()) }
-        addFactory { TrackEpisode(get(), get(), get(), get(), get(), get()) }
+        // ANZ -->
+        addFactory { TrackEpisode(get(), get(), get(), get(), get(), get(), get()) }
+        // ANZ <--
         addFactory { AddTracks(get(), get(), get(), get()) }
         addFactory { RefreshTracks(get(), get(), get(), get()) }
         addFactory { DeleteTrack(get()) }

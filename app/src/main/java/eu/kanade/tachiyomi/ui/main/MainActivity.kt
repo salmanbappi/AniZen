@@ -103,7 +103,9 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -167,11 +169,23 @@ class MainActivity : BaseActivity() {
 
             val incognito by preferences.incognitoMode().collectAsState()
             val downloadOnly by preferences.downloadedOnly().collectAsState()
-            val indexingAnime by downloadCache.isInitializing.collectAsState()
+            // ANZ -->
+            val indexingAnime by remember {
+                flow {
+                    val cache = withContext(Dispatchers.IO) { downloadCache }
+                    emitAll(cache.isInitializing)
+                }
+            }.collectAsState(initial = false)
 
-            val libraryUpdateProgress by remember {
-                eu.kanade.tachiyomi.data.library.LibraryUpdateProgress.getProgress(context)
+            val libraryUpdateProgress by remember(context) {
+                flow {
+                    val progressFlow = withContext(Dispatchers.IO) {
+                        eu.kanade.tachiyomi.data.library.LibraryUpdateProgress.getProgress(context)
+                    }
+                    emitAll(progressFlow)
+                }
             }.collectAsState(initial = null)
+            // ANZ <--
 
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val statusBarBackgroundColor = when {
@@ -399,18 +413,19 @@ class MainActivity : BaseActivity() {
         // App updates
         LaunchedEffect(Unit) {
             if (updaterEnabled) {
-                kotlinx.coroutines.delay(15000) // Delay to let the app settle
                 try {
                     // KMK -->
                     AppUpdateJob.setupTask(context)
                     // KMK <--
-                    // Heavy work (network + PackageManager/PackageInfo parsing) must stay off
-                    // the main thread: running it here froze the whole UI for ~0.5s on
-                    // mid-range devices a few seconds after every cold start.
+                    // ANZ -->
                     val result = withContext(Dispatchers.IO) {
-                        AppUpdateChecker().checkForUpdate(context)
+                        AppUpdateChecker().checkForUpdate(context, notify = false)
                     }
-                    if (result is GetApplicationRelease.Result.NewUpdate) {
+                    if (
+                        result is GetApplicationRelease.Result.NewUpdate &&
+                        result.release.version != preferences.skippedAppUpdate().get() &&
+                        navigator.items.none { it is NewUpdateScreen }
+                    ) {
                         val updateScreen = NewUpdateScreen(
                             versionName = result.release.version,
                             changelogInfo = result.release.info,
@@ -419,6 +434,7 @@ class MainActivity : BaseActivity() {
                         )
                         navigator.push(updateScreen)
                     }
+                    // ANZ <--
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e)
                 }

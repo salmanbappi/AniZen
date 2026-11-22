@@ -170,7 +170,9 @@ class RelatedAnimeScreen(val animeId: Long) : Screen() {
                     if (state.selectionMode) {
                         screenModel.toggleSelection(anime)
                     } else {
-                        navigator.push(AnimeScreen(anime.id))
+                        // ANZ -->
+                        navigator.push(AnimeScreen(anime.id, fromSource = !anime.favorite))
+                        // ANZ <--
                     }
                 },
                 onAnimeLongClick = screenModel::toggleSelection,

@@ -18,6 +18,9 @@ sealed interface SourceUiModel {
         val secondaryText: String,
         val displayName: String,
         val isTorrent: Boolean = false,
+        // ANZ -->
+        val isMixed: Boolean = false,
+        // ANZ <--
     ) : SourceUiModel
 
     @Immutable

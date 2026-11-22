@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.track.anilist.Anilist
 import eu.kanade.tachiyomi.data.track.bangumi.Bangumi
 import eu.kanade.tachiyomi.data.track.kitsu.Kitsu
+import eu.kanade.tachiyomi.data.track.local.LocalTracker
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.data.track.shikimori.Shikimori
 import eu.kanade.tachiyomi.data.track.simkl.Simkl
@@ -98,6 +99,18 @@ enum class TrackStatus(val int: Long, @StringRes val res: Int) {
                         else -> null
                     }
                 }
+                // ANZ -->
+                TrackerManager.LOCAL -> { // ANZ
+                    when (statusLong) {
+                        LocalTracker.WATCHING -> WATCHING
+                        LocalTracker.COMPLETED -> COMPLETED
+                        LocalTracker.ON_HOLD -> PAUSED
+                        LocalTracker.DROPPED -> DROPPED
+                        LocalTracker.PLAN_TO_WATCH -> PLAN_TO_WATCH
+                        else -> null
+                    }
+                }
+                // ANZ <--
                 else -> null
             }
         }

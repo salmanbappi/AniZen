@@ -7,38 +7,101 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import eu.kanade.presentation.anime.components.MarkdownRender
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
+import eu.kanade.tachiyomi.ui.more.NewUpdateScreenModel
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.InfoScreen
+import tachiyomi.presentation.core.util.tvGlowFocusHighlight
 
+// ANZ -->
 @Composable
 fun NewUpdateScreen(
     versionName: String,
     changelogInfo: String,
+    stage: NewUpdateScreenModel.Stage,
+    downloadProgress: () -> Int,
     onOpenInBrowser: () -> Unit,
-    onRejectUpdate: () -> Unit,
     onAcceptUpdate: () -> Unit,
+    onRejectUpdate: () -> Unit,
+    onSkipUpdate: () -> Unit,
 ) {
+    var showSkipDialog by remember { mutableStateOf(false) }
+    if (showSkipDialog) {
+        val dismiss = { showSkipDialog = false }
+        AlertDialog(
+            onDismissRequest = dismiss,
+            title = { Text(text = stringResource(AMR.strings.update_check_skip_title, versionName)) },
+            text = { Text(text = stringResource(AMR.strings.update_check_skip_message)) },
+            dismissButton = {
+                TextButton(onClick = dismiss) {
+                    Text(text = stringResource(MR.strings.action_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        dismiss()
+                        onSkipUpdate()
+                    },
+                ) {
+                    Text(text = stringResource(MR.strings.action_ok))
+                }
+            },
+        )
+    }
+
     InfoScreen(
         icon = Icons.Outlined.NewReleases,
         headingText = stringResource(MR.strings.update_check_notification_update_available),
         subtitleText = versionName,
-        acceptText = stringResource(MR.strings.update_check_confirm),
+        acceptText = when (stage) {
+            NewUpdateScreenModel.Stage.Available -> stringResource(MR.strings.update_check_confirm)
+            NewUpdateScreenModel.Stage.Downloading -> {
+                val progress = downloadProgress()
+                if (progress >= 0) {
+                    stringResource(AMR.strings.downloading_with_progress, progress)
+                } else {
+                    stringResource(MR.strings.update_check_notification_download_in_progress)
+                }
+            }
+            NewUpdateScreenModel.Stage.Downloaded -> stringResource(MR.strings.action_install)
+            NewUpdateScreenModel.Stage.Failed -> stringResource(MR.strings.action_retry)
+        },
         onAcceptClick = onAcceptUpdate,
+        canAccept = stage != NewUpdateScreenModel.Stage.Downloading,
         rejectText = stringResource(MR.strings.action_not_now),
         onRejectClick = onRejectUpdate,
+        rejectAction = {
+            OutlinedButton(
+                modifier = Modifier.tvGlowFocusHighlight(),
+                onClick = { showSkipDialog = true },
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Block,
+                    contentDescription = stringResource(AMR.strings.update_check_skip),
+                )
+            }
+        },
     ) {
         Column(
             modifier = Modifier
@@ -47,7 +110,7 @@ fun NewUpdateScreen(
         ) {
             MarkdownRender(
                 content = changelogInfo,
-                flavour = GFMFlavourDescriptor(),
+                flavour = remember { GFMFlavourDescriptor() },
             )
 
             TextButton(
@@ -76,9 +139,13 @@ private fun NewUpdateScreenPreview() {
                 - Hello
                 - World
             """.trimIndent(),
+            stage = NewUpdateScreenModel.Stage.Available,
+            downloadProgress = { 0 },
             onOpenInBrowser = {},
-            onRejectUpdate = {},
             onAcceptUpdate = {},
+            onRejectUpdate = {},
+            onSkipUpdate = {},
         )
     }
 }
+// ANZ <--

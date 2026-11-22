@@ -148,6 +148,9 @@ android {
 
     packaging {
         jniLibs {
+            pickFirsts += listOf(
+                "**/libc++_shared.so",
+            )
             keepDebugSymbols += listOf(
                 "libandroidx.graphics.path",
                 "libarchive-jni",

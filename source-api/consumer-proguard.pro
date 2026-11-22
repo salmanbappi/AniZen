@@ -10,3 +10,7 @@
 -keep,allowoptimization class eu.kanade.tachiyomi.util.JsoupExtensionsKt { public protected *; }
 
 -keep class exh.metadata.** { public protected *; }
+
+# ANZ -->
+-keep class fi.iki.elonen.** { public protected *; }
+# ANZ <--

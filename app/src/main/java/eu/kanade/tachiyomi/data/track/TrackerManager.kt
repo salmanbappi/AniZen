@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.data.track.anilist.Anilist
 import eu.kanade.tachiyomi.data.track.bangumi.Bangumi
 import eu.kanade.tachiyomi.data.track.jellyfin.Jellyfin
 import eu.kanade.tachiyomi.data.track.kitsu.Kitsu
+import eu.kanade.tachiyomi.data.track.local.LocalTracker
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.data.track.shikimori.Shikimori
 import eu.kanade.tachiyomi.data.track.simkl.Simkl
@@ -21,6 +22,10 @@ class TrackerManager(context: Context) {
         const val JELLYFIN = 102L
         const val TRAKT = 201L
         const val TMDB = 202L
+
+        // ANZ -->
+        const val LOCAL = 999L // ANZ
+        // ANZ <--
     }
 
     val myAnimeList = MyAnimeList(1L)
@@ -33,6 +38,10 @@ class TrackerManager(context: Context) {
     val trakt = Trakt(TRAKT)
     val tmdb = Tmdb(TMDB)
 
+    // ANZ -->
+    val localTracker = LocalTracker(LOCAL)
+    // ANZ <--
+
     val trackers: List<BaseTracker> = listOf(
         myAnimeList,
         aniList,
@@ -43,6 +52,9 @@ class TrackerManager(context: Context) {
         jellyfin,
         trakt,
         tmdb,
+        // ANZ -->
+        localTracker,
+        // ANZ <--
     )
 
     fun loggedInTrackers() = trackers.filter { it.isLoggedIn }

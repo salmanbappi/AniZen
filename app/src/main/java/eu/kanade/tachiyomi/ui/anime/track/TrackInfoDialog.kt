@@ -46,6 +46,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.track.interactor.RefreshTracks
 import eu.kanade.domain.track.model.toDbTrack
+import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.track.TrackDateSelector
 import eu.kanade.presentation.track.TrackInfoDialogHome
@@ -81,6 +82,7 @@ import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.DeleteTrack
 import tachiyomi.domain.track.interactor.GetTracks
+import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.domain.track.model.Track
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.LabeledCheckbox
@@ -161,6 +163,10 @@ data class TrackInfoDialogHomeScreen(
             onNewSearch = {
                 if (it.tracker is EnhancedTracker) {
                     screenModel.registerEnhancedTracking(it)
+                    // ANZ -->
+                } else if (it.tracker.id == TrackerManager.LOCAL) {
+                    screenModel.registerLocalTracking()
+                    // ANZ <--
                 } else {
                     navigator.push(
                         TrackServiceSearchScreen(
@@ -241,6 +247,28 @@ data class TrackInfoDialogHomeScreen(
                 }
             }
         }
+
+        // ANZ -->
+        fun registerLocalTracking() { // ANZ
+            screenModelScope.launchNonCancellable {
+                val anime = Injekt.get<GetAnime>().await(animeId) ?: return@launchNonCancellable
+                val episodes = Injekt.get<tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId>().await(animeId)
+                val seenCount = episodes.count { it.seen }
+                val dbTrack = eu.kanade.tachiyomi.data.database.models.Track.create(TrackerManager.LOCAL).apply {
+                    this.anime_id = anime.id
+                    this.title = anime.title
+                    this.last_episode_seen = seenCount.toDouble()
+                    this.total_episodes = episodes.size.toLong()
+                    this.status = when {
+                        episodes.isNotEmpty() && (seenCount == episodes.size) -> eu.kanade.tachiyomi.data.track.local.LocalTracker.COMPLETED
+                        seenCount > 0 -> eu.kanade.tachiyomi.data.track.local.LocalTracker.WATCHING
+                        else -> eu.kanade.tachiyomi.data.track.local.LocalTracker.PLAN_TO_WATCH
+                    }
+                }
+                Injekt.get<InsertTrack>().await(dbTrack.toDomainTrack(idRequired = false)!!)
+            }
+        }
+        // ANZ <--
 
         private suspend fun refreshTrackers() {
             val refreshTracks = Injekt.get<RefreshTracks>()

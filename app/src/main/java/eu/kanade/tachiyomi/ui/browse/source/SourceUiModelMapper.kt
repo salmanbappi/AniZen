@@ -38,6 +38,11 @@ class SourceUiModelMapper(
             }
         }
 
+        // ANZ -->
+        val isMixed = extensionManager.getExtensionContentWarning(source.id) ==
+            eu.kanade.tachiyomi.extension.model.ContentWarning.MIXED
+        // ANZ <--
+
         return SourceUiModel.Item(
             source = source,
             headerKey = headerKey,
@@ -49,6 +54,9 @@ class SourceUiModelMapper(
             displayName = source.name.ifBlank { source.id.toString() },
             secondaryText = secondaryText,
             isTorrent = extensionManager.isTorrentSource(source.id),
+            // ANZ -->
+            isMixed = isMixed,
+            // ANZ <--
         )
     }
 

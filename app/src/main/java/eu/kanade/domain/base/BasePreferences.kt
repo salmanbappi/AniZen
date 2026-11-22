@@ -29,6 +29,13 @@ class BasePreferences(
 
     fun hardwareBitmapThreshold() = preferenceStore.getInt(Preference.appStateKey("hardware_bitmap_threshold"), 2048)
 
+    // ANZ -->
+    fun skippedAppUpdate() = preferenceStore.getString(
+        Preference.appStateKey("skipped_app_update"),
+        "",
+    )
+    // ANZ <--
+
     enum class ExtensionInstaller(val titleRes: StringResource, val requiresSystemPermission: Boolean) {
         LEGACY(MR.strings.ext_installer_legacy, true),
         PACKAGEINSTALLER(MR.strings.ext_installer_packageinstaller, true),

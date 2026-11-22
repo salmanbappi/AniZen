@@ -240,6 +240,45 @@ object SeasonRecognition {
         return acronym.contains(short)
     }
 
+    // ANZ -->
+    fun isFranchiseMatch(
+        targetTitle: String,
+        candidateTitle: String,
+        targetOg: String? = null,
+        candidateOg: String? = null,
+    ): Boolean {
+        if (targetTitle.isBlank() || candidateTitle.isBlank()) return false
+        val titles = mutableListOf(targetTitle)
+        if (!targetOg.isNullOrBlank() && targetOg != targetTitle) {
+            titles.add(targetOg)
+        }
+
+        val extraStopwords = setOf(
+            "season", "part", "cour", "movie", "ova", "oav", "ona", "special", "final", "arc",
+            "film", "theatrical", "series", "gekijouban", "edition", "version", "act",
+        )
+
+        val candidateText = (candidateTitle + " " + (candidateOg ?: "")).lowercase()
+        val candidateWords = getSignatureWords(candidateText)
+
+        for (t in titles) {
+            val base = t.split(Regex("""[:\-/\[\(\]]""")).firstOrNull()?.trim().orEmpty()
+            var words = getSignatureWords(base).filter { it !in extraStopwords }
+            if (words.isEmpty()) {
+                val clean = t.replace(Regex("""(?i)\s*(?:season|part|cour|vol|volume|\d+(?:st|nd|rd|th)).*"""), "").trim()
+                words = getSignatureWords(clean).filter { it !in extraStopwords }
+            }
+            if (words.isEmpty()) continue
+
+            val needed = if (words.size <= 2) words.size else maxOf(2, (words.size * 2 + 2) / 3)
+            val matchCount = words.count { w -> w in candidateWords || candidateText.contains(w) }
+            if (matchCount >= needed) return true
+        }
+
+        return isAcronymMatch(targetTitle, candidateTitle)
+    }
+    // ANZ <--
+
     fun getAlphanumeric(title: String): String {
         return title.lowercase()
             .replace(Regex("""\bno\.\s*"""), "")

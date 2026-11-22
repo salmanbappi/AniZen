@@ -46,9 +46,11 @@ class DiscoverSeasons(
             val candidates = allResults.filter { sAnime ->
                 val candidateFullTitle = sAnime.title
 
-                // If it came from explicit relations, we trust it more
-                val isExplicit = explicitRelations.any { it.url == sAnime.url }
-                if (isExplicit) return@filter true
+                // ANZ -->
+                if (!SeasonRecognition.isFranchiseMatch(originalFullTitle, candidateFullTitle, ogTitle, sAnime.ogTitle)) {
+                    return@filter false
+                }
+                // ANZ <--
 
                 // NO-TOLERANCE FILTERS
                 if (SeasonRecognition.isUnrelated(originalFullTitle, candidateFullTitle)) return@filter false
@@ -81,9 +83,12 @@ class DiscoverSeasons(
                 true
             }.take(20)
 
+            // ANZ -->
             candidates.sortedBy { sAnime ->
-                SeasonRecognition.parseSeasonNumber(anime.title, sAnime.title)
+                val num = SeasonRecognition.parseSeasonNumber(anime.title, sAnime.title)
+                if (num < 0) 1000.0 + num else num
             }
+            // ANZ <--
         } catch (e: Exception) {
             emptyList()
         }
