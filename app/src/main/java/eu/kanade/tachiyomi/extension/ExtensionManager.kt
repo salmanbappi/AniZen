@@ -128,6 +128,12 @@ class ExtensionManager(
             .find { ext -> ext.sources.any { it.id == sourceId } }
             ?.pkgName
     }
+
+    fun getExtensionContentWarning(sourceId: Long): eu.kanade.tachiyomi.extension.model.ContentWarning? {
+        return installedExtensionsMapFlow.value.values
+            .find { ext -> ext.sources.any { it.id == sourceId } }
+            ?.contentWarning
+    }
     // ANZ <--
 
     fun getExtensionNameForSource(sourceId: Long): String? {

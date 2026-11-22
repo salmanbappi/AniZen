@@ -860,6 +860,12 @@ class AnimeScreenModel(
                 }.toMutableList()
 
                 fun rankAndSortItems(items: List<Anime>, currentAnime: Anime, type: SuggestionSection.Type): List<Anime> {
+                    // ANZ -->
+                    if (type == SuggestionSection.Type.Franchise) {
+                        return items.distinctBy { it.id to it.url }
+                            .filter { it.id != currentAnime.id && it.url != currentAnime.url }
+                    }
+                    // ANZ <--
                     val currentClean = eu.kanade.tachiyomi.util.lang.StringSimilarity.cleanTitle(currentAnime.title)
                     return items.distinctBy { it.id to it.url }
                         .filter { it.id != currentAnime.id && it.url != currentAnime.url }
@@ -916,12 +922,31 @@ class AnimeScreenModel(
                 // Discovery Load
                 kotlinx.coroutines.withTimeoutOrNull(20000L) {
                     kotlinx.coroutines.coroutineScope {
-                        // 0. Franchise & Sequels (Strict Verification)
+                        // ANZ -->
+                        // 0. Franchise & Sequels (Direct from Animiru/source relations)
                         launch {
                             try {
+                                if (source.supportsRelatedAnime) {
+                                    val relations = source.getRelatedAnimeList(anime.toSAnime())
+                                    if (relations.isNotEmpty()) {
+                                        val domainAnimes = relations
+                                            .flatMap { it.animes }
+                                            .distinctBy { it.url }
+                                            .filterNot { it.url == anime.url }
+                                            .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                            .awaitAll()
+                                            .mapNotNull { getAnime.await(it.id) }
+                                        if (domainAnimes.isNotEmpty()) {
+                                            updateSection(SuggestionSection.Type.Franchise, domainAnimes)
+                                            return@launch
+                                        }
+                                    }
+                                }
+
                                 val rawVirtualSeasons = discoverSeasons.await(anime)
                                 if (rawVirtualSeasons.isNotEmpty()) {
                                     val validSeasons = rawVirtualSeasons
+                                        .filterNot { it.url == anime.url }
                                         .map { async { networkToLocalAnime.await(it) } }
                                         .awaitAll()
                                         .mapNotNull { getAnime.await(it.id) }
@@ -932,6 +957,7 @@ class AnimeScreenModel(
                                 }
                             } catch (_: Exception) {}
                         }
+                        // ANZ <--
 
                         // 1. Similar Media (Broad Search Probe)
                         launch {
@@ -946,38 +972,26 @@ class AnimeScreenModel(
                             } catch (_: Exception) {}
                         }
 
-                        // 3. Official Related (Source Provided)
+                        // ANZ -->
+                        // 3. Recommended (Source Provided)
                         launch {
                             try {
-                                if (source.supportsRelatedAnime) {
-                                    // extensions-lib 17 related entries API
-                                    val relations = source.getRelatedAnimeList(anime.toSAnime())
-                                    if (relations.isNotEmpty()) {
-                                        val domainAnimes = relations
-                                            .flatMap { it.animes }
-                                            .distinctBy { it.url }
-                                            .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
-                                            .awaitAll()
-                                            .mapNotNull { getAnime.await(it.id) }
-                                        if (domainAnimes.isNotEmpty()) {
+                                getRelatedAnime.subscribe(anime).collect { (_, animes) ->
+                                    if (animes.isNotEmpty()) {
+                                        kotlinx.coroutines.coroutineScope {
+                                            val domainAnimes = animes
+                                                .distinctBy { it.url }
+                                                .filterNot { it.url == anime.url }
+                                                .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
+                                                .awaitAll()
+                                                .mapNotNull { getAnime.await(it.id) }
                                             updateSection(SuggestionSection.Type.Source, domainAnimes)
-                                        }
-                                    }
-                                } else {
-                                    getRelatedAnime.subscribe(anime).collect { (_, animes) ->
-                                        if (animes.isNotEmpty()) {
-                                            kotlinx.coroutines.coroutineScope {
-                                                val domainAnimes = animes
-                                                    .map { async { networkToLocalAnime.await(it.toDomainAnime(anime.source)) } }
-                                                    .awaitAll()
-                                                    .mapNotNull { getAnime.await(it.id) }
-                                                updateSection(SuggestionSection.Type.Source, domainAnimes)
-                                            }
                                         }
                                     }
                                 }
                             } catch (_: Exception) {}
                         }
+                        // ANZ <--
 
                         // 4. Smart Recommendations (Parallel Tag Search)
                         launch {
