@@ -468,7 +468,13 @@ fun Anime4KCard() {
                                 applyAnime4K(mpv, decoderPreferences, anime4kManager)
                                 // ANZ <--
                             },
-                            label = { Text(mode.name.replace("_", "+")) },
+                            label = {
+                                // ANZ -->
+                                Text(
+                                    if (mode == Anime4KManager.Mode.LITE) "AniZen Lite" else mode.name.replace("_", "+"),
+                                )
+                                // ANZ <--
+                            },
                         )
                     }
                 }
@@ -484,11 +490,21 @@ fun Anime4KCard() {
                         items = Anime4KManager.Quality.entries,
                         key = { index, it -> "a4k-q-$index-${it.name}" }
                     ) { _, quality ->
-                        val label = when (quality) {
-                            Anime4KManager.Quality.FAST -> stringResource(MR.strings.anime4k_quality_fast)
-                            Anime4KManager.Quality.BALANCED -> stringResource(MR.strings.anime4k_quality_balanced)
-                            Anime4KManager.Quality.HIGH -> stringResource(MR.strings.anime4k_quality_high)
+                        // ANZ -->
+                        val label = if (anime4kMode == Anime4KManager.Mode.LITE.name) {
+                            when (quality) {
+                                Anime4KManager.Quality.FAST -> "Suave"
+                                Anime4KManager.Quality.BALANCED -> "Medio"
+                                Anime4KManager.Quality.HIGH -> "Fuerte"
+                            }
+                        } else {
+                            when (quality) {
+                                Anime4KManager.Quality.FAST -> stringResource(MR.strings.anime4k_quality_fast)
+                                Anime4KManager.Quality.BALANCED -> stringResource(MR.strings.anime4k_quality_balanced)
+                                Anime4KManager.Quality.HIGH -> stringResource(MR.strings.anime4k_quality_high)
+                            }
                         }
+                        // ANZ <--
                         InputChip(
                             selected = anime4kQuality == quality.name,
                             onClick = {
@@ -501,6 +517,15 @@ fun Anime4KCard() {
                         )
                     }
                 }
+
+                // ANZ -->
+                if (anime4kMode == Anime4KManager.Mode.LITE.name) {
+                    Text(
+                        text = "Ligero: marca y oscurece los contornos, aplana el ruido y aviva el color. Sin redes neuronales.",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                // ANZ <--
             }
         }
     }
