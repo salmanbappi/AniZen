@@ -13,11 +13,11 @@ class Anime4KManager(private val context: Context) {
     companion object {
         private const val SHADER_DIR = "shaders"
 
-        // Parametros de AniZen Lite por nivel: WIDE, STEEP, DARK, FLAT, SAT, CON
+        // Parametros de AniZen Lite por nivel: WIDE, STEEP, DARK, MAXD, BLACK, FLAT, SAT, CON
         private fun liteParams(q: Quality): Array<String> = when (q) {
-            Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.40", "0.10", "0.05")
-            Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.60", "0.16", "0.08")
-            Quality.HIGH -> arrayOf("1", "1.00", "1.30", "0.80", "0.22", "0.12")
+            Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.22", "0.00", "0.40", "0.10", "0.05")
+            Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.22", "0.00", "0.60", "0.16", "0.08")
+            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.80", "0.22", "0.12")
         }
 
         private fun liteFileName(q: Quality) = "AniZen_Lite_${q.suffix}.glsl"
@@ -37,6 +37,8 @@ class Anime4KManager(private val context: Context) {
 #define AZ_WIDE @WIDE@
 #define AZ_STEEP @STEEP@
 #define AZ_DARK_GAIN @DARK@
+#define AZ_MAX_DARK @MAXD@
+#define AZ_BLACK @BLACK@
 #define AZ_FLATTEN @FLAT@
 #define AZ_VIBRANCE @SAT@
 #define AZ_CONTRAST @CON@
@@ -92,7 +94,10 @@ vec4 hook() {
     // 3) Contornos mas oscuros: los pixeles mas oscuros que su entorno bajan un poco mas.
     float d = min(target - avg, 0.0);
     d *= smoothstep(0.012, 0.045, abs(d));
-    target = max(target + max(d * AZ_DARK_GAIN, -0.22), 0.0);
+    target = max(target + max(d * AZ_DARK_GAIN, -AZ_MAX_DARK), 0.0);
+
+    // Lineas bien negras: lo que queda claramente mas oscuro que su entorno baja hacia el negro.
+    target *= 1.0 - AZ_BLACK * smoothstep(0.10, 0.30, avg - target);
 
     if (target < lf) {
         rgb = rgb * (target / max(lf, 0.0005));
@@ -184,7 +189,7 @@ vec4 hook() {
             try {
                 var text = LITE_TEMPLATE.trimStart('\n')
                 val values = liteParams(q)
-                val names = arrayOf("@WIDE@", "@STEEP@", "@DARK@", "@FLAT@", "@SAT@", "@CON@")
+                val names = arrayOf("@WIDE@", "@STEEP@", "@DARK@", "@MAXD@", "@BLACK@", "@FLAT@", "@SAT@", "@CON@")
                 for (i in names.indices) {
                     text = text.replace(names[i], values[i])
                 }
