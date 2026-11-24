@@ -24,10 +24,8 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -446,11 +444,20 @@ fun PlayerControls(
                     visible = (controlsShown || seekBarShown) &&
                         !areControlsLocked &&
                         !isLongPressing &&
+                        !isSeekingUI && // ANZ
                         (skipIntroButton != null || (actionButton != null && customButtonTitle.isNotEmpty())),
-                    enter = fadeIn(playerControlsEnterAnimationSpec()) +
-                        expandVertically(expandFrom = Alignment.Bottom),
-                    exit = fadeOut(playerControlsExitAnimationSpec()) +
-                        shrinkVertically(shrinkTowards = Alignment.Bottom),
+                    enter = if (!reduceMotion) {
+                        slideInVertically(playerControlsEnterAnimationSpec()) { it } +
+                            fadeIn(playerControlsEnterAnimationSpec())
+                    } else {
+                        fadeIn(playerControlsEnterAnimationSpec())
+                    },
+                    exit = if (!reduceMotion) {
+                        slideOutVertically(playerControlsExitAnimationSpec()) { it } +
+                            fadeOut(playerControlsExitAnimationSpec())
+                    } else {
+                        fadeOut(playerControlsExitAnimationSpec())
+                    },
                     modifier = Modifier.constrainAs(skipButton) {
                         end.linkTo(seekbar.end, pillEndInset)
                         bottom.linkTo(seekbar.top, spacing.extraSmall)
