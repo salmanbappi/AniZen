@@ -13,11 +13,12 @@ class Anime4KManager(private val context: Context) {
     companion object {
         private const val SHADER_DIR = "shaders"
 
-        // Parametros de AniZen Lite por nivel: WIDE, STEEP, DARK, MAXD, BLACK, FLAT, SAT, CON
+        // Parametros de AniZen Lite por nivel:
+        // WIDE, STEEP, DARK, MAXD, BLACK, THICK, AA, AAAMT, FLAT, SAT, CON
         private fun liteParams(q: Quality): Array<String> = when (q) {
-            Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.22", "0.00", "0.40", "0.10", "0.05")
-            Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.22", "0.00", "0.60", "0.16", "0.08")
-            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.80", "0.22", "0.12")
+            Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.22", "0.00", "0.00", "0", "0.00", "0.40", "0.10", "0.05")
+            Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.22", "0.00", "0.00", "0", "0.00", "0.60", "0.16", "0.08")
+            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.70", "1", "0.85", "0.80", "0.22", "0.12")
         }
 
         private fun liteFileName(q: Quality) = "AniZen_Lite_${q.suffix}.glsl"
@@ -32,13 +33,17 @@ class Anime4KManager(private val context: Context) {
 // 1) Aplana el ruido/bloques dentro de las zonas de color (respeta los bordes).
 // 2) Afila los bordes: empuja cada pixel hacia el lado oscuro o claro de su entorno
 //    (sin pasarse del maximo/minimo local, asi que no hay halos).
-// 3) Oscurece los contornos y aviva el color con una curva suave.
+// 3) Suaviza los dientes de sierra a lo largo de los bordes y engrosa un poco las lineas.
+// 4) Oscurece los contornos y aviva el color con una curva suave.
 
 #define AZ_WIDE @WIDE@
 #define AZ_STEEP @STEEP@
 #define AZ_DARK_GAIN @DARK@
 #define AZ_MAX_DARK @MAXD@
 #define AZ_BLACK @BLACK@
+#define AZ_THICK @THICK@
+#define AZ_AA @AA@
+#define AZ_AA_AMOUNT @AAAMT@
 #define AZ_FLATTEN @FLAT@
 #define AZ_VIBRANCE @SAT@
 #define AZ_CONTRAST @CON@
@@ -67,6 +72,19 @@ vec4 hook() {
     float ww = 1.0 - smoothstep(0.015, 0.07, abs(lw - lc));
     vec3 smoothc = (c0.rgb + wn * cn + ws * cs + we * ce + ww * cw) / (1.0 + wn + ws + we + ww);
     vec3 rgb = mix(c0.rgb, smoothc, AZ_FLATTEN);
+
+#if AZ_AA
+    // Antidientes de sierra: promedia a lo largo del borde (nunca a traves de el).
+    vec2 grad = vec2(le - lw, ls - ln);
+    float glen = length(grad);
+    vec2 tdir = vec2(-grad.y, grad.x) / max(glen, 0.001);
+    float edgeAmt = smoothstep(0.03, 0.12, glen);
+    vec3 ta = HOOKED_texOff(tdir * 1.5).rgb;
+    vec3 tb = HOOKED_texOff(tdir * -1.5).rgb;
+    vec3 along = (2.0 * rgb + ta + tb) * 0.25;
+    rgb = mix(rgb, along, AZ_AA_AMOUNT * edgeAmt);
+#endif
+
     float lf = az_luma(rgb);
 
     // Entorno: minimo, maximo y media.
@@ -85,8 +103,12 @@ vec4 hook() {
 #endif
     float range = mx - mn;
 
+    // Grosor: un pixel pegado a una linea oscura se acerca a ella (la linea se ensancha).
+    float nearMin = min(min(ln, ls), min(le, lw));
+    float lt = lf - AZ_THICK * smoothstep(0.10, 0.30, lf - nearMin) * max(lf - nearMin, 0.0);
+
     // 2) Afilado acotado: curva S sobre la posicion del pixel dentro de [mn, mx].
-    float s = (lf - mn) / max(range, 0.001);
+    float s = (lt - mn) / max(range, 0.001);
     float gate = smoothstep(0.05, 0.18, range);
     float steep = smoothstep(0.22, 0.78, s);
     float target = mn + mix(s, steep, AZ_STEEP * gate) * range;
@@ -189,7 +211,10 @@ vec4 hook() {
             try {
                 var text = LITE_TEMPLATE.trimStart('\n')
                 val values = liteParams(q)
-                val names = arrayOf("@WIDE@", "@STEEP@", "@DARK@", "@MAXD@", "@BLACK@", "@FLAT@", "@SAT@", "@CON@")
+                val names = arrayOf(
+                    "@WIDE@", "@STEEP@", "@DARK@", "@MAXD@", "@BLACK@", "@THICK@",
+                    "@AA@", "@AAAMT@", "@FLAT@", "@SAT@", "@CON@",
+                )
                 for (i in names.indices) {
                     text = text.replace(names[i], values[i])
                 }
