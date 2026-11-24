@@ -46,10 +46,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.StringResource
@@ -233,6 +236,57 @@ fun SliderItem(
         }
     }
 }
+
+// ANZ -->
+@Composable
+fun SliderItem( // ANZ
+    value: Int,
+    valueRange: IntRange,
+    label: String,
+    onChange: (Int) -> Unit,
+    steps: Int = with(valueRange) { (last - first) - 1 },
+    valueString: String = value.toString(),
+    labelStyle: TextStyle = MaterialTheme.typography.bodyMedium,
+    pillColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = SettingsItemsPaddings.Horizontal,
+                vertical = SettingsItemsPaddings.Vertical,
+            ),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        ) {
+            Text(
+                text = label,
+                style = labelStyle,
+                modifier = Modifier.weight(1f),
+            )
+            Pill(
+                text = valueString,
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
+                color = pillColor,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = f@{
+                if (it == value) return@f
+                onChange(it)
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            },
+            valueRange = valueRange,
+            steps = steps,
+        )
+    }
+}
+// ANZ <--
 
 @Composable
 fun SelectItem(

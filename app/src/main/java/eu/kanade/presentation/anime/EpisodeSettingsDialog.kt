@@ -273,25 +273,23 @@ private fun ColumnScope.DisplayPage(
         onClick = { onShowPreviewsEnabled(showPreviewsFlag) },
     )
 
-    // ANZ -->
-    if (showPreviews) {
-        SliderItem(
-            label = stringResource(AMR.strings.episode_thumbnail_size),
-            value = thumbnailSize,
-            valueText = "${String.format(Locale.US, "%.1f", (thumbnailSize + 1) / 5.0)}x",
-            onChange = { onSetThumbnailSize(it) },
-            max = 9,
-            min = 0,
-        )
-    }
-    // ANZ <--
-
     val showSummariesFlag = if (showSummaries) Anime.EPISODE_SHOW_NOT_SUMMARIES else Anime.EPISODE_SHOW_SUMMARIES
     CheckboxItem(
         label = stringResource(MR.strings.pref_show_episode_summary),
         checked = showSummaries,
         onClick = { onShowSummariesEnabled(showSummariesFlag) },
     )
+
+    // ANZ -->
+    SliderItem( // ANZ
+        value = thumbnailSize,
+        valueRange = 0 until 10,
+        label = stringResource(AMR.strings.episode_thumbnail_size),
+        valueString = "${String.format(Locale.US, "%.1f", (thumbnailSize + 1) / 5.0)}x",
+        onChange = { onSetThumbnailSize(it) },
+        pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
+    // ANZ <--
 
     val libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences = Injekt.get()
     if (anime != null) {
