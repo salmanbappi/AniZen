@@ -1943,6 +1943,13 @@ class AnimeScreenModel(
         screenModelScope.launchNonCancellable { setAnimeEpisodeFlags.awaitSetShowPreviews(anime, flag) }
     }
 
+    // ANZ -->
+    fun setEpisodeThumbnailSize(size: Int) { // ANZ
+        val anime = successState?.anime ?: return
+        screenModelScope.launchNonCancellable { setAnimeEpisodeFlags.awaitSetThumbnailSize(anime, size) }
+    }
+    // ANZ <--
+
     fun setCurrentSettingsAsDefault(applyToExisting: Boolean) {
         val anime = successState?.anime ?: return
         screenModelScope.launchNonCancellable {
@@ -1959,6 +1966,9 @@ class AnimeScreenModel(
                     seasonGrouping = anime.episodeFlags and Anime.EPISODE_SEASON_GROUP_MASK,
                     showPreviews = anime.episodeFlags and Anime.EPISODE_PREVIEWS_MASK,
                     showSummaries = anime.episodeFlags and Anime.EPISODE_SUMMARIES_MASK,
+                    // ANZ -->
+                    thumbnailSize = anime.episodeThumbnailSize,
+                    // ANZ <--
                 )
             }
             snackbarHostState.showSnackbar(message = context.stringResource(MR.strings.episode_settings_updated))

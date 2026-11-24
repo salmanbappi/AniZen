@@ -171,6 +171,10 @@ class LibraryPreferences(
 
     fun showEpisodeThumbnail() = preferenceStore.getBoolean("display_episode_thumbnail", true)
 
+    // ANZ -->
+    fun episodeThumbnailSize() = preferenceStore.getInt("default_episode_thumbnail_size", 4)
+    // ANZ <--
+
     fun newShowUpdatesCount() = preferenceStore.getBoolean("library_show_updates_count", true)
 
     fun newMangaUpdatesCount() = preferenceStore.getInt("library_unread_updates_count", 0)
@@ -270,6 +274,9 @@ class LibraryPreferences(
         )
         showEpisodeSummary().set(anime.showSummaries())
         showEpisodeThumbnail().set(anime.showPreviews())
+        // ANZ -->
+        episodeThumbnailSize().set(anime.episodeThumbnailSize)
+        // ANZ <--
     }
 
     fun autoClearChapterCache() = preferenceStore.getBoolean("auto_clear_chapter_cache", false)

@@ -233,6 +233,14 @@ data class Anime(
         get() = seasonFlags and SEASON_DISPLAY_MODE_MASK
     // <-- AY
 
+    // ANZ -->
+    val episodeThumbnailSize: Int // ANZ
+        get() {
+            val raw = ((episodeFlags and EPISODE_THUMBNAIL_SIZE_MASK) shr EPISODE_THUMBNAIL_SIZE_BIT_OFFSET).toInt()
+            return if (raw == 0) 4 else raw - 1
+        }
+    // ANZ <--
+
     val skipIntroLength: Int
         get() = (viewerFlags and ANIME_INTRO_MASK).toInt()
 
@@ -334,6 +342,11 @@ data class Anime(
         const val EPISODE_SEASON_GROUP_OFF = 0x00800000L
         const val EPISODE_SEASON_GROUP_TABS = 0x01000000L
         const val EPISODE_SEASON_GROUP_MASK = 0x01C00000L
+
+        // ANZ -->
+        const val EPISODE_THUMBNAIL_SIZE_MASK = 0x0001E000L
+        const val EPISODE_THUMBNAIL_SIZE_BIT_OFFSET = 13
+        // ANZ <--
 
         // AY -->
         const val SEASON_SORT_DESC = 0x00000000L

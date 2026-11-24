@@ -507,6 +507,9 @@ class AnimeScreen(
                     onDisplayModeChanged = screenModel::setDisplayMode,
                     onShowPreviewsEnabled = screenModel::setShowEpisodeThumbnail,
                     onShowSummariesEnabled = screenModel::setShowEpisodeSummary,
+                    // ANZ -->
+                    onSetThumbnailSize = screenModel::setEpisodeThumbnailSize,
+                    // ANZ <--
                     onSetAsDefault = screenModel::setCurrentSettingsAsDefault,
                     scanlatorFilterActive = successState.scanlatorFilterActive,
                     onScanlatorFilterClicked = { showScanlatorsDialog = true },
@@ -525,6 +528,9 @@ class AnimeScreen(
                     onDisplayModeChanged = screenModel::setDisplayMode,
                     onShowPreviewsEnabled = screenModel::setShowEpisodeThumbnail,
                     onShowSummariesEnabled = screenModel::setShowEpisodeSummary,
+                    // ANZ -->
+                    onSetThumbnailSize = screenModel::setEpisodeThumbnailSize,
+                    // ANZ <--
                     onSetAsDefault = screenModel::setCurrentSettingsAsDefault,
                     scanlatorFilterActive = successState.scanlatorFilterActive,
                     onScanlatorFilterClicked = { showScanlatorsDialog = true },

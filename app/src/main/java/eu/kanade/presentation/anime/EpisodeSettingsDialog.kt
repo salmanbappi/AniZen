@@ -38,12 +38,14 @@ import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.CheckboxItem
 import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.components.RadioItem
+import tachiyomi.presentation.core.components.SliderItem
 import tachiyomi.presentation.core.components.SortItem
 import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.theme.active
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.Locale
 
 @Composable
 fun EpisodeSettingsDialog(
@@ -59,6 +61,9 @@ fun EpisodeSettingsDialog(
     onDisplayModeChanged: (Long) -> Unit,
     onShowPreviewsEnabled: (Long) -> Unit,
     onShowSummariesEnabled: (Long) -> Unit,
+    // ANZ -->
+    onSetThumbnailSize: (Int) -> Unit = {}, // ANZ
+    // ANZ <--
     onSetAsDefault: (applyToExistingAnime: Boolean) -> Unit,
     scanlatorFilterActive: Boolean,
     onScanlatorFilterClicked: () -> Unit,
@@ -127,6 +132,10 @@ fun EpisodeSettingsDialog(
                         onShowPreviewsEnabled = onShowPreviewsEnabled,
                         showSummaries = anime?.showSummaries() ?: true,
                         onShowSummariesEnabled = onShowSummariesEnabled,
+                        // ANZ -->
+                        thumbnailSize = anime?.episodeThumbnailSize ?: 4,
+                        onSetThumbnailSize = onSetThumbnailSize,
+                        // ANZ <--
                     )
                 }
             }
@@ -236,6 +245,10 @@ private fun ColumnScope.DisplayPage(
     onShowPreviewsEnabled: (Long) -> Unit,
     showSummaries: Boolean,
     onShowSummariesEnabled: (Long) -> Unit,
+    // ANZ -->
+    thumbnailSize: Int,
+    onSetThumbnailSize: (Int) -> Unit,
+    // ANZ <--
 ) {
     listOf(
         MR.strings.show_title to Anime.EPISODE_DISPLAY_NAME,
@@ -259,6 +272,19 @@ private fun ColumnScope.DisplayPage(
         checked = showPreviews,
         onClick = { onShowPreviewsEnabled(showPreviewsFlag) },
     )
+
+    // ANZ -->
+    if (showPreviews) {
+        SliderItem(
+            label = stringResource(AMR.strings.episode_thumbnail_size),
+            value = thumbnailSize,
+            valueText = "${String.format(Locale.US, "%.1f", (thumbnailSize + 1) / 5.0)}x",
+            onChange = { onSetThumbnailSize(it) },
+            max = 9,
+            min = 0,
+        )
+    }
+    // ANZ <--
 
     val showSummariesFlag = if (showSummaries) Anime.EPISODE_SHOW_NOT_SUMMARIES else Anime.EPISODE_SHOW_SUMMARIES
     CheckboxItem(

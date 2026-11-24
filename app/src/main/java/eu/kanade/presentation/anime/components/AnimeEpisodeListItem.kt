@@ -86,6 +86,9 @@ fun AnimeEpisodeListItem(
     // AM (FILE_SIZE) -->
     fileSize: Long?,
     // <-- AM (FILE_SIZE)
+    // ANZ -->
+    thumbnailSize: Float = 1f, // ANZ
+    // ANZ <--
     modifier: Modifier = Modifier,
 ) {
     val downloadState = downloadStateProvider()
@@ -251,7 +254,9 @@ private fun EpisodeItemRow(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                EpisodeThumbnail(previewUrl = previewUrl)
+                // ANZ -->
+                EpisodeThumbnail(previewUrl = previewUrl, thumbnailSize = thumbnailSize)
+                // ANZ <--
 
                 Column {
                     Row(
@@ -377,13 +382,18 @@ private fun RowScope.SimpleEpisodeListItemImpl(
 @Composable
 private fun EpisodeThumbnail(
     previewUrl: String?,
+    // ANZ -->
+    thumbnailSize: Float = 1f, // ANZ
+    // ANZ <--
 ) {
     val targetWidth = ((LocalConfiguration.current.screenWidthDp * 0.4f).coerceAtMost(250f))
     if (!previewUrl.isNullOrBlank()) {
         AnimeCover.Square(
             data = previewUrl,
             modifier = Modifier
-                .width(targetWidth.dp)
+                // ANZ -->
+                .width(targetWidth.dp * thumbnailSize)
+                // ANZ <--
                 .padding(end = 8.dp),
             ratio = 16f / 9f,
             shape = MaterialTheme.shapes.small,

@@ -29,6 +29,9 @@ class SetAnimeDefaultEpisodeFlags(
                     seasonGrouping = Anime.EPISODE_SEASON_GROUP_DEFAULT,
                     showPreviews = if (showEpisodeThumbnail().get()) Anime.EPISODE_SHOW_PREVIEWS else Anime.EPISODE_SHOW_NOT_PREVIEWS,
                     showSummaries = if (showEpisodeSummary().get()) Anime.EPISODE_SHOW_SUMMARIES else Anime.EPISODE_SHOW_NOT_SUMMARIES,
+                    // ANZ -->
+                    thumbnailSize = episodeThumbnailSize().get(),
+                    // ANZ <--
                 )
             }
         }

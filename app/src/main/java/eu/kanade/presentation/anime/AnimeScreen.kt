@@ -1463,6 +1463,7 @@ private fun EpisodeItemWrapper(
                 isAutoFiller = fillerEpisodes.contains(item.episode.episodeNumber.toFloat()),
                 summary = item.episode.summary.takeIf { showEpisodeSummary },
                 previewUrl = item.episode.previewUrl.takeIf { showEpisodeThumbnail },
+                thumbnailSize = (anime.episodeThumbnailSize + 1) / 5f,
                 selected = item.selected,
                 isAnyEpisodeSelected = isAnyEpisodeSelected,
                 downloadIndicatorEnabled = !isAnyEpisodeSelected && !anime.isLocal(),
