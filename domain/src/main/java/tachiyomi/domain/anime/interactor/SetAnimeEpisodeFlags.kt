@@ -168,7 +168,7 @@ class SetAnimeEpisodeFlags(
                         (thumbnailSize + 1).toLong() shl Anime.EPISODE_THUMBNAIL_SIZE_BIT_OFFSET,
                         Anime.EPISODE_THUMBNAIL_SIZE_MASK,
                     ),
-                    // ANZ <--
+                // ANZ <--
             ),
         )
     }
@@ -208,7 +208,7 @@ class SetAnimeEpisodeFlags(
                         (thumbnailSize + 1).toLong() shl Anime.EPISODE_THUMBNAIL_SIZE_BIT_OFFSET,
                         Anime.EPISODE_THUMBNAIL_SIZE_MASK,
                     ),
-                    // ANZ <--
+                // ANZ <--
             )
         }
         animeRepository.updateAll(updates)
