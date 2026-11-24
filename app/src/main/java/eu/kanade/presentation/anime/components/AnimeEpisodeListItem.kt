@@ -168,6 +168,9 @@ fun AnimeEpisodeListItem(
                 onClick = onClick,
                 onDownloadClick = onDownloadClick,
                 fileSize = fileSize,
+                // ANZ -->
+                thumbnailSize = thumbnailSize, // ANZ
+                // ANZ <--
             )
         }
     } else {
@@ -191,6 +194,9 @@ fun AnimeEpisodeListItem(
             onClick = onClick,
             onDownloadClick = onDownloadClick,
             fileSize = fileSize,
+            // ANZ -->
+            thumbnailSize = thumbnailSize,
+            // ANZ <--
             modifier = modifier,
         )
     }
@@ -217,6 +223,9 @@ private fun EpisodeItemRow(
     onClick: () -> Unit,
     onDownloadClick: ((EpisodeDownloadAction) -> Unit)?,
     fileSize: Long?,
+    // ANZ -->
+    thumbnailSize: Float = 1f,
+    // ANZ <--
     modifier: Modifier = Modifier,
 ) {
     Row(
