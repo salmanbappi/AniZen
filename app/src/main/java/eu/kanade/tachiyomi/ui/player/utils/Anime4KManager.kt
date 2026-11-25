@@ -18,7 +18,7 @@ class Anime4KManager(private val context: Context) {
         private fun liteParams(q: Quality): Array<String> = when (q) {
             Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.22", "0.00", "0.00", "0", "0.00", "0.40", "0.10", "0.05")
             Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.22", "0.00", "0.00", "0", "0.00", "0.60", "0.16", "0.08")
-            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.70", "1", "0.85", "0.80", "0.22", "0.12")
+            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.78", "1", "0.85", "0.80", "0.22", "0.12")
         }
 
         private fun liteFileName(q: Quality) = "AniZen_Lite_${q.suffix}.glsl"
