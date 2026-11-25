@@ -1,15 +1,13 @@
 package eu.kanade.tachiyomi.extension.api
 
-import android.content.Context
-import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
-import eu.kanade.tachiyomi.extension.model.LoadResult
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.json.Json
@@ -19,45 +17,36 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.protobuf.ProtoBuf
 import logcat.LogPriority
 import mihon.domain.extensionrepo.interactor.GetExtensionRepo
-import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import mihon.domain.extensionrepo.model.normalizeSigningKey
 import mihon.domain.extensionrepo.service.NetworkExtensionStore
 import okhttp3.CacheControl
 import okio.BufferedSource
 import okio.buffer
 import okio.gzip
-import tachiyomi.core.common.preference.Preference
-import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
-import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.time.Duration.Companion.days
 
 internal class ExtensionApi {
 
     private val networkService: NetworkHelper by injectLazy()
-    private val preferenceStore: PreferenceStore by injectLazy()
     private val getExtensionRepo: GetExtensionRepo by injectLazy()
-    private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
-    private val extensionManager: ExtensionManager by injectLazy()
     private val json: Json by injectLazy()
 
     // ANZ -->
     private val protoBuf: ProtoBuf by injectLazy()
     // ANZ <--
 
-    private val lastExtCheck: Preference<Long> by lazy {
-        preferenceStore.getLong("last_ext_check", 0)
-    }
-
     suspend fun findExtensions(forceNetwork: Boolean = false): List<Extension.Available> {
         return withIOContext {
-            getExtensionRepo.getAll()
-                .map { async { getExtensions(it, forceNetwork) } }
-                .awaitAll()
-                .flatten()
+            supervisorScope {
+                getExtensionRepo.getAll()
+                    .map { async { getExtensions(it, forceNetwork) } }
+                    .awaitAll()
+                    .flatten()
+            }
         }
     }
 
@@ -139,6 +128,7 @@ internal class ExtensionApi {
                     apkName = ext.resources.apkUrl,
                     iconUrl = ext.resources.iconUrl,
                     repoUrl = store.baseUrl,
+                    signingKeyFingerprint = normalizeSigningKey(store.signingKeyFingerprint),
                     author = author,
                     contentWarning = contentWarning,
                 )
@@ -167,7 +157,7 @@ internal class ExtensionApi {
 
         return with(json) {
             decodeFromString<List<ExtensionJsonObject>>(bodyString)
-                .toExtensions(repoBaseUrl, author)
+                .toExtensions(repoBaseUrl, extRepo.signingKeyFingerprint, author)
         }
     }
     // ANZ <--
@@ -184,55 +174,13 @@ internal class ExtensionApi {
         return if (isGzip) gzip().buffer() else this
     }
 
-    suspend fun checkForUpdates(
-        context: Context,
-        fromAvailableExtensionList: Boolean = false,
-    ): List<Extension.Installed>? {
-        // Limit checks to once a day at most
-        if (fromAvailableExtensionList &&
-            Instant.now().toEpochMilli() < lastExtCheck.get() + 1.days.inWholeMilliseconds
-        ) {
-            return null
-        }
-
-        // Update extension repo details
-        updateExtensionRepo.awaitAll()
-
-        val extensions = if (fromAvailableExtensionList) {
-            extensionManager.availableExtensionsFlow.value
-        } else {
-            findExtensions(forceNetwork = true).also { lastExtCheck.set(Instant.now().toEpochMilli()) }
-        }
-
-        val installedExtensions = ExtensionLoader.loadExtensions(context)
-            .filterIsInstance<LoadResult.Success>()
-            .map { it.extension }
-
-        val extensionsWithUpdate = mutableListOf<Extension.Installed>()
-        for (installedExt in installedExtensions) {
-            val pkgName = installedExt.pkgName
-            val availableExt = extensions
-                .filter { it.pkgName == pkgName }
-                .maxWithOrNull(compareBy<Extension.Available> { it.versionCode }.thenBy { it.libVersion })
-                ?: continue
-
-            val hasUpdatedVer = availableExt.versionCode > installedExt.versionCode
-            val hasUpdatedLib = availableExt.libVersion > installedExt.libVersion
-            val hasUpdate = hasUpdatedVer || hasUpdatedLib
-            if (hasUpdate) {
-                extensionsWithUpdate.add(installedExt)
-            }
-        }
-
-        if (extensionsWithUpdate.isNotEmpty()) {
-            ExtensionUpdateNotifier(context).promptUpdates(extensionsWithUpdate.map { it.name })
-        }
-
-        return extensionsWithUpdate
-    }
-
-    private fun List<ExtensionJsonObject>.toExtensions(repoUrl: String, author: String): List<Extension.Available> {
+    private fun List<ExtensionJsonObject>.toExtensions(
+        repoUrl: String,
+        signingKeyFingerprint: String,
+        author: String,
+    ): List<Extension.Available> {
         val normalizedRepoUrl = repoUrl.substringBefore("/index.min.json").removeSuffix("/")
+        val normalizedKey = normalizeSigningKey(signingKeyFingerprint)
         return this
             .filter {
                 // ANZ -->
@@ -260,6 +208,7 @@ internal class ExtensionApi {
                     apkName = it.apk,
                     iconUrl = "$normalizedRepoUrl/icon/${it.pkg}.png",
                     repoUrl = normalizedRepoUrl,
+                    signingKeyFingerprint = normalizedKey,
                     author = author,
                     contentWarning = contentWarning,
                 )
@@ -270,7 +219,8 @@ internal class ExtensionApi {
         return if (extension.apkName.startsWith("http")) {
             extension.apkName
         } else {
-            "${extension.repoUrl}/apk/${extension.apkName}"
+            val baseUrl = extension.repoUrl.substringBefore("/index.min.json").removeSuffix("/")
+            "$baseUrl/apk/${extension.apkName}"
         }
     }
 

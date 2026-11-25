@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.extension.model
 import android.graphics.drawable.Drawable
 import androidx.compose.runtime.Immutable
 import eu.kanade.tachiyomi.source.Source
+import mihon.domain.extensionrepo.model.normalizeSigningKey
 import tachiyomi.domain.source.model.StubSource
 
 enum class ContentWarning {
@@ -58,10 +59,25 @@ sealed class Extension {
         val isObsolete: Boolean = false,
         val isShared: Boolean,
         val signatureHash: String,
+        val signatures: List<String> = listOf(signatureHash),
         override val repoUrl: String? = null,
         val author: String? = null,
         override val contentWarning: ContentWarning = if (isNsfw) ContentWarning.NSFW else ContentWarning.SAFE,
-    ) : Extension()
+    ) : Extension() {
+        fun findListing(available: List<Available>): Available? {
+            val normalizedSignatures = signatures.mapTo(HashSet()) { normalizeSigningKey(it) }
+            return available
+                .filter {
+                    it.pkgName == pkgName &&
+                        normalizeSigningKey(it.signingKeyFingerprint) in normalizedSignatures
+                }
+                .maxWithOrNull(compareBy<Available> { it.versionCode }.thenBy { it.libVersion })
+        }
+
+        fun findUpdate(available: List<Available>): Available? {
+            return findListing(available)?.takeIf { it.isUpdateFor(this) }
+        }
+    }
 
     @Immutable
     data class Available(
@@ -77,9 +93,14 @@ sealed class Extension {
         val apkName: String,
         val iconUrl: String,
         override val repoUrl: String,
+        val signingKeyFingerprint: String = "",
         val author: String? = null,
         override val contentWarning: ContentWarning = if (isNsfw) ContentWarning.NSFW else ContentWarning.SAFE,
     ) : Extension() {
+
+        fun isUpdateFor(installed: Installed): Boolean {
+            return versionCode > installed.versionCode || libVersion > installed.libVersion
+        }
 
         @Immutable
         data class AnimeSource(
@@ -106,6 +127,7 @@ sealed class Extension {
         override val versionCode: Long,
         override val libVersion: Double,
         val signatureHash: String,
+        val signatures: List<String> = listOf(signatureHash),
         override val lang: String? = null,
         override val isNsfw: Boolean = false,
         override val isTorrent: Boolean = false,

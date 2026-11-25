@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.update
 import mihon.domain.extensionrepo.interactor.CreateExtensionRepo
 import mihon.domain.extensionrepo.interactor.DeleteExtensionRepo
 import mihon.domain.extensionrepo.interactor.GetExtensionRepo
-import mihon.domain.extensionrepo.interactor.ReplaceExtensionRepo
 import mihon.domain.extensionrepo.interactor.ToggleExtensionRepoVisibility
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
@@ -26,7 +25,6 @@ class ExtensionReposScreenModel(
     private val getExtensionRepo: GetExtensionRepo = Injekt.get(),
     private val createExtensionRepo: CreateExtensionRepo = Injekt.get(),
     private val deleteExtensionRepo: DeleteExtensionRepo = Injekt.get(),
-    private val replaceExtensionRepo: ReplaceExtensionRepo = Injekt.get(),
     private val updateExtensionRepo: UpdateExtensionRepo = Injekt.get(),
     private val toggleRepoVisibility: ToggleExtensionRepoVisibility = Injekt.get(),
 ) : StateScreenModel<RepoScreenState>(RepoScreenState.Loading) {
@@ -54,25 +52,11 @@ class ExtensionReposScreenModel(
      */
     fun createRepo(baseUrl: String) {
         screenModelScope.launchIO {
-            when (val result = createExtensionRepo.await(baseUrl)) {
+            when (createExtensionRepo.await(baseUrl)) {
                 CreateExtensionRepo.Result.InvalidUrl -> _events.send(RepoEvent.InvalidUrl)
                 CreateExtensionRepo.Result.RepoAlreadyExists -> _events.send(RepoEvent.RepoAlreadyExists)
-                is CreateExtensionRepo.Result.DuplicateFingerprint -> {
-                    showDialog(RepoDialog.Conflict(result.oldRepo, result.newRepo))
-                }
                 else -> {}
             }
-        }
-    }
-
-    /**
-     * Inserts a repo to the database, replace a matching repo with the same signing key fingerprint if found.
-     *
-     * @param newRepo The repo to insert
-     */
-    fun replaceRepo(newRepo: ExtensionRepo) {
-        screenModelScope.launchIO {
-            replaceExtensionRepo.await(newRepo)
         }
     }
 
@@ -132,7 +116,6 @@ sealed class RepoEvent {
 sealed class RepoDialog {
     data object Create : RepoDialog()
     data class Delete(val repo: String) : RepoDialog()
-    data class Conflict(val oldRepo: ExtensionRepo, val newRepo: ExtensionRepo) : RepoDialog()
     data class Confirm(val url: String) : RepoDialog()
 }
 

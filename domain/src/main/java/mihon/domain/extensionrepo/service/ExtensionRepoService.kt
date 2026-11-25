@@ -68,39 +68,19 @@ class ExtensionRepoService(
                 }
 
                 when (firstByte) {
-                    // '[' (0x5B) -> Legacy index.min.json array
+                    // '[' (0x5B) -> Legacy index.min.json array: resolve via sibling repo.json
                     0x5B.toByte() -> {
-                        val repoFromMeta = if (targetUrl.endsWith("/index.min.json")) {
-                            val repoJsonUrl = targetUrl.replace("/index.min.json", "/repo.json")
-                            try {
-                                val repoResponse = client.newCall(buildGetRequest(repoJsonUrl, forceNetwork)).awaitSuccess()
-                                repoResponse.body.source().decompressIfGzipped().use { s ->
-                                    val parsed = parseJsonRepo(s, repoJsonUrl.removeSuffix("/repo.json"))
-                                    if (parsed.first != null) {
-                                        nextUrlToFetch = parsed.first
-                                    }
-                                    parsed.second
-                                }
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (_: Exception) {
-                                null
-                            }
-                        } else {
-                            null
+                        if (!targetUrl.endsWith("/index.min.json")) {
+                            return null
                         }
-
-                        repoFromMeta ?: run {
-                            val baseUrl = targetUrl.substringBeforeLast('/')
-                            ExtensionRepo(
-                                baseUrl = baseUrl,
-                                name = baseUrl.substringAfterLast('/'),
-                                shortName = null,
-                                website = baseUrl,
-                                signingKeyFingerprint = "NOFINGERPRINT",
-                                isVisible = true,
-                                isLegacy = true,
-                            )
+                        val repoJsonUrl = targetUrl.replace("/index.min.json", "/repo.json")
+                        val repoResponse = client.newCall(buildGetRequest(repoJsonUrl, forceNetwork)).awaitSuccess()
+                        repoResponse.body.source().decompressIfGzipped().use { s ->
+                            val parsed = parseJsonRepo(s, repoJsonUrl.removeSuffix("/repo.json"))
+                            if (parsed.first != null) {
+                                nextUrlToFetch = parsed.first
+                            }
+                            parsed.second
                         }
                     }
                     // '{' (0x7B) -> JSON Object
@@ -125,7 +105,7 @@ class ExtensionRepoService(
                 return fetchRepo(nextUrlToFetch!!, forceNetwork)
             }
 
-            repo
+            repo.takeIf { it.signingKeyFingerprint.isNotEmpty() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

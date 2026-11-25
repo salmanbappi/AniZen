@@ -1,0 +1,46 @@
+import kotlin.Boolean;
+
+CREATE TABLE extension_repos_new (
+    base_url TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    short_name TEXT,
+    website TEXT NOT NULL,
+    signing_key_fingerprint TEXT NOT NULL,
+    is_visible INTEGER AS Boolean NOT NULL DEFAULT 1,
+    author TEXT,
+    discord TEXT,
+    icon TEXT,
+    is_legacy INTEGER AS Boolean NOT NULL DEFAULT 1,
+    extension_list_url TEXT
+);
+
+INSERT INTO extension_repos_new (
+    base_url,
+    name,
+    short_name,
+    website,
+    signing_key_fingerprint,
+    is_visible,
+    author,
+    discord,
+    icon,
+    is_legacy,
+    extension_list_url
+)
+SELECT
+    base_url,
+    name,
+    short_name,
+    website,
+    signing_key_fingerprint,
+    is_visible,
+    author,
+    discord,
+    icon,
+    is_legacy,
+    extension_list_url
+FROM extension_repos;
+
+DROP TABLE extension_repos;
+
+ALTER TABLE extension_repos_new RENAME TO extension_repos;

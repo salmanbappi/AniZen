@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNames
 import kotlinx.serialization.protobuf.ProtoNumber
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import mihon.domain.extensionrepo.model.normalizeSigningKey
 
 // ANZ -->
 @OptIn(ExperimentalSerializationApi::class)
@@ -89,7 +90,7 @@ data class NetworkExtensionStore(
             name = name,
             shortName = badgeLabel,
             website = contact.website,
-            signingKeyFingerprint = signingKey.trim().lowercase().padStart(64, '0'),
+            signingKeyFingerprint = normalizeSigningKey(signingKey),
             isVisible = true,
             author = badgeLabel,
             discord = contact.discord,
@@ -115,10 +116,7 @@ data class ExtensionRepoDto(
     val icon: String? = null,
 ) {
     fun getFingerprint(): String {
-        return (signingKeyFingerprint ?: signingKey ?: "")
-            .trim()
-            .lowercase()
-            .padStart(64, '0')
+        return normalizeSigningKey(signingKeyFingerprint ?: signingKey ?: "")
     }
 }
 
