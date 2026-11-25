@@ -80,7 +80,7 @@ import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.data.updater.RELEASE_URL
-import eu.kanade.tachiyomi.extension.api.ExtensionApi
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
@@ -130,6 +130,8 @@ class MainActivity : BaseActivity() {
     private val preferences: BasePreferences by injectLazy()
 
     private val downloadCache: DownloadCache by injectLazy()
+
+    private val extensionManager: ExtensionManager by injectLazy()
 
     // To be checked by splash screen. If true then splash screen will be removed.
     var ready = false
@@ -450,7 +452,7 @@ class MainActivity : BaseActivity() {
                 // whole check (including its PackageManager work) on IO so it can
                 // never hitch the UI thread, wherever the user is in the app.
                 withContext(Dispatchers.IO) {
-                    ExtensionApi().checkForUpdates(context)
+                    extensionManager.checkForUpdates()
                 }
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)

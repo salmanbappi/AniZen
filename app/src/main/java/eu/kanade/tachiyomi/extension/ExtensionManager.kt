@@ -22,17 +22,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
+import mihon.domain.extensionrepo.model.ExtensionRepo
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * The manager of anime extensions installed as another apk which extend the available sources. It handles
@@ -60,6 +66,11 @@ class ExtensionManager(
      * API where all the available anime extensions can be found.
      */
     private val api = ExtensionApi()
+
+    private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
+
+    @Volatile
+    private var cachedRepos: List<ExtensionRepo> = emptyList()
 
     /**
      * The installer which installs, updates and uninstalls the anime extensions.
@@ -180,9 +191,30 @@ class ExtensionManager(
     /**
      * Finds the available anime extensions in the [api] and updates [availableExtensionsMapFlow].
      */
-    suspend fun findAvailableExtensions() {
+    suspend fun findAvailableExtensions(forceNetwork: Boolean = false) {
+        if (forceNetwork) {
+            try {
+                updateExtensionRepo.awaitAll()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to refresh extension repositories" }
+            }
+        }
+
+        val repos = try {
+            extensionRepoRepository.getAll()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            cachedRepos
+        }
+        cachedRepos = repos
+
         val extensions: List<Extension.Available> = try {
-            api.findExtensions()
+            api.findExtensions(forceNetwork = forceNetwork)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
             withUIContext { context.toast(MR.strings.extension_api_error) }
@@ -192,8 +224,24 @@ class ExtensionManager(
         enableAdditionalSubLanguages(extensions)
 
         availableExtensionsMapFlow.value = extensions.associateBy { "${it.pkgName}-${it.author}" }
-        updatedInstalledAnimeExtensionsStatuses(extensions)
+        updatedInstalledAnimeExtensionsStatuses(extensions, repos)
         setupAvailableAnimeExtensionsSourcesDataMap(extensions)
+    }
+
+    /**
+     * Refreshes repositories and available extensions, updates installed extension statuses,
+     * and notifies the user if any updates are pending.
+     */
+    suspend fun checkForUpdates(): List<Extension.Installed> {
+        isInitialized.first { it }
+        return withIOContext {
+            findAvailableExtensions(forceNetwork = true)
+            val extensionsWithUpdate = installedExtensionsMapFlow.value.values.filter { it.hasUpdate }
+            if (extensionsWithUpdate.isNotEmpty()) {
+                ExtensionUpdateNotifier(context).promptUpdates(extensionsWithUpdate.map { it.name })
+            }
+            extensionsWithUpdate
+        }
     }
 
     /**
@@ -233,6 +281,7 @@ class ExtensionManager(
      */
     private fun updatedInstalledAnimeExtensionsStatuses(
         availableExtensions: List<Extension.Available>,
+        repos: List<ExtensionRepo> = cachedRepos,
     ) {
         if (availableExtensions.isEmpty()) {
             preferences.animeExtensionUpdatesCount().set(0)
@@ -243,8 +292,14 @@ class ExtensionManager(
         var changed = false
 
         for ((pkgName, extension) in installedExtensionsMap) {
-            val availableExt = availableExtensions.find { it.pkgName == pkgName && it.author == extension.author }
-                ?: availableExtensions.find { it.pkgName == pkgName }
+            val availableExt = selectBestAvailableExtension(
+                candidates = availableExtensions,
+                pkgName = pkgName,
+                author = extension.author,
+                repoUrl = extension.repoUrl,
+                signatureHash = extension.signatureHash,
+                repos = repos,
+            )
 
             if (availableExt == null && !extension.isObsolete) {
                 installedExtensionsMap[pkgName] = extension.copy(isObsolete = true)
@@ -254,6 +309,7 @@ class ExtensionManager(
 
                 val newExt = extension.copy(
                     hasUpdate = hasUpdate,
+                    isObsolete = false,
                     repoUrl = availableExt.repoUrl,
                 )
 
@@ -289,9 +345,12 @@ class ExtensionManager(
      * @param extension The anime extension to be updated.
      */
     fun updateExtension(extension: Extension.Installed): Flow<InstallStep> {
-        val availableExt = availableExtensionsMapFlow.value["${extension.pkgName}-${extension.author}"]
-            ?: availableExtensionsMapFlow.value.values.find { it.pkgName == extension.pkgName }
-            ?: return emptyFlow()
+        val availableExt = findAvailableExtension(
+            pkgName = extension.pkgName,
+            author = extension.author,
+            repoUrl = extension.repoUrl,
+            signatureHash = extension.signatureHash,
+        ) ?: return emptyFlow()
         return installExtension(availableExt)
     }
 
@@ -405,21 +464,93 @@ class ExtensionManager(
      * Extension method to set the update field of an installed anime extension.
      */
     private fun Extension.Installed.withUpdateCheck(): Extension.Installed {
-        return if (updateExists()) {
-            copy(hasUpdate = true)
-        } else {
-            this
-        }
+        val availableExt = findAvailableExtension(
+            pkgName = pkgName,
+            author = author,
+            repoUrl = repoUrl,
+            signatureHash = signatureHash,
+        ) ?: return this
+        return copy(
+            hasUpdate = updateExists(availableExt),
+            isObsolete = false,
+            repoUrl = availableExt.repoUrl,
+        )
     }
 
     private fun Extension.Installed.updateExists(
         availableExtension: Extension.Available? = null,
     ): Boolean {
         val availableExt = availableExtension
-            ?: availableExtensionsMapFlow.value[pkgName]
+            ?: findAvailableExtension(
+                pkgName = pkgName,
+                author = author,
+                repoUrl = repoUrl,
+                signatureHash = signatureHash,
+            )
             ?: return false
 
         return (availableExt.versionCode > versionCode || availableExt.libVersion > libVersion)
+    }
+
+    private fun findAvailableExtension(
+        pkgName: String,
+        author: String? = null,
+        repoUrl: String? = null,
+        signatureHash: String? = null,
+    ): Extension.Available? {
+        if (author != null) {
+            availableExtensionsMapFlow.value["$pkgName-$author"]?.let { return it }
+        }
+        return selectBestAvailableExtension(
+            candidates = availableExtensionsMapFlow.value.values,
+            pkgName = pkgName,
+            author = author,
+            repoUrl = repoUrl,
+            signatureHash = signatureHash,
+            repos = cachedRepos,
+        )
+    }
+
+    private fun selectBestAvailableExtension(
+        candidates: Collection<Extension.Available>,
+        pkgName: String,
+        author: String?,
+        repoUrl: String?,
+        signatureHash: String?,
+        repos: List<ExtensionRepo>,
+    ): Extension.Available? {
+        val pkgMatches = candidates.filter { it.pkgName == pkgName }
+        if (pkgMatches.isEmpty()) return null
+
+        val versionComparator = compareBy<Extension.Available> { it.versionCode }.thenBy { it.libVersion }
+
+        if (signatureHash != null && repos.isNotEmpty()) {
+            val extPadded = signatureHash.trim().padStart(64, '0')
+            val matchingRepoUrls = repos
+                .filter { repo ->
+                    repo.signingKeyFingerprint.trim().padStart(64, '0').equals(extPadded, ignoreCase = true)
+                }
+                .mapTo(HashSet()) { it.baseUrl }
+            if (matchingRepoUrls.isNotEmpty()) {
+                pkgMatches.filter { it.repoUrl in matchingRepoUrls }
+                    .maxWithOrNull(versionComparator)
+                    ?.let { return it }
+            }
+        }
+
+        if (author != null) {
+            pkgMatches.filter { it.author == author }
+                .maxWithOrNull(versionComparator)
+                ?.let { return it }
+        }
+
+        if (repoUrl != null) {
+            pkgMatches.filter { it.repoUrl == repoUrl }
+                .maxWithOrNull(versionComparator)
+                ?.let { return it }
+        }
+
+        return pkgMatches.maxWithOrNull(versionComparator)
     }
 
     private fun updatePendingUpdatesCount() {

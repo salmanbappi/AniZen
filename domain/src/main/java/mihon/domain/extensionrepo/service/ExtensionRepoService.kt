@@ -9,6 +9,7 @@ import kotlinx.serialization.json.okio.decodeFromBufferedSource
 import kotlinx.serialization.protobuf.ProtoBuf
 import logcat.LogPriority
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import okhttp3.CacheControl
 import okio.BufferedSource
 import okio.buffer
 import okio.gzip
@@ -28,24 +29,31 @@ class ExtensionRepoService(
     // ANZ -->
     suspend fun fetchRepoDetails(
         url: String,
+        forceNetwork: Boolean = false,
     ): ExtensionRepo? {
         return withIOContext {
-            fetchRepo(url)
+            fetchRepo(url, forceNetwork)
         }
     }
 
-    private suspend fun fetchRepo(url: String): ExtensionRepo? {
+    private fun buildGetRequest(url: String, forceNetwork: Boolean) = if (forceNetwork) {
+        GET(url, cache = CacheControl.FORCE_NETWORK)
+    } else {
+        GET(url)
+    }
+
+    private suspend fun fetchRepo(url: String, forceNetwork: Boolean = false): ExtensionRepo? {
         var targetUrl = url.trim().removeSuffix("/")
 
         return try {
             val response = try {
-                client.newCall(GET(targetUrl)).awaitSuccess()
+                client.newCall(buildGetRequest(targetUrl, forceNetwork)).awaitSuccess()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (!targetUrl.endsWith(".json") && !targetUrl.endsWith(".pb")) {
                     targetUrl = "$targetUrl/repo.json"
-                    client.newCall(GET(targetUrl)).awaitSuccess()
+                    client.newCall(buildGetRequest(targetUrl, forceNetwork)).awaitSuccess()
                 } else {
                     throw e
                 }
@@ -62,17 +70,27 @@ class ExtensionRepoService(
                 when (firstByte) {
                     // '[' (0x5B) -> Legacy index.min.json array
                     0x5B.toByte() -> {
-                        if (targetUrl.endsWith("/index.min.json")) {
+                        val repoFromMeta = if (targetUrl.endsWith("/index.min.json")) {
                             val repoJsonUrl = targetUrl.replace("/index.min.json", "/repo.json")
-                            val repoResponse = client.newCall(GET(repoJsonUrl)).awaitSuccess()
-                            repoResponse.body.source().decompressIfGzipped().use { s ->
-                                val parsed = parseJsonRepo(s, repoJsonUrl.removeSuffix("/repo.json"))
-                                if (parsed.first != null) {
-                                    nextUrlToFetch = parsed.first
+                            try {
+                                val repoResponse = client.newCall(buildGetRequest(repoJsonUrl, forceNetwork)).awaitSuccess()
+                                repoResponse.body.source().decompressIfGzipped().use { s ->
+                                    val parsed = parseJsonRepo(s, repoJsonUrl.removeSuffix("/repo.json"))
+                                    if (parsed.first != null) {
+                                        nextUrlToFetch = parsed.first
+                                    }
+                                    parsed.second
                                 }
-                                parsed.second
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                null
                             }
                         } else {
+                            null
+                        }
+
+                        repoFromMeta ?: run {
                             val baseUrl = targetUrl.substringBeforeLast('/')
                             ExtensionRepo(
                                 baseUrl = baseUrl,
@@ -104,7 +122,7 @@ class ExtensionRepoService(
             }
 
             if (nextUrlToFetch != null) {
-                return fetchRepo(nextUrlToFetch!!)
+                return fetchRepo(nextUrlToFetch!!, forceNetwork)
             }
 
             repo

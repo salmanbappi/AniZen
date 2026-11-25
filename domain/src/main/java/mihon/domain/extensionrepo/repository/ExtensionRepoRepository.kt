@@ -67,6 +67,8 @@ interface ExtensionRepoRepository {
 
     suspend fun replaceRepo(newRepo: ExtensionRepo)
 
+    suspend fun updateRepo(oldBaseUrl: String, newRepo: ExtensionRepo)
+
     suspend fun deleteRepo(baseUrl: String)
 
     suspend fun updateRepoVisibility(baseUrl: String, isVisible: Boolean)

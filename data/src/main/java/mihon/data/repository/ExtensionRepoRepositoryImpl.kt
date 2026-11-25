@@ -129,6 +129,51 @@ class ExtensionRepoRepositoryImpl(
         }
     }
 
+    override suspend fun updateRepo(oldBaseUrl: String, newRepo: ExtensionRepo) {
+        try {
+            handler.await(inTransaction = true) {
+                if (oldBaseUrl != newRepo.baseUrl) {
+                    extension_reposQueries.delete(oldBaseUrl)
+                }
+                if (extension_reposQueries.findOne(newRepo.baseUrl, ::mapExtensionRepo).executeAsOneOrNull() != null) {
+                    extension_reposQueries.upsert(
+                        newRepo.baseUrl,
+                        newRepo.name,
+                        newRepo.shortName,
+                        newRepo.website,
+                        newRepo.signingKeyFingerprint,
+                        newRepo.isVisible,
+                        newRepo.author,
+                        newRepo.discord,
+                        newRepo.icon,
+                        // ANZ -->
+                        newRepo.isLegacy,
+                        newRepo.extensionListUrl,
+                        // ANZ <--
+                    )
+                } else {
+                    extension_reposQueries.replace(
+                        newRepo.baseUrl,
+                        newRepo.name,
+                        newRepo.shortName,
+                        newRepo.website,
+                        newRepo.signingKeyFingerprint,
+                        newRepo.isVisible,
+                        newRepo.author,
+                        newRepo.discord,
+                        newRepo.icon,
+                        // ANZ -->
+                        newRepo.isLegacy,
+                        newRepo.extensionListUrl,
+                        // ANZ <--
+                    )
+                }
+            }
+        } catch (ex: SQLiteException) {
+            throw SaveExtensionRepoException(ex)
+        }
+    }
+
     override suspend fun deleteRepo(baseUrl: String) {
         return handler.await { extension_reposQueries.delete(baseUrl) }
     }

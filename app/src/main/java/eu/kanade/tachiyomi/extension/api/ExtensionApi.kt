@@ -22,6 +22,7 @@ import mihon.domain.extensionrepo.interactor.GetExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
 import mihon.domain.extensionrepo.service.NetworkExtensionStore
+import okhttp3.CacheControl
 import okio.BufferedSource
 import okio.buffer
 import okio.gzip
@@ -31,6 +32,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
 import java.time.Instant
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.days
 
 internal class ExtensionApi {
@@ -50,33 +52,47 @@ internal class ExtensionApi {
         preferenceStore.getLong("last_ext_check", 0)
     }
 
-    suspend fun findExtensions(): List<Extension.Available> {
+    suspend fun findExtensions(forceNetwork: Boolean = false): List<Extension.Available> {
         return withIOContext {
             getExtensionRepo.getAll()
-                .map { async { getExtensions(it) } }
+                .map { async { getExtensions(it, forceNetwork) } }
                 .awaitAll()
                 .flatten()
         }
     }
 
     // ANZ -->
-    private suspend fun getExtensions(extRepo: ExtensionRepo): List<Extension.Available> {
+    private suspend fun getExtensions(
+        extRepo: ExtensionRepo,
+        forceNetwork: Boolean,
+    ): List<Extension.Available> {
         val repoBaseUrl = extRepo.baseUrl
         return try {
             if (!extRepo.isLegacy) {
-                getExtensionsFromStore(extRepo)
+                getExtensionsFromStore(extRepo, forceNetwork)
             } else {
-                getExtensionsFromLegacyRepo(extRepo)
+                getExtensionsFromLegacyRepo(extRepo, forceNetwork)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Failed to get extensions from $repoBaseUrl" }
             emptyList()
         }
     }
 
-    private suspend fun getExtensionsFromStore(store: ExtensionRepo): List<Extension.Available> {
+    private fun buildGetRequest(url: String, forceNetwork: Boolean) = if (forceNetwork) {
+        GET(url, cache = CacheControl.FORCE_NETWORK)
+    } else {
+        GET(url)
+    }
+
+    private suspend fun getExtensionsFromStore(
+        store: ExtensionRepo,
+        forceNetwork: Boolean,
+    ): List<Extension.Available> {
         val targetUrl = store.extensionListUrl ?: store.baseUrl
-        val response = networkService.client.newCall(GET(targetUrl)).awaitSuccess()
+        val response = networkService.client.newCall(buildGetRequest(targetUrl, forceNetwork)).awaitSuccess()
         val author = store.shortName ?: store.author ?: store.name
         return response.body.source().decompressIfGzipped().use { source ->
             val firstByte = try {
@@ -130,10 +146,14 @@ internal class ExtensionApi {
         }
     }
 
-    private suspend fun getExtensionsFromLegacyRepo(extRepo: ExtensionRepo): List<Extension.Available> {
+    private suspend fun getExtensionsFromLegacyRepo(
+        extRepo: ExtensionRepo,
+        forceNetwork: Boolean,
+    ): List<Extension.Available> {
         val repoBaseUrl = extRepo.baseUrl
+        val normalizedRepoUrl = repoBaseUrl.substringBefore("/index.min.json").removeSuffix("/")
         val response = networkService.client
-            .newCall(GET("$repoBaseUrl/index.min.json"))
+            .newCall(buildGetRequest("$normalizedRepoUrl/index.min.json", forceNetwork))
             .awaitSuccess()
 
         val bodyString = response.body.source().decompressIfGzipped().use { it.readUtf8() }
@@ -181,7 +201,7 @@ internal class ExtensionApi {
         val extensions = if (fromAvailableExtensionList) {
             extensionManager.availableExtensionsFlow.value
         } else {
-            findExtensions().also { lastExtCheck.set(Instant.now().toEpochMilli()) }
+            findExtensions(forceNetwork = true).also { lastExtCheck.set(Instant.now().toEpochMilli()) }
         }
 
         val installedExtensions = ExtensionLoader.loadExtensions(context)
@@ -191,7 +211,10 @@ internal class ExtensionApi {
         val extensionsWithUpdate = mutableListOf<Extension.Installed>()
         for (installedExt in installedExtensions) {
             val pkgName = installedExt.pkgName
-            val availableExt = extensions.find { it.pkgName == pkgName } ?: continue
+            val availableExt = extensions
+                .filter { it.pkgName == pkgName }
+                .maxWithOrNull(compareBy<Extension.Available> { it.versionCode }.thenBy { it.libVersion })
+                ?: continue
 
             val hasUpdatedVer = availableExt.versionCode > installedExt.versionCode
             val hasUpdatedLib = availableExt.libVersion > installedExt.libVersion

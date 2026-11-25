@@ -52,7 +52,7 @@ SET
     icon = :icon,
     is_legacy = :is_legacy,
     extension_list_url = :extension_list_url
-WHERE base_url = base_url;
+WHERE base_url = :base_url;
 
 replace:
 INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author, discord, icon, is_legacy, extension_list_url)
@@ -70,7 +70,7 @@ SET
     icon = :icon,
     is_legacy = :is_legacy,
     extension_list_url = :extension_list_url
-WHERE signing_key_fingerprint = signing_key_fingerprint;
+WHERE signing_key_fingerprint = :fingerprint;
 
 delete:
 DELETE FROM extension_repos
