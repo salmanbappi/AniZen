@@ -32,6 +32,7 @@ import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitleAssOverride
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
+import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
@@ -49,6 +50,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
     private val audioPreferences: AudioPreferences by injectLazy()
     private val advancedPreferences: AdvancedPlayerPreferences by injectLazy()
     private val networkPreferences: NetworkPreferences by injectLazy()
+    private val anime4kManager: Anime4KManager by injectLazy()
 
     var isExiting = false
 
@@ -155,6 +157,12 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
             val value = it.preference(decoderPreferences).get()
             mpv?.setOptionString(it.mpvProperty, value.toString())
         }
+
+        // ANZ -->
+        // Aplica el shader (AniZen Lite / Anime4K) al abrir cada capitulo; antes solo se aplicaba
+        // al tocar el panel de filtros, por eso habia que apagarlo y encenderlo.
+        applyAnime4K(mpv, decoderPreferences, anime4kManager, isInit = true)
+        // ANZ <--
 
         // ANZ -->
         mpv?.setPropertyDouble("speed", playerPreferences.playerSpeed().get().toDouble())
