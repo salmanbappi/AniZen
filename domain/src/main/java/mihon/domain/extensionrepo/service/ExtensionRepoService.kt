@@ -88,7 +88,7 @@ class ExtensionRepoService(
                     // '{' (0x7B) -> JSON Object
                     0x7B.toByte() -> {
                         val baseUrl = targetUrl.removeSuffix("/repo.json").removeSuffix("/index.json")
-                        val parsed = parseJsonRepo(source, baseUrl)
+                        val parsed = parseJsonRepo(source, baseUrl, targetUrl)
                         if (parsed.first != null) {
                             nextUrlToFetch = parsed.first
                         }
@@ -116,7 +116,11 @@ class ExtensionRepoService(
         }
     }
 
-    private fun parseJsonRepo(source: BufferedSource, baseUrl: String): Pair<String?, ExtensionRepo> {
+    private fun parseJsonRepo(
+        source: BufferedSource,
+        baseUrl: String,
+        indexUrl: String = baseUrl,
+    ): Pair<String?, ExtensionRepo> {
         val peeked = source.peek()
         try {
             val meta = json.decodeFromBufferedSource<ExtensionRepoMetaDto>(peeked)
@@ -128,7 +132,7 @@ class ExtensionRepoService(
             // Try NetworkExtensionStore (JSON)
             try {
                 val store = json.decodeFromBufferedSource<NetworkExtensionStore>(source.peek())
-                return null to store.toExtensionRepo(baseUrl)
+                return null to store.toExtensionRepo(indexUrl)
             } catch (_: Exception) {
                 val legacy = json.decodeFromBufferedSource<ExtensionRepoDto>(source)
                 return null to legacy.toExtensionRepo(baseUrl)

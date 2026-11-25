@@ -171,7 +171,14 @@ private fun ExtensionRepoListItem(
 
                     IconButton(
                         onClick = {
-                            val url = "${repo.baseUrl}/index.min.json"
+                            // ANZ -->
+                            val url = if (repo.isLegacy) {
+                                val base = repo.baseUrl.removeSuffix("/")
+                                if (base.endsWith("/index.min.json")) base else "$base/index.min.json"
+                            } else {
+                                repo.baseUrl
+                            }
+                            // ANZ <--
                             context.copyToClipboard(url, url)
                         },
                     ) {
