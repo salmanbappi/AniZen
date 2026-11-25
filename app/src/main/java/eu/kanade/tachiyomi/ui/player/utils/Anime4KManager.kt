@@ -14,8 +14,8 @@ class Anime4KManager(private val context: Context) {
         private const val SHADER_DIR = "shaders"
 
         // Fuerza con que AniZen Lite levanta las sombras en escenas oscuras (noche).
-        // 0.0 = apagado, 1.2 = suave, 1.5 = normal, 1.8 = fuerte. De dia no cambia nada.
-        private const val NIGHT_LIFT = "1.50"
+        // 0.0 = apagado, 1.4 = suave, 1.8 = normal, 2.4 = fuerte. De dia no cambia nada.
+        private const val NIGHT_LIFT = "1.80"
 
         // Parametros de AniZen Lite por nivel:
         // WIDE, STEEP, DARK, MAXD, BLACK, THICK, AA, AAAMT, FLAT, SAT, CON, NIGHT
@@ -82,6 +82,10 @@ float az_luma(vec3 c) {
 }
 
 vec4 hook() {
+    // Que tan oscura es la escena (0 = de dia, 1 = noche cerrada).
+    float scene = AZSCENE_tex(vec2(0.5)).r;
+    float dark = 1.0 - smoothstep(0.06, 0.30, scene);
+
     vec4 c0 = HOOKED_tex(HOOKED_pos);
     vec3 cn = HOOKED_texOff(vec2(0.0, -1.0)).rgb;
     vec3 cs = HOOKED_texOff(vec2(0.0, 1.0)).rgb;
@@ -150,6 +154,9 @@ vec4 hook() {
     // Lineas bien negras: lo que queda claramente mas oscuro que su entorno baja hacia el negro.
     target *= 1.0 - AZ_BLACK * smoothstep(0.10, 0.30, avg - target);
 
+    // De noche no oscurezcas de mas lo que ya es oscuro (evita aros negros en estrellas y puntos en el pasto).
+    target = max(target, lf * (0.75 * dark));
+
     if (target < lf) {
         rgb = rgb * (target / max(lf, 0.0005));
     } else {
@@ -162,21 +169,20 @@ vec4 hook() {
     rgb = mix(vec3(lum), rgb, 1.0 + AZ_VIBRANCE * (1.0 - sat));
     rgb = clamp(rgb, 0.0, 1.0);
 
-    // Que tan oscura es la escena (0 = de dia, 1 = noche cerrada).
-    float scene = AZSCENE_tex(vec2(0.5)).r;
-    float dark = 1.0 - smoothstep(0.06, 0.30, scene);
-
     // Curva S suave para el contraste. En escenas oscuras no toca las sombras.
     vec3 curve = rgb * rgb * (3.0 - 2.0 * rgb);
     float cwt = mix(1.0, smoothstep(0.12, 0.45, lum), dark);
     rgb = mix(rgb, curve, AZ_CONTRAST * cwt);
 
     // Noche: levanta las sombras (el negro puro sigue siendo negro) segun lo oscura que sea la escena.
-    float ll = az_luma(rgb);
+    // Los colores muy saturados (azul) se levantan menos y sin recorte plano.
+    float mxc = max(rgb.r, max(rgb.g, rgb.b));
+    float ll = mix(az_luma(rgb), mxc, 0.5);
     float w = 1.0 - ll;
-    float f = 1.0 + AZ_NIGHT * dark * w * w * w;
-    f = min(f, 1.0 / max(max(rgb.r, max(rgb.g, rgb.b)), 0.001));
-    rgb *= f;
+    float inc = mxc * AZ_NIGHT * dark * w * w * w;
+    float room = max(0.95 - mxc, 0.0001);
+    inc = inc / (1.0 + inc / room);
+    rgb *= 1.0 + inc / max(mxc, 0.001);
 
     return vec4(rgb, c0.a);
 }
