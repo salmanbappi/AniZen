@@ -13,21 +13,49 @@ class Anime4KManager(private val context: Context) {
     companion object {
         private const val SHADER_DIR = "shaders"
 
+        // Fuerza con que AniZen Lite levanta las sombras en escenas oscuras (noche).
+        // 0.0 = apagado, 1.2 = suave, 1.5 = normal, 1.8 = fuerte. De dia no cambia nada.
+        private const val NIGHT_LIFT = "1.50"
+
         // Parametros de AniZen Lite por nivel:
-        // WIDE, STEEP, DARK, MAXD, BLACK, THICK, AA, AAAMT, FLAT, SAT, CON
+        // WIDE, STEEP, DARK, MAXD, BLACK, THICK, AA, AAAMT, FLAT, SAT, CON, NIGHT
         private fun liteParams(q: Quality): Array<String> = when (q) {
-            Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.22", "0.00", "0.00", "0", "0.00", "0.40", "0.10", "0.05")
-            Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.22", "0.00", "0.00", "0", "0.00", "0.60", "0.16", "0.08")
-            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.78", "1", "0.85", "0.80", "0.22", "0.12")
+            Quality.FAST -> arrayOf("0", "0.50", "0.60", "0.22", "0.00", "0.00", "0", "0.00", "0.40", "0.10", "0.05", NIGHT_LIFT)
+            Quality.BALANCED -> arrayOf("1", "0.80", "0.90", "0.22", "0.00", "0.00", "0", "0.00", "0.60", "0.16", "0.08", NIGHT_LIFT)
+            Quality.HIGH -> arrayOf("1", "1.00", "1.70", "0.32", "0.35", "0.78", "1", "0.85", "0.80", "0.22", "0.12", NIGHT_LIFT)
         }
 
         private fun liteFileName(q: Quality) = "AniZen_Lite_${q.suffix}.glsl"
 
         // Shader de un solo paso (hook OUTPUT). Se escribe en filesDir/shaders al iniciar.
         private const val LITE_TEMPLATE = """
+//!DESC AniZen Lite escena
+//!HOOK OUTPUT
+//!BIND HOOKED
+//!SAVE AZSCENE
+//!WIDTH 1
+//!HEIGHT 1
+
+// Mide que tan oscura es la escena: promedio de brillo de 256 puntos repartidos.
+// Es un solo pixel de salida, casi no cuesta nada.
+vec4 hook() {
+    float acc = 0.0;
+    for (int i = 0; i < 256; i++) {
+        float fi = float(i);
+        float fy = floor(fi * 0.0625);
+        float fx = fi - fy * 16.0;
+        vec2 p = vec2(fract((fx + fract(fy * 0.618) + 0.25) * 0.0625), (fy + 0.5) * 0.0625);
+        vec3 c = HOOKED_tex(p).rgb;
+        acc += min(dot(c, vec3(0.299, 0.587, 0.114)), 0.5);
+    }
+    float m = acc * (1.0 / 256.0);
+    return vec4(m, m, m, 1.0);
+}
+
 //!DESC AniZen Lite
 //!HOOK OUTPUT
 //!BIND HOOKED
+//!BIND AZSCENE
 
 // AniZen Lite: un solo paso, sin redes neuronales.
 // 1) Aplana el ruido/bloques dentro de las zonas de color (respeta los bordes).
@@ -47,6 +75,7 @@ class Anime4KManager(private val context: Context) {
 #define AZ_FLATTEN @FLAT@
 #define AZ_VIBRANCE @SAT@
 #define AZ_CONTRAST @CON@
+#define AZ_NIGHT @NIGHT@
 
 float az_luma(vec3 c) {
     return dot(c, vec3(0.299, 0.587, 0.114));
@@ -133,9 +162,21 @@ vec4 hook() {
     rgb = mix(vec3(lum), rgb, 1.0 + AZ_VIBRANCE * (1.0 - sat));
     rgb = clamp(rgb, 0.0, 1.0);
 
-    // Curva S suave para el contraste.
+    // Que tan oscura es la escena (0 = de dia, 1 = noche cerrada).
+    float scene = AZSCENE_tex(vec2(0.5)).r;
+    float dark = 1.0 - smoothstep(0.06, 0.30, scene);
+
+    // Curva S suave para el contraste. En escenas oscuras no toca las sombras.
     vec3 curve = rgb * rgb * (3.0 - 2.0 * rgb);
-    rgb = mix(rgb, curve, AZ_CONTRAST);
+    float cwt = mix(1.0, smoothstep(0.12, 0.45, lum), dark);
+    rgb = mix(rgb, curve, AZ_CONTRAST * cwt);
+
+    // Noche: levanta las sombras (el negro puro sigue siendo negro) segun lo oscura que sea la escena.
+    float ll = az_luma(rgb);
+    float w = 1.0 - ll;
+    float f = 1.0 + AZ_NIGHT * dark * w * w * w;
+    f = min(f, 1.0 / max(max(rgb.r, max(rgb.g, rgb.b)), 0.001));
+    rgb *= f;
 
     return vec4(rgb, c0.a);
 }
@@ -213,7 +254,7 @@ vec4 hook() {
                 val values = liteParams(q)
                 val names = arrayOf(
                     "@WIDE@", "@STEEP@", "@DARK@", "@MAXD@", "@BLACK@", "@THICK@",
-                    "@AA@", "@AAAMT@", "@FLAT@", "@SAT@", "@CON@",
+                    "@AA@", "@AAAMT@", "@FLAT@", "@SAT@", "@CON@", "@NIGHT@",
                 )
                 for (i in names.indices) {
                     text = text.replace(names[i], values[i])
