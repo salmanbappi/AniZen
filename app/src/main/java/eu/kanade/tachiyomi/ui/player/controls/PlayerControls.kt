@@ -444,8 +444,6 @@ fun PlayerControls(
                     visible = (controlsShown || seekBarShown) &&
                         !areControlsLocked &&
                         !isLongPressing &&
-                        !isSeekingUI &&
-                        // ANZ
                         (skipIntroButton != null || (actionButton != null && customButtonTitle.isNotEmpty())),
                     enter = if (!reduceMotion) {
                         slideInVertically(playerControlsEnterAnimationSpec()) { it } +
