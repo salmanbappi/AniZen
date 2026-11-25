@@ -65,6 +65,30 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         mpv?.setOptionString(name, value)
     }
 
+    // ANZ -->
+    private val fastProfileOptions = setOf(
+        "scale", "cscale", "dscale", "dither", "correct-downscaling", "linear-downscaling",
+        "sigmoid-upscaling", "hdr-compute-peak", "allow-delayed-peak-detect",
+    )
+
+    // El perfil "fast" que aplica la app pisa estas opciones aunque esten en el mpv.conf.
+    // Vuelve a aplicar las del mpv.conf (solo la parte global, antes del primer [perfil]).
+    private fun reapplyConfOverFastProfile() {
+        val global = advancedPreferences.mpvConf().get()
+            .lineSequence()
+            .takeWhile { !it.trimStart().startsWith("[") }
+        for (line in global) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+            val eq = trimmed.indexOf('=')
+            if (eq <= 0) continue
+            val name = trimmed.substring(0, eq).trim().removePrefix("--")
+            val value = trimmed.substring(eq + 1).trim()
+            if (name in fastProfileOptions) mpv?.setOptionString(name, value)
+        }
+    }
+    // ANZ <--
+
     val duration: Int?
         get() = mpv?.getPropertyInt("duration")
 
@@ -98,6 +122,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setVo(if (decoderPreferences.gpuNext().get()) "gpu-next" else "gpu")
         mpv?.setPropertyBoolean("pause", true)
         setSafeOptionString("profile", "fast")
+        // ANZ -->
+        reapplyConfOverFastProfile()
+        // ANZ <--
         mpv?.setOptionString("hwdec", if (decoderPreferences.tryHWDecoding().get()) "auto" else "no")
 
         val isHighQuality = decoderPreferences.highQualityScaling().get()
