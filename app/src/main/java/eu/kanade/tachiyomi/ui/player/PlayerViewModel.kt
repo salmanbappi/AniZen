@@ -2930,15 +2930,6 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private var lastScrubSeekTime = 0L
-    fun scrubSeekTo(position: Int, precise: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (now - lastScrubSeekTime > 200L) {
-            lastScrubSeekTime = now
-            seekTo(position, precise)
-        }
-    }
-
     // ANZ -->
     fun updateIsSeeking(value: Boolean) {
         isSeekingUI.update { value }

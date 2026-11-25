@@ -508,7 +508,6 @@ fun PlayerControls(
                     val position by viewModel.pos.collectAsState()
                     val currentPosition = (position ?: 0).toFloat()
 
-                    var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
                     var scrubbingPosition by remember { mutableStateOf<Float?>(null) }
 
                     val displayPosition = scrubbingPosition ?: if (isSeekingUI) seekPosition else currentPosition
@@ -519,23 +518,16 @@ fun PlayerControls(
                         readAheadValue = readAhead ?: 0f,
                         onValueChange = { newPos ->
                             if (scrubbingPosition == null) {
-                                wasPlayerAlreadyPause = viewModel.paused.value == true
-                                viewModel.pause()
                                 viewModel.updateIsSeeking(true)
                             }
                             scrubbingPosition = newPos
                             viewModel.updateSeekPos(newPos)
-                            viewModel.scrubSeekTo(newPos.toInt(), false)
                         },
                         onValueChangeFinished = {
                             val target = scrubbingPosition ?: currentPosition
                             scrubbingPosition = null
-                            viewModel.updateSeekPos(target)
                             viewModel.updateIsSeeking(false)
                             viewModel.seekTo(target.toInt(), preciseSeeking)
-                            if (!wasPlayerAlreadyPause) {
-                                viewModel.unpause()
-                            }
                         },
                         timersInverted = Pair(false, invertDuration),
                         durationTimerOnCLick = { playerPreferences.invertDuration().set(!invertDuration) },
