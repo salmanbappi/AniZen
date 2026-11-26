@@ -23,6 +23,8 @@ import android.os.Environment
 import android.util.AttributeSet
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.Surface
+import android.view.SurfaceHolder
 import animiru.feature.mpvfiles.MpvConfig
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.player.controls.components.panels.toColorHexString
@@ -50,6 +52,31 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
     private val networkPreferences: NetworkPreferences by injectLazy()
 
     var isExiting = false
+
+    // ANZ -->
+    private var pendingSurfaceFrameRate: Float? = null
+
+    fun applySurfaceFrameRate(targetFps: Float) {
+        pendingSurfaceFrameRate = targetFps
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val currentSurface = holder?.surface?.takeIf { it.isValid } ?: return
+        val compatibility = if (targetFps > 0f) {
+            Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE
+        } else {
+            Surface.FRAME_RATE_COMPATIBILITY_DEFAULT
+        }
+        val normalized = if (targetFps > 0f) targetFps else 0f
+        runCatching {
+            currentSurface.setFrameRate(normalized, compatibility)
+        }
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        super.surfaceCreated(holder)
+        pendingSurfaceFrameRate?.let { applySurfaceFrameRate(it) }
+        syncInterpolationDisplayFps(mpv, decoderPreferences, context)
+    }
+    // ANZ <--
 
     private val optionNameRegex = Regex("""^(?:--)?([\w-]+)(?:=|$)""", RegexOption.MULTILINE)
     private val mpvOptionNames = optionNameRegex.findAll(advancedPreferences.mpvConf().get()).map {
@@ -95,14 +122,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setVo(if (decoderPreferences.gpuNext().get()) "gpu-next" else "gpu")
         mpv?.setPropertyBoolean("pause", true)
         setSafeOptionString("profile", "fast")
-        val isSmoothMotion = decoderPreferences.smoothMotion().get()
-        val defaultHwdec = if (decoderPreferences.tryHWDecoding().get()) {
-            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            if (isSmoothMotion && fpsLimit > 0) "mediacodec-copy" else "mediacodec" // ANZ
-        } else {
-            "no"
-        }
-        mpv?.setOptionString("hwdec", defaultHwdec)
+        // ANZ -->
+        mpv?.setOptionString("hwdec", resolveInterpolationHwdec(decoderPreferences))
+        // ANZ <--
 
         val isHighQuality = decoderPreferences.highQualityScaling().get()
         val scaler = if (isHighQuality) "spline36" else "bilinear"
@@ -112,28 +134,8 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         setSafeOptionString("dither", if (isHighQuality) "fruit" else "no")
 
         // ANZ -->
-        if (isSmoothMotion) {
-            mpv?.setOptionString("video-sync", "display-resample")
-            mpv?.setOptionString("video-sync-max-audio-change", "0.125")
-            mpv?.setOptionString("video-sync-max-video-change", "1")
-            mpv?.setOptionString("interpolation", "yes")
-            mpv?.setOptionString("interpolation-threshold", "-1")
-            mpv?.setOptionString("correct-pts", "yes")
-            mpv?.setOptionString("tscale", decoderPreferences.interpolationMode().get().value)
-            mpv?.setOptionString("gpu-dumb-mode", "no")
-        } else {
-            mpv?.setOptionString("video-sync", "audio")
-            mpv?.setOptionString("video-sync-max-audio-change", "0.125")
-            mpv?.setOptionString("video-sync-max-video-change", "1")
-            mpv?.setOptionString("interpolation", "no")
-            mpv?.setOptionString("gpu-dumb-mode", "auto")
-        }
+        applyInterpolation(mpv, decoderPreferences, context, this)
         // ANZ <--
-
-        val vfChain = buildVFChain(decoderPreferences)
-        if (vfChain.isNotEmpty()) {
-            mpv?.setOptionString("vf", vfChain)
-        }
         mpv?.setOptionString("msg-level", "all=" + if (networkPreferences.verboseLogging().get()) "v" else "warn")
 
         mpv?.setPropertyBoolean("input-default-bindings", true)
@@ -180,7 +182,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
     fun postInitOptions() {
         when (decoderPreferences.videoDebanding().get()) {
             Debanding.None -> {}
-            Debanding.CPU -> mpv?.setOptionString("vf", "gradfun=radius=12")
+            // ANZ -->
+            Debanding.CPU -> mpv?.setPropertyString("vf", buildVFChain(decoderPreferences))
+            // ANZ <--
             Debanding.GPU -> mpv?.setOptionString("deband", "yes")
         }
 
@@ -190,20 +194,6 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
                 mpv?.command("script-binding", "stats/display-stats-toggle")
                 mpv?.command("script-binding", "stats/display-page-$it")
             }
-        }
-        // ANZ <--
-
-        // ANZ -->
-        if (decoderPreferences.smoothMotion().get()) {
-            val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-            if (decoderPreferences.tryHWDecoding().get()) {
-                val hwdecMode = if (fpsLimit > 0) "mediacodec-copy" else "mediacodec"
-                mpv?.setPropertyString("hwdec", hwdecMode)
-            }
-            mpv?.setPropertyString("interpolation-threshold", "-1")
-            mpv?.setPropertyString("gpu-dumb-mode", "no")
-            val vfChain = buildVFChain(decoderPreferences)
-            mpv?.setPropertyString("vf", vfChain)
         }
         // ANZ <--
     }
@@ -254,14 +244,15 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
 
         // ANZ -->
         "interpolation" to MPV.mpvFormat.MPV_FORMAT_FLAG,
+        "display-sync-active" to MPV.mpvFormat.MPV_FORMAT_FLAG,
         "video-sync" to MPV.mpvFormat.MPV_FORMAT_STRING,
         "tscale" to MPV.mpvFormat.MPV_FORMAT_STRING,
         "display-fps" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
-        "override-display-fps" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
+        "display-fps-override" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
         "estimated-display-fps" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
         "vo-delayed-frame-count" to MPV.mpvFormat.MPV_FORMAT_INT64,
         "mistime" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
-        "gpu-dumb-mode" to MPV.mpvFormat.MPV_FORMAT_FLAG,
+        "gpu-dumb-mode" to MPV.mpvFormat.MPV_FORMAT_STRING,
         "current-vo" to MPV.mpvFormat.MPV_FORMAT_STRING,
         // ANZ <--
 

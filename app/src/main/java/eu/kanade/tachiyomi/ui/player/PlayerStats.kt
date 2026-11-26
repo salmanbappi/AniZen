@@ -36,6 +36,8 @@ object PlayerStats {
     // ANZ -->
     val currentVo = MutableStateFlow("")
     val gpuDumbMode = MutableStateFlow(false)
+    val displaySyncActive = MutableStateFlow(false)
+    val interpolationPassActive = MutableStateFlow(false)
     // ANZ <--
 
     fun reset() {
@@ -66,6 +68,8 @@ object PlayerStats {
         // ANZ -->
         currentVo.value = ""
         gpuDumbMode.value = false
+        displaySyncActive.value = false
+        interpolationPassActive.value = false
         // ANZ <--
     }
 }

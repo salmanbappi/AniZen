@@ -9,6 +9,8 @@ import android.view.Display
 import android.view.WindowManager
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -82,54 +84,104 @@ fun Context.isNavigationBarNeedsScrim(): Boolean {
         InternalResourceHelper.getBoolean(this, "config_navBarNeedsScrim", true)
 }
 
+// ANZ -->
+private const val DEFAULT_REFRESH_RATE_HZ = 60f
+
+private fun Context.resolveDisplay(): Display? {
+    val activity = findActivity()
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        activity?.let { runCatching { it.display }.getOrNull() }
+            ?: runCatching { display }.getOrNull()
+            ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+    } else {
+        val windowManager = activity?.windowManager ?: getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        @Suppress("DEPRECATION")
+        windowManager?.defaultDisplay
+    }
+}
+
+private fun Display.sameResolutionModes(): List<Display.Mode> {
+    val modes = supportedModes?.toList().orEmpty()
+    if (modes.isEmpty()) return emptyList()
+    val currentMode = mode
+    val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
+    val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
+    return modes.filter {
+        maxOf(it.physicalWidth, it.physicalHeight) == maxDim &&
+            minOf(it.physicalWidth, it.physicalHeight) == minDim
+    }.ifEmpty { modes }
+}
+
+private fun Activity.applyDisplayMode(mode: Display.Mode) {
+    val currentWindow = window ?: return
+    val params = currentWindow.attributes
+    var updated = false
+    if (params.preferredDisplayModeId != mode.modeId) {
+        params.preferredDisplayModeId = mode.modeId
+        updated = true
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
+        params.preferredRefreshRate = mode.refreshRate
+        updated = true
+    }
+    if (updated) {
+        currentWindow.attributes = params
+    }
+}
+
+/**
+ * Returns distinct supported display refresh rates (rounded to nearest integer Hz, sorted ascending)
+ * matching the current display resolution.
+ */
+fun Context.getSupportedRefreshRates(): List<Int> {
+    return try {
+        val modes = resolveDisplay()?.sameResolutionModes().orEmpty()
+        modes.map { it.refreshRate.roundToInt() }
+            .filter { it > 0 }
+            .distinct()
+            .sorted()
+            .ifEmpty { listOf(getDisplayRefreshRate().roundToInt()) }
+    } catch (_: Exception) {
+        listOf(DEFAULT_REFRESH_RATE_HZ.roundToInt())
+    }
+}
+
+/**
+ * Switches the window to the display mode matching [targetFps] (or the highest supported mode
+ * when [targetFps] <= 0) and returns that mode's refresh rate in Hz.
+ */
+fun Activity.setTargetRefreshRate(targetFps: Int): Float {
+    return try {
+        val display = resolveDisplay() ?: return DEFAULT_REFRESH_RATE_HZ
+        val sameResModes = display.sameResolutionModes()
+        val chosenMode = if (targetFps <= 0) {
+            sameResModes.maxByOrNull { it.refreshRate }
+                ?: display.supportedModes?.maxByOrNull { it.refreshRate }
+        } else {
+            sameResModes.minByOrNull { abs(it.refreshRate - targetFps.toFloat()) }
+                ?: display.supportedModes?.minByOrNull { abs(it.refreshRate - targetFps.toFloat()) }
+        }
+        if (chosenMode != null) {
+            applyDisplayMode(chosenMode)
+            chosenMode.refreshRate
+        } else {
+            getDisplayRefreshRate()
+        }
+    } catch (_: Exception) {
+        getDisplayRefreshRate()
+    }
+}
+// ANZ <--
+
 /**
  * Enables the highest supported refresh rate mode for the window.
  * Ensures 90Hz / 120Hz / 144Hz displays run at peak fluidity immediately
  * upon launching the app, preventing the initial 60Hz scroll lag.
  */
 fun Activity.enableHighRefreshRate() {
-    try {
-        val window = window ?: return
-        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            display ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
-        } else {
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay
-        } ?: return
-
-        val supportedModes = display.supportedModes ?: return
-        if (supportedModes.isEmpty()) return
-
-        val currentMode = display.mode
-        val maxDim = maxOf(currentMode.physicalWidth, currentMode.physicalHeight)
-        val minDim = minOf(currentMode.physicalWidth, currentMode.physicalHeight)
-        val sameResModes = supportedModes.filter {
-            val modeMax = maxOf(it.physicalWidth, it.physicalHeight)
-            val modeMin = minOf(it.physicalWidth, it.physicalHeight)
-            modeMax == maxDim && modeMin == minDim
-        }.ifEmpty { supportedModes.toList() }
-
-        val highestRefreshRateMode = sameResModes.maxByOrNull { it.refreshRate }
-            ?: supportedModes.maxByOrNull { it.refreshRate }
-
-        highestRefreshRateMode?.let { mode ->
-            val params = window.attributes
-            var updated = false
-            if (params.preferredDisplayModeId != mode.modeId) {
-                params.preferredDisplayModeId = mode.modeId
-                updated = true
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && params.preferredRefreshRate != mode.refreshRate) {
-                params.preferredRefreshRate = mode.refreshRate
-                updated = true
-            }
-            if (updated) {
-                window.attributes = params
-            }
-        }
-    } catch (_: Exception) {
-        // Gracefully ignore on devices that do not permit display mode switching
-    }
+    // ANZ -->
+    setTargetRefreshRate(0)
+    // ANZ <--
 }
 
 /**
@@ -137,19 +189,11 @@ fun Activity.enableHighRefreshRate() {
  */
 fun Context.getDisplayRefreshRate(): Float {
     return try {
-        val activity = findActivity()
-        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            activity?.display
-                ?: display
-                ?: (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
-        } else {
-            val windowManager = activity?.windowManager ?: getSystemService(Context.WINDOW_SERVICE) as? WindowManager
-            @Suppress("DEPRECATION")
-            windowManager?.defaultDisplay
-        }
-        display?.refreshRate?.takeIf { it > 0f } ?: 60f
+        // ANZ -->
+        resolveDisplay()?.refreshRate?.takeIf { it > 0f } ?: DEFAULT_REFRESH_RATE_HZ
+        // ANZ <--
     } catch (_: Exception) {
-        60f
+        DEFAULT_REFRESH_RATE_HZ // ANZ
     }
 }
 
