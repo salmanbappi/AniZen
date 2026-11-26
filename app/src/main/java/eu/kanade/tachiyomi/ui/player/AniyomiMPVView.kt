@@ -34,6 +34,7 @@ import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitleAssOverride
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
+import eu.kanade.tachiyomi.util.system.findActivity
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPV
@@ -60,14 +61,20 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         pendingSurfaceFrameRate = targetFps
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val currentSurface = holder?.surface?.takeIf { it.isValid } ?: return
-        val compatibility = if (targetFps > 0f) {
-            Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE
-        } else {
-            Surface.FRAME_RATE_COMPATIBILITY_DEFAULT
-        }
         val normalized = if (targetFps > 0f) targetFps else 0f
         runCatching {
-            currentSurface.setFrameRate(normalized, compatibility)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                currentSurface.setFrameRate(
+                    normalized,
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                    Surface.CHANGE_FRAME_RATE_ALWAYS,
+                )
+            } else {
+                currentSurface.setFrameRate(
+                    normalized,
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                )
+            }
         }
     }
 
@@ -75,6 +82,9 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet?) : BaseMPVView(
         super.surfaceCreated(holder)
         pendingSurfaceFrameRate?.let { applySurfaceFrameRate(it) }
         syncInterpolationDisplayFps(mpv, decoderPreferences, context)
+        if (decoderPreferences.smoothMotion().get()) {
+            (context.findActivity() as? PlayerActivity)?.scheduleDisplayFpsResync()
+        }
     }
     // ANZ <--
 

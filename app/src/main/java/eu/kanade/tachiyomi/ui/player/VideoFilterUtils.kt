@@ -167,7 +167,9 @@ fun syncInterpolationDisplayFps(mpv: MPV?, prefs: DecoderPreferences, context: C
     if (mpv == null) return
     if (prefs.smoothMotion().get()) {
         val activeDisplayFps = context?.getDisplayRefreshRate()?.toDouble() ?: return
-        mpv.setPropertyDouble("display-fps-override", activeDisplayFps)
+        if (mpv.getPropertyDouble("display-fps-override") != activeDisplayFps) {
+            mpv.setPropertyDouble("display-fps-override", activeDisplayFps)
+        }
     } else {
         mpv.setPropertyDouble("display-fps-override", 0.0)
     }
@@ -201,7 +203,9 @@ fun applyInterpolation(
         mpv?.setPropertyString("correct-pts", "yes")
         mpv?.setPropertyString("interpolation", "yes")
         syncInterpolationDisplayFps(mpv, prefs, context)
+        (activity as? PlayerActivity)?.scheduleDisplayFpsResync()
     } else {
+        (activity as? PlayerActivity)?.cancelDisplayFpsResync()
         if (prefs.tryHWDecoding().get() && mpv?.getPropertyString("hwdec") != "no") {
             mpv?.setPropertyString("hwdec", "mediacodec")
         }

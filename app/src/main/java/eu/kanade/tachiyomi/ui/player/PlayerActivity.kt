@@ -123,6 +123,13 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.time.Duration.Companion.milliseconds
 
+// ANZ -->
+private const val DISPLAY_RESYNC_FAST_MS = 60L
+private const val DISPLAY_RESYNC_MEDIUM_MS = 200L
+private const val DISPLAY_RESYNC_SLOW_MS = 500L
+private const val DISPLAY_RESYNC_SETTLE_MS = 1200L
+// ANZ <--
+
 class PlayerActivity : BaseActivity() {
     // ANZ -->
     private var httpServer: HttpServer? = null
@@ -146,7 +153,26 @@ class PlayerActivity : BaseActivity() {
     // ANZ -->
     private val decoderPreferences: DecoderPreferences = Injekt.get()
     private val displayManager by lazy { getSystemService(DISPLAY_SERVICE) as? DisplayManager }
+    private val displaySyncHandler = Handler(Looper.getMainLooper())
     private var isDisplayListenerRegistered = false
+
+    private val displayResyncRunnable = Runnable {
+        if (!isDestroyed && !isFinishing && !player.isExiting && decoderPreferences.smoothMotion().get()) {
+            syncInterpolationDisplayFps(mpv, decoderPreferences, this)
+        }
+    }
+
+    internal fun scheduleDisplayFpsResync() {
+        displaySyncHandler.removeCallbacks(displayResyncRunnable)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_FAST_MS)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_MEDIUM_MS)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_SLOW_MS)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_SETTLE_MS)
+    }
+
+    internal fun cancelDisplayFpsResync() {
+        displaySyncHandler.removeCallbacks(displayResyncRunnable)
+    }
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = Unit
@@ -167,7 +193,7 @@ class PlayerActivity : BaseActivity() {
 
     private fun registerDisplayListener() {
         if (isDisplayListenerRegistered) return
-        displayManager?.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+        displayManager?.registerDisplayListener(displayListener, displaySyncHandler)
         isDisplayListenerRegistered = true
     }
 
@@ -493,6 +519,7 @@ class PlayerActivity : BaseActivity() {
         // <-- AM (DISCORD)
 
         // ANZ -->
+        cancelDisplayFpsResync()
         unregisterDisplayListener()
         resetRefreshRate()
         pipReceiver?.let {
@@ -580,6 +607,7 @@ class PlayerActivity : BaseActivity() {
         // ANZ <--
 
         // ANZ -->
+        cancelDisplayFpsResync()
         unregisterDisplayListener()
         // ANZ <--
 
@@ -622,6 +650,16 @@ class PlayerActivity : BaseActivity() {
         finish()
         // ANK <--
     }
+
+    // ANZ -->
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !player.isExiting && decoderPreferences.smoothMotion().get()) {
+            syncInterpolationDisplayFps(mpv, decoderPreferences, this)
+            scheduleDisplayFpsResync()
+        }
+    }
+    // ANZ <--
 
     override fun onStart() {
         super.onStart()
