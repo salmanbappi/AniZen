@@ -5,10 +5,6 @@ import eu.kanade.tachiyomi.ui.player.PlayerEfficiency
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
-// ANZ -->
-private const val DEFAULT_INTERPOLATION_FPS_LIMIT = 60
-// ANZ <--
-
 class DecoderPreferences(
     private val preferenceStore: PreferenceStore,
 ) {
@@ -20,14 +16,7 @@ class DecoderPreferences(
     fun highQualityScaling() = preferenceStore.getBoolean("pref_high_quality_scaling", false)
     fun smoothMotion() = preferenceStore.getBoolean("pref_smooth_motion", false)
     fun interpolationMode() = preferenceStore.getEnum("pref_interpolation_mode", InterpolationMode.Oversample)
-
-    // ANZ -->
-    fun interpolationFPSLimit() = preferenceStore.getInt(
-        "pref_interpolation_fps_limit_int",
-        DEFAULT_INTERPOLATION_FPS_LIMIT,
-    )
-
-    // ANZ <--
+    fun interpolationFPSLimit() = preferenceStore.getInt("pref_interpolation_fps_limit_int", 0)
     fun adaptiveShaderScaling() = preferenceStore.getBoolean("pref_adaptive_shader_scaling", false)
 
     fun enableAnime4K() = preferenceStore.getBoolean("pref_enable_anime4k", false)

@@ -12,6 +12,7 @@ import eu.kanade.domain.ui.model.TabletUiMode
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private const val TABLET_UI_REQUIRED_SCREEN_WIDTH_DP = 720
 
@@ -85,6 +86,8 @@ fun Context.isNavigationBarNeedsScrim(): Boolean {
 
 // ANZ -->
 private const val DEFAULT_REFRESH_RATE_HZ = 60f
+private const val MIN_AUTO_REFRESH_RATE_HZ = 59f
+private const val MIN_SUPPORTED_CHIP_FPS = 59
 
 private fun Context.resolveDisplay(): Display? {
     val activity = findActivity()
@@ -129,16 +132,41 @@ private fun Activity.applyDisplayMode(mode: Display.Mode) {
 }
 
 /**
- * Switches the window to the display mode matching [targetFps] (defaulting to 60Hz when
- * [targetFps] <= 0) and returns that mode's refresh rate in Hz.
+ * Returns distinct supported display refresh rates (rounded to nearest integer Hz, sorted ascending)
+ * matching the current display resolution.
+ */
+fun Context.getSupportedRefreshRates(): List<Int> {
+    return try {
+        val modes = resolveDisplay()?.sameResolutionModes().orEmpty()
+        val allRates = modes.map { it.refreshRate.roundToInt() }
+            .filter { it > 0 }
+            .distinct()
+            .sorted()
+        allRates.filter { it >= MIN_SUPPORTED_CHIP_FPS }
+            .ifEmpty { allRates }
+            .ifEmpty { listOf(getDisplayRefreshRate().roundToInt()) }
+    } catch (_: Exception) {
+        listOf(DEFAULT_REFRESH_RATE_HZ.roundToInt())
+    }
+}
+
+/**
+ * Switches the window to the display mode matching [targetFps] (or the lowest usable mode >= 60Hz
+ * when [targetFps] <= 0) and returns that mode's refresh rate in Hz.
  */
 fun Activity.setTargetRefreshRate(targetFps: Int): Float {
     return try {
         val display = resolveDisplay() ?: return DEFAULT_REFRESH_RATE_HZ
         val sameResModes = display.sameResolutionModes()
-        val desiredHz = if (targetFps <= 0) DEFAULT_REFRESH_RATE_HZ else targetFps.toFloat()
-        val chosenMode = sameResModes.minByOrNull { abs(it.refreshRate - desiredHz) }
-            ?: display.supportedModes?.minByOrNull { abs(it.refreshRate - desiredHz) }
+        val chosenMode = if (targetFps <= 0) {
+            sameResModes.filter { it.refreshRate >= MIN_AUTO_REFRESH_RATE_HZ }
+                .minByOrNull { it.refreshRate }
+                ?: sameResModes.minByOrNull { it.refreshRate }
+                ?: display.supportedModes?.minByOrNull { it.refreshRate }
+        } else {
+            sameResModes.minByOrNull { abs(it.refreshRate - targetFps.toFloat()) }
+                ?: display.supportedModes?.minByOrNull { abs(it.refreshRate - targetFps.toFloat()) }
+        }
         if (chosenMode != null) {
             applyDisplayMode(chosenMode)
             chosenMode.refreshRate
