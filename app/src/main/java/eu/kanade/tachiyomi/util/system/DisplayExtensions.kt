@@ -9,10 +9,10 @@ import android.view.Display
 import android.view.WindowManager
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private const val TABLET_UI_REQUIRED_SCREEN_WIDTH_DP = 720
 
