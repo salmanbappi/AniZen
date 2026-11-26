@@ -23,12 +23,6 @@ class ExtensionRepoRepositoryImpl(
         return handler.awaitOneOrNull { extension_reposQueries.findOne(baseUrl, ::mapExtensionRepo) }
     }
 
-    override suspend fun getRepoBySigningKeyFingerprint(fingerprint: String): ExtensionRepo? {
-        return handler.awaitOneOrNull {
-            extension_reposQueries.findOneBySigningKeyFingerprint(fingerprint, ::mapExtensionRepo)
-        }
-    }
-
     override fun getCount(): Flow<Int> {
         return handler.subscribeToOne { extension_reposQueries.count() }.map { it.toInt() }
     }
@@ -109,23 +103,40 @@ class ExtensionRepoRepositoryImpl(
         }
     }
 
-    override suspend fun replaceRepo(newRepo: ExtensionRepo) {
-        handler.await {
-            extension_reposQueries.replace(
-                newRepo.baseUrl,
-                newRepo.name,
-                newRepo.shortName,
-                newRepo.website,
-                newRepo.signingKeyFingerprint,
-                newRepo.isVisible,
-                newRepo.author,
-                newRepo.discord,
-                newRepo.icon,
-                // ANZ -->
-                newRepo.isLegacy,
-                newRepo.extensionListUrl,
-                // ANZ <--
-            )
+    override suspend fun updateRepo(oldBaseUrl: String, newRepo: ExtensionRepo) {
+        updateRepos(listOf(oldBaseUrl to newRepo))
+    }
+
+    override suspend fun updateRepos(updates: List<Pair<String, ExtensionRepo>>) {
+        if (updates.isEmpty()) return
+        try {
+            handler.await(inTransaction = true) {
+                for ((oldBaseUrl, newRepo) in updates) {
+                    if (!extension_reposQueries.contains(oldBaseUrl).executeAsOne()) {
+                        continue
+                    }
+                    extension_reposQueries.upsert(
+                        newRepo.baseUrl,
+                        newRepo.name,
+                        newRepo.shortName,
+                        newRepo.website,
+                        newRepo.signingKeyFingerprint,
+                        newRepo.isVisible,
+                        newRepo.author,
+                        newRepo.discord,
+                        newRepo.icon,
+                        // ANZ -->
+                        newRepo.isLegacy,
+                        newRepo.extensionListUrl,
+                        // ANZ <--
+                    )
+                    if (oldBaseUrl != newRepo.baseUrl) {
+                        extension_reposQueries.delete(oldBaseUrl)
+                    }
+                }
+            }
+        } catch (ex: SQLiteException) {
+            throw SaveExtensionRepoException(ex)
         }
     }
 

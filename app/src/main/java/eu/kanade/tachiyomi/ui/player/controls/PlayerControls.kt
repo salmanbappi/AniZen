@@ -24,10 +24,8 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -447,10 +445,18 @@ fun PlayerControls(
                         !areControlsLocked &&
                         !isLongPressing &&
                         (skipIntroButton != null || (actionButton != null && customButtonTitle.isNotEmpty())),
-                    enter = fadeIn(playerControlsEnterAnimationSpec()) +
-                        expandVertically(expandFrom = Alignment.Bottom),
-                    exit = fadeOut(playerControlsExitAnimationSpec()) +
-                        shrinkVertically(shrinkTowards = Alignment.Bottom),
+                    enter = if (!reduceMotion) {
+                        slideInVertically(playerControlsEnterAnimationSpec()) { it } +
+                            fadeIn(playerControlsEnterAnimationSpec())
+                    } else {
+                        fadeIn(playerControlsEnterAnimationSpec())
+                    },
+                    exit = if (!reduceMotion) {
+                        slideOutVertically(playerControlsExitAnimationSpec()) { it } +
+                            fadeOut(playerControlsExitAnimationSpec())
+                    } else {
+                        fadeOut(playerControlsExitAnimationSpec())
+                    },
                     modifier = Modifier.constrainAs(skipButton) {
                         end.linkTo(seekbar.end, pillEndInset)
                         bottom.linkTo(seekbar.top, spacing.extraSmall)
@@ -500,7 +506,6 @@ fun PlayerControls(
                     val position by viewModel.pos.collectAsState()
                     val currentPosition = (position ?: 0).toFloat()
 
-                    var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
                     var scrubbingPosition by remember { mutableStateOf<Float?>(null) }
 
                     val displayPosition = scrubbingPosition ?: if (isSeekingUI) seekPosition else currentPosition
@@ -511,23 +516,16 @@ fun PlayerControls(
                         readAheadValue = readAhead ?: 0f,
                         onValueChange = { newPos ->
                             if (scrubbingPosition == null) {
-                                wasPlayerAlreadyPause = viewModel.paused.value == true
-                                viewModel.pause()
                                 viewModel.updateIsSeeking(true)
                             }
                             scrubbingPosition = newPos
                             viewModel.updateSeekPos(newPos)
-                            viewModel.scrubSeekTo(newPos.toInt(), false)
                         },
                         onValueChangeFinished = {
                             val target = scrubbingPosition ?: currentPosition
                             scrubbingPosition = null
-                            viewModel.updateSeekPos(target)
                             viewModel.updateIsSeeking(false)
                             viewModel.seekTo(target.toInt(), preciseSeeking)
-                            if (!wasPlayerAlreadyPause) {
-                                viewModel.unpause()
-                            }
                         },
                         timersInverted = Pair(false, invertDuration),
                         durationTimerOnCLick = { playerPreferences.invertDuration().set(!invertDuration) },

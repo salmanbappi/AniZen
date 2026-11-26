@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.extension.model.Extension
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import mihon.domain.extensionrepo.model.normalizeSigningKey
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
 
 class GetExtensionsByType(
@@ -47,14 +48,24 @@ class GetExtensionsByType(
             val untrusted = _untrusted
                 .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
 
-            val hiddenRepos = repos.filter { !it.isVisible }.map { it.baseUrl.removeSuffix("/") }
+            val hiddenRepos = repos
+                .filter { !it.isVisible }
+                .mapTo(HashSet()) { it.baseUrl.substringBefore("/index.min.json").removeSuffix("/") }
 
             val available = _available
                 .filter { extension ->
-                    _installed.none { it.pkgName == extension.pkgName && it.author == extension.author } &&
-                        _untrusted.none { it.pkgName == extension.pkgName && it.author == extension.author } &&
+                    val extKey = normalizeSigningKey(extension.signingKeyFingerprint)
+                    val extRepoUrl = extension.repoUrl.substringBefore("/index.min.json").removeSuffix("/")
+                    _installed.none {
+                        it.pkgName == extension.pkgName &&
+                            it.signatures.any { sig -> normalizeSigningKey(sig) == extKey }
+                    } &&
+                        _untrusted.none {
+                            it.pkgName == extension.pkgName &&
+                                it.signatures.any { sig -> normalizeSigningKey(sig) == extKey }
+                        } &&
                         contentWarningLevel.allowsDiscovery(extension.contentWarning) &&
-                        hiddenRepos.none { extension.repoUrl.startsWith(it) }
+                        extRepoUrl !in hiddenRepos
                 }
                 .flatMap { ext ->
                     if (ext.sources.isEmpty()) {

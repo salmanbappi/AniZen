@@ -418,7 +418,6 @@ fun GestureHandler(
                     var startingPosition = (viewModel.pos.value ?: 0).toInt()
                     var startingX = down.position.x
                     var startingY = down.position.y
-                    var wasPlayerAlreadyPause = false
                     var dragDirection: Int = 0
                     var initialVolumePercent = 0f
                     var originalBrightness = viewModel.currentBrightness.value
@@ -434,7 +433,6 @@ fun GestureHandler(
                                 viewModel.hideSeekBar()
                                 viewModel.updateIsSeeking(false)
                                 viewModel.seekTo(viewModel.seekPosition.value.coerceIn(0f, totalDuration).toInt(), preciseSeeking)
-                                if (!wasPlayerAlreadyPause) viewModel.unpause()
                             }
                             break
                         }
@@ -445,7 +443,6 @@ fun GestureHandler(
                                 viewModel.hideSeekBar()
                                 viewModel.updateIsSeeking(false)
                                 viewModel.seekTo(viewModel.seekPosition.value.coerceIn(0f, totalDuration).toInt(), preciseSeeking)
-                                if (!wasPlayerAlreadyPause) viewModel.unpause()
                             }
                             break
                         }
@@ -457,9 +454,10 @@ fun GestureHandler(
                                     dragDirection = 1
                                     startingPosition = (viewModel.pos.value ?: 0).toInt()
                                     startingX = pointer.position.x
-                                    wasPlayerAlreadyPause = viewModel.paused.value == true
-                                    viewModel.pause()
+                                    // ANZ -->
+                                    viewModel.updateSeekPos(startingPosition.toFloat())
                                     viewModel.updateIsSeeking(true)
+                                    // ANZ <--
                                 } else if (diffY > diffX && gestureVolumeBrightness) {
                                     dragDirection = 2
                                     startingY = pointer.position.y
@@ -477,8 +475,9 @@ fun GestureHandler(
                             calculateNewHorizontalGestureValue(startingPosition.toFloat(), startingX, pointer.position.x, 0.15f).let {
                                 val targetPos = it.coerceIn(0f, totalDuration)
                                 viewModel.gestureSeekAmount.update { _ -> Pair(startingPosition, (targetPos - startingPosition).toInt()) }
+                                // ANZ -->
                                 viewModel.updateSeekPos(targetPos)
-                                viewModel.scrubSeekTo(targetPos.toInt(), false)
+                                // ANZ <--
                             }
                             if (showSeekbar) viewModel.showSeekBar()
                             pointer.consume()

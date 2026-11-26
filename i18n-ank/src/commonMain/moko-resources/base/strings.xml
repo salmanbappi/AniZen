@@ -265,4 +265,7 @@
     <string name="update_check_skip">Skip this version</string>
     <string name="update_check_skip_title">Skip %s?</string>
     <string name="update_check_skip_message">Updates often contain bug fixes and security improvements. You won\'t be reminded about this version again, but you\'ll still be notified when a newer one is released.</string>
+
+    <!-- Episode Display -->
+    <string name="episode_thumbnail_size">Thumbnail size</string>
 </resources>

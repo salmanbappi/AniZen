@@ -3,6 +3,7 @@ package eu.kanade.domain.extension.interactor
 import android.content.pm.PackageInfo
 import androidx.core.content.pm.PackageInfoCompat
 import eu.kanade.domain.source.service.SourcePreferences
+import mihon.domain.extensionrepo.model.normalizeSigningKey
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
 import tachiyomi.core.common.preference.getAndSet
 
@@ -12,9 +13,11 @@ class TrustExtension(
 ) {
 
     suspend fun isTrusted(pkgInfo: PackageInfo, fingerprints: List<String>): Boolean {
-        val trustedFingerprints = extensionRepoRepository.getAll().map { it.signingKeyFingerprint }.toHashSet()
+        val normalizedFingerprints = fingerprints.mapTo(HashSet()) { normalizeSigningKey(it) }
+        val trustedFingerprints = extensionRepoRepository.getAll()
+            .mapTo(HashSet()) { normalizeSigningKey(it.signingKeyFingerprint) }
         val key = "${pkgInfo.packageName}:${PackageInfoCompat.getLongVersionCode(pkgInfo)}:${fingerprints.last()}"
-        return trustedFingerprints.any { fingerprints.contains(it) } || key in preferences.trustedExtensions().get()
+        return trustedFingerprints.any { it in normalizedFingerprints } || key in preferences.trustedExtensions().get()
     }
 
     fun trust(pkgName: String, versionCode: Long, signatureHash: String) {

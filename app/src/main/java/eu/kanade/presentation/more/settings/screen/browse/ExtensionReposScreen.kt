@@ -9,7 +9,6 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.screen.browse.components.ExtensionRepoConfirmDialog
-import eu.kanade.presentation.more.settings.screen.browse.components.ExtensionRepoConflictDialog
 import eu.kanade.presentation.more.settings.screen.browse.components.ExtensionRepoCreateDialog
 import eu.kanade.presentation.more.settings.screen.browse.components.ExtensionRepoDeleteDialog
 import eu.kanade.presentation.more.settings.screen.browse.components.ExtensionReposScreen
@@ -68,14 +67,6 @@ class ExtensionReposScreen(
                     onDismissRequest = screenModel::dismissDialog,
                     onDelete = { screenModel.deleteRepo(dialog.repo) },
                     repo = dialog.repo,
-                )
-            }
-            is RepoDialog.Conflict -> {
-                ExtensionRepoConflictDialog(
-                    onDismissRequest = screenModel::dismissDialog,
-                    onMigrate = { screenModel.replaceRepo(dialog.newRepo) },
-                    oldRepo = dialog.oldRepo,
-                    newRepo = dialog.newRepo,
                 )
             }
             is RepoDialog.Confirm -> {

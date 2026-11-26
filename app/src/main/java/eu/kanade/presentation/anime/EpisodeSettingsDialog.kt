@@ -38,12 +38,14 @@ import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.CheckboxItem
 import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.components.RadioItem
+import tachiyomi.presentation.core.components.SliderItem
 import tachiyomi.presentation.core.components.SortItem
 import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.theme.active
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.Locale
 
 @Composable
 fun EpisodeSettingsDialog(
@@ -59,6 +61,9 @@ fun EpisodeSettingsDialog(
     onDisplayModeChanged: (Long) -> Unit,
     onShowPreviewsEnabled: (Long) -> Unit,
     onShowSummariesEnabled: (Long) -> Unit,
+    // ANZ -->
+    onSetThumbnailSize: (Int) -> Unit = {}, // ANZ
+    // ANZ <--
     onSetAsDefault: (applyToExistingAnime: Boolean) -> Unit,
     scanlatorFilterActive: Boolean,
     onScanlatorFilterClicked: () -> Unit,
@@ -127,6 +132,10 @@ fun EpisodeSettingsDialog(
                         onShowPreviewsEnabled = onShowPreviewsEnabled,
                         showSummaries = anime?.showSummaries() ?: true,
                         onShowSummariesEnabled = onShowSummariesEnabled,
+                        // ANZ -->
+                        thumbnailSize = anime?.episodeThumbnailSize ?: 4,
+                        onSetThumbnailSize = onSetThumbnailSize,
+                        // ANZ <--
                     )
                 }
             }
@@ -236,6 +245,10 @@ private fun ColumnScope.DisplayPage(
     onShowPreviewsEnabled: (Long) -> Unit,
     showSummaries: Boolean,
     onShowSummariesEnabled: (Long) -> Unit,
+    // ANZ -->
+    thumbnailSize: Int,
+    onSetThumbnailSize: (Int) -> Unit,
+    // ANZ <--
 ) {
     listOf(
         MR.strings.show_title to Anime.EPISODE_DISPLAY_NAME,
@@ -266,6 +279,17 @@ private fun ColumnScope.DisplayPage(
         checked = showSummaries,
         onClick = { onShowSummariesEnabled(showSummariesFlag) },
     )
+
+    // ANZ -->
+    SliderItem( // ANZ
+        value = thumbnailSize,
+        valueRange = 0 until 10,
+        label = stringResource(AMR.strings.episode_thumbnail_size),
+        valueString = "${String.format(Locale.US, "%.1f", (thumbnailSize + 1) / 5.0)}x",
+        onChange = { onSetThumbnailSize(it) },
+        pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
+    // ANZ <--
 
     val libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences = Injekt.get()
     if (anime != null) {

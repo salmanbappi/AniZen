@@ -236,7 +236,7 @@ class ExtensionsScreenModel(
                 mutableState.update { it.copy(isRefreshing = true) }
             }
             try {
-                extensionManager.findAvailableExtensions()
+                extensionManager.findAvailableExtensions(forceNetwork = isManual)
             } finally {
                 if (isManual) {
                     mutableState.update { it.copy(isRefreshing = false) }

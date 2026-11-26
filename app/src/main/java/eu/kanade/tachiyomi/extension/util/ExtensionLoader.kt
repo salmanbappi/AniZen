@@ -307,12 +307,13 @@ object ExtensionLoader {
             return LoadResult.Error
         } else if (!trustExtension.isTrusted(pkgInfo, signatures)) {
             val extension = Extension.Untrusted(
-                extName,
-                pkgName,
-                versionName,
-                versionCode,
-                libVersion,
-                signatures.last(),
+                name = extName,
+                pkgName = pkgName,
+                versionName = versionName,
+                versionCode = versionCode,
+                libVersion = libVersion,
+                signatureHash = signatures.last(),
+                signatures = signatures,
             )
             logcat(LogPriority.WARN, message = { "Extension $pkgName isn't trusted" })
             return LoadResult.Untrusted(extension)
@@ -455,6 +456,7 @@ object ExtensionLoader {
             icon = appInfo.loadIcon(pkgManager),
             isShared = extensionInfo.isShared,
             signatureHash = signatures.last(),
+            signatures = signatures,
             contentWarning = contentWarning,
         )
         return LoadResult.Success(extension)

@@ -11,8 +11,6 @@ interface ExtensionRepoRepository {
 
     suspend fun getRepo(baseUrl: String): ExtensionRepo?
 
-    suspend fun getRepoBySigningKeyFingerprint(fingerprint: String): ExtensionRepo?
-
     fun getCount(): Flow<Int>
 
     suspend fun insertRepo(
@@ -65,7 +63,9 @@ interface ExtensionRepoRepository {
         )
     }
 
-    suspend fun replaceRepo(newRepo: ExtensionRepo)
+    suspend fun updateRepo(oldBaseUrl: String, newRepo: ExtensionRepo)
+
+    suspend fun updateRepos(updates: List<Pair<String, ExtensionRepo>>)
 
     suspend fun deleteRepo(baseUrl: String)
 

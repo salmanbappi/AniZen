@@ -5,7 +5,7 @@ CREATE TABLE extension_repos (
     name TEXT NOT NULL,
     short_name TEXT,
     website TEXT NOT NULL,
-    signing_key_fingerprint TEXT UNIQUE NOT NULL,
+    signing_key_fingerprint TEXT NOT NULL,
     is_visible INTEGER AS Boolean NOT NULL DEFAULT 1,
     author TEXT,
     discord TEXT,
@@ -14,15 +14,13 @@ CREATE TABLE extension_repos (
     extension_list_url TEXT
 );
 
+contains:
+SELECT EXISTS(SELECT 0 FROM extension_repos WHERE base_url = :base_url);
+
 findOne:
 SELECT *
 FROM extension_repos
 WHERE base_url = :base_url;
-
-findOneBySigningKeyFingerprint:
-SELECT *
-FROM extension_repos
-WHERE signing_key_fingerprint = :fingerprint;
 
 findAll:
 SELECT *
@@ -42,35 +40,16 @@ VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :aut
 ON CONFLICT(base_url)
 DO UPDATE
 SET
-    name = :name,
-    short_name = :short_name,
-    website =: website,
-    signing_key_fingerprint = :fingerprint,
-    is_visible = :is_visible,
-    author = :author,
-    discord = :discord,
-    icon = :icon,
-    is_legacy = :is_legacy,
-    extension_list_url = :extension_list_url
-WHERE base_url = base_url;
-
-replace:
-INSERT INTO extension_repos(base_url, name, short_name, website, signing_key_fingerprint, is_visible, author, discord, icon, is_legacy, extension_list_url)
-VALUES (:base_url, :name, :short_name, :website, :fingerprint, :is_visible, :author, :discord, :icon, :is_legacy, :extension_list_url)
-ON CONFLICT(signing_key_fingerprint)
-DO UPDATE
-SET
-    base_url = :base_url,
-    name = :name,
-    short_name = :short_name,
-    website =: website,
-    is_visible = :is_visible,
-    author = :author,
-    discord = :discord,
-    icon = :icon,
-    is_legacy = :is_legacy,
-    extension_list_url = :extension_list_url
-WHERE signing_key_fingerprint = signing_key_fingerprint;
+    name = excluded.name,
+    short_name = excluded.short_name,
+    website = excluded.website,
+    signing_key_fingerprint = excluded.signing_key_fingerprint,
+    is_visible = excluded.is_visible,
+    author = excluded.author,
+    discord = excluded.discord,
+    icon = excluded.icon,
+    is_legacy = excluded.is_legacy,
+    extension_list_url = excluded.extension_list_url;
 
 delete:
 DELETE FROM extension_repos

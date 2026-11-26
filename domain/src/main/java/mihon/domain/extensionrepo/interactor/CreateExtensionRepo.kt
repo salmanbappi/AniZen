@@ -25,7 +25,7 @@ class CreateExtensionRepo(
             return Result.InvalidUrl
         }
 
-        return service.fetchRepoDetails(trimmed)?.let { insert(it) } ?: Result.InvalidUrl
+        return service.fetchRepoDetails(trimmed, forceNetwork = true)?.let { insert(it) } ?: Result.InvalidUrl
         // ANZ <--
     }
 
@@ -54,30 +54,20 @@ class CreateExtensionRepo(
     }
 
     /**
-     * Error Handler for insert when there are trying to create new repositories
+     * Error handler for insert when trying to create new repositories.
      *
      * SaveExtensionRepoException doesn't provide constraint info in exceptions.
-     * First check if the conflict was on primary key. if so return RepoAlreadyExists
-     * Then check if the conflict was on fingerprint. if so Return DuplicateFingerprint
-     * If neither are found, there was some other Error, and return Result.Error
-     *
-     * @param repo Extension Repo holder for passing to DB/Error Dialog
+     * Check if the conflict was on the primary key (baseUrl); if so, return RepoAlreadyExists.
      */
     private suspend fun handleInsertionError(repo: ExtensionRepo): Result {
         val repoExists = repository.getRepo(repo.baseUrl)
         if (repoExists != null) {
             return Result.RepoAlreadyExists
         }
-        val matchingFingerprintRepo = repository.getRepoBySigningKeyFingerprint(repo.signingKeyFingerprint)
-            ?: repository.getRepoBySigningKeyFingerprint(repo.signingKeyFingerprint.removePrefix("0"))
-        if (matchingFingerprintRepo != null) {
-            return Result.DuplicateFingerprint(matchingFingerprintRepo, repo)
-        }
         return Result.Error
     }
 
     sealed interface Result {
-        data class DuplicateFingerprint(val oldRepo: ExtensionRepo, val newRepo: ExtensionRepo) : Result
         data object InvalidUrl : Result
         data object RepoAlreadyExists : Result
         data object Success : Result

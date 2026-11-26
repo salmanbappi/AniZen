@@ -25,3 +25,9 @@ const val KEIYOUSHI_SIGNATURE = "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e
 
 // SalmanBappi's key
 const val SALMANBAPPI_SIGNATURE = "c7ebe223044970f2f9738f600dc25c180d3ed03994e088aaf5709338c57b93af"
+
+fun normalizeSigningKey(fingerprint: String): String {
+    val trimmed = fingerprint.trim()
+    if (trimmed.isEmpty()) return ""
+    return trimmed.lowercase().padStart(64, '0')
+}

@@ -21,18 +21,27 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
+import mihon.domain.extensionrepo.model.ExtensionRepo
+import mihon.domain.extensionrepo.model.normalizeSigningKey
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * The manager of anime extensions installed as another apk which extend the available sources. It handles
@@ -61,6 +70,11 @@ class ExtensionManager(
      */
     private val api = ExtensionApi()
 
+    private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
+
+    @Volatile
+    private var cachedRepos: List<ExtensionRepo> = emptyList()
+
     /**
      * The installer which installs, updates and uninstalls the anime extensions.
      */
@@ -69,19 +83,18 @@ class ExtensionManager(
     private val iconMap = mutableMapOf<String, Drawable>()
 
     private val repoHostAuthorRegex = """^https://(?:raw\.githubusercontent\.com|codeberg\.org|gitlab\.com)/([^/]+)/.*""".toRegex()
+    private val versionComparator = compareBy<Extension.Available> { it.versionCode }.thenBy { it.libVersion }
 
     private val installedExtensionsMapFlow = MutableStateFlow(emptyMap<String, Extension.Installed>())
+    private val availableExtensionListFlow = MutableStateFlow<List<Extension.Available>>(emptyList())
+
     val installedExtensionsFlow = combine(
         installedExtensionsMapFlow,
         extensionRepoRepository.subscribeAll(),
-    ) { installedMap, repos ->
+        availableExtensionListFlow,
+    ) { installedMap, repos, available ->
         installedMap.values.map { extension ->
-            val extHash = extension.signatureHash
-            val extPadded = extHash.padStart(64, '0')
-            val matchingRepo = repos.find {
-                it.signingKeyFingerprint.equals(extHash, ignoreCase = true) ||
-                    it.signingKeyFingerprint.padStart(64, '0').equals(extPadded, ignoreCase = true)
-            }
+            val matchingRepo = extension.pickRepo(repos, available)
             val author = matchingRepo?.author
                 ?: matchingRepo?.let { repo ->
                     repoHostAuthorRegex.find(repo.baseUrl)?.let { match ->
@@ -89,11 +102,14 @@ class ExtensionManager(
                     } ?: repo.shortName ?: repo.name
                 } ?: extension.author
 
-            extension.copy(author = author)
+            extension.copy(
+                author = author,
+                repoUrl = extension.repoUrl ?: matchingRepo?.baseUrl,
+            )
         }
     }.stateIn(scope, SharingStarted.Lazily, emptyList())
 
-    private val availableExtensionsMapFlow = MutableStateFlow(emptyMap<String, Extension.Available>())
+    private val availableExtensionsMapFlow = MutableStateFlow(emptyMap<Pair<String, String>, Extension.Available>())
     val availableExtensionsFlow = availableExtensionsMapFlow.mapExtensions(scope)
 
     private val untrustedExtensionsMapFlow = MutableStateFlow(emptyMap<String, Extension.Untrusted>())
@@ -102,6 +118,9 @@ class ExtensionManager(
     init {
         scope.launch {
             initAnimeExtensions()
+        }
+        scope.launch {
+            observeRepos()
         }
         ExtensionInstallReceiver(InstallationListener()).register(context)
     }
@@ -174,26 +193,122 @@ class ExtensionManager(
             .filterIsInstance<LoadResult.Untrusted>()
             .associate { it.extension.pkgName to it.extension }
 
+        val currentAvailable = availableExtensionListFlow.value
+        if (currentAvailable.isNotEmpty()) {
+            updatedInstalledAnimeExtensionsStatuses(currentAvailable, cachedRepos)
+        }
+
         _isInitialized.value = true
+    }
+
+    private suspend fun observeRepos() {
+        extensionRepoRepository.subscribeAll()
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { repos ->
+                cachedRepos = repos
+
+                val untrusted = untrustedExtensionsMapFlow.value.values
+                if (untrusted.isNotEmpty()) {
+                    val trustedKeys = repos.mapTo(HashSet()) { normalizeSigningKey(it.signingKeyFingerprint) }
+                    val toPromote = untrusted.filter { ext ->
+                        ext.signatures.any { normalizeSigningKey(it) in trustedKeys }
+                    }
+                    if (toPromote.isNotEmpty()) {
+                        for (ext in toPromote) {
+                            untrustedExtensionsMapFlow.value -= ext.pkgName
+                            when (val result = ExtensionLoader.loadExtensionFromPkgName(context, ext.pkgName)) {
+                                is LoadResult.Success -> registerNewExtension(result.extension.withUpdateCheck())
+                                is LoadResult.Untrusted -> untrustedExtensionsMapFlow.value += result.extension
+                                LoadResult.Error -> Unit
+                            }
+                        }
+                        updatePendingUpdatesCount()
+                    }
+                }
+
+                val currentList = availableExtensionListFlow.value
+                if (currentList.isNotEmpty()) {
+                    val activeRepoUrls = repos.mapTo(HashSet()) {
+                        it.baseUrl.substringBefore("/index.min.json").removeSuffix("/")
+                    }
+                    val filtered = currentList.filter {
+                        it.repoUrl.substringBefore("/index.min.json").removeSuffix("/") in activeRepoUrls
+                    }
+                    if (filtered.size != currentList.size) {
+                        setAvailableExtensions(filtered, repos)
+                    }
+                }
+            }
     }
 
     /**
      * Finds the available anime extensions in the [api] and updates [availableExtensionsMapFlow].
      */
-    suspend fun findAvailableExtensions() {
-        val extensions: List<Extension.Available> = try {
-            api.findExtensions()
+    suspend fun findAvailableExtensions(forceNetwork: Boolean = false) {
+        if (forceNetwork) {
+            try {
+                updateExtensionRepo.awaitAll()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to refresh extension repositories" }
+            }
+        }
+
+        val repos = try {
+            extensionRepoRepository.getAll()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            cachedRepos
+        }
+        cachedRepos = repos
+
+        val extensions: List<Extension.Available>? = try {
+            api.findExtensions(forceNetwork = forceNetwork)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
             withUIContext { context.toast(MR.strings.extension_api_error) }
-            emptyList()
+            null
         }
 
+        if (extensions != null) {
+            setAvailableExtensions(extensions, repos)
+        }
+    }
+
+    private fun setAvailableExtensions(
+        extensions: List<Extension.Available>,
+        repos: List<ExtensionRepo>,
+    ) {
         enableAdditionalSubLanguages(extensions)
 
-        availableExtensionsMapFlow.value = extensions.associateBy { "${it.pkgName}-${it.author}" }
-        updatedInstalledAnimeExtensionsStatuses(extensions)
+        availableExtensionListFlow.value = extensions
+        availableExtensionsMapFlow.value = extensions
+            .groupBy { it.pkgName to normalizeSigningKey(it.signingKeyFingerprint) }
+            .mapValues { (_, listings) -> listings.maxWith(versionComparator) }
+
+        updatedInstalledAnimeExtensionsStatuses(extensions, repos)
         setupAvailableAnimeExtensionsSourcesDataMap(extensions)
+    }
+
+    /**
+     * Refreshes repositories and available extensions, updates installed extension statuses,
+     * and notifies the user if any updates are pending.
+     */
+    suspend fun checkForUpdates(): List<Extension.Installed> {
+        isInitialized.first { it }
+        return withIOContext {
+            findAvailableExtensions(forceNetwork = true)
+            val extensionsWithUpdate = installedExtensionsMapFlow.value.values.filter { it.hasUpdate }
+            if (extensionsWithUpdate.isNotEmpty()) {
+                ExtensionUpdateNotifier(context).promptUpdates(extensionsWithUpdate.map { it.name })
+            }
+            extensionsWithUpdate
+        }
     }
 
     /**
@@ -233,7 +348,26 @@ class ExtensionManager(
      */
     private fun updatedInstalledAnimeExtensionsStatuses(
         availableExtensions: List<Extension.Available>,
+        repos: List<ExtensionRepo> = cachedRepos,
     ) {
+        if (repos.isEmpty()) {
+            val installedExtensionsMap = installedExtensionsMapFlow.value.toMutableMap()
+            var changed = false
+            for ((pkgName, extension) in installedExtensionsMap) {
+                val newExt = extension.copy(hasUpdate = false, isObsolete = false, repoUrl = null)
+                if (newExt != extension) {
+                    installedExtensionsMap[pkgName] = newExt
+                    changed = true
+                }
+            }
+            if (changed) {
+                installedExtensionsMapFlow.value = installedExtensionsMap
+            }
+            availableAnimeExtensionsSourcesData = emptyMap()
+            updatePendingUpdatesCount()
+            return
+        }
+
         if (availableExtensions.isEmpty()) {
             preferences.animeExtensionUpdatesCount().set(0)
             return
@@ -243,17 +377,19 @@ class ExtensionManager(
         var changed = false
 
         for ((pkgName, extension) in installedExtensionsMap) {
-            val availableExt = availableExtensions.find { it.pkgName == pkgName && it.author == extension.author }
-                ?: availableExtensions.find { it.pkgName == pkgName }
+            val availableExt = extension.findListing(availableExtensions)
 
-            if (availableExt == null && !extension.isObsolete) {
-                installedExtensionsMap[pkgName] = extension.copy(isObsolete = true)
-                changed = true
-            } else if (availableExt != null) {
-                val hasUpdate = extension.updateExists(availableExt)
-
+            if (availableExt == null) {
+                val newExt = extension.copy(hasUpdate = false, isObsolete = true)
+                if (newExt != extension) {
+                    installedExtensionsMap[pkgName] = newExt
+                    changed = true
+                }
+            } else {
+                val hasUpdate = availableExt.isUpdateFor(extension)
                 val newExt = extension.copy(
                     hasUpdate = hasUpdate,
+                    isObsolete = false,
                     repoUrl = availableExt.repoUrl,
                 )
 
@@ -289,9 +425,7 @@ class ExtensionManager(
      * @param extension The anime extension to be updated.
      */
     fun updateExtension(extension: Extension.Installed): Flow<InstallStep> {
-        val availableExt = availableExtensionsMapFlow.value["${extension.pkgName}-${extension.author}"]
-            ?: availableExtensionsMapFlow.value.values.find { it.pkgName == extension.pkgName }
-            ?: return emptyFlow()
+        val availableExt = extension.findListing(availableExtensionListFlow.value) ?: return emptyFlow()
         return installExtension(availableExt)
     }
 
@@ -336,7 +470,10 @@ class ExtensionManager(
 
         ExtensionLoader.loadExtensionFromPkgName(context, extension.pkgName)
             .let { it as? LoadResult.Success }
-            ?.let { registerNewExtension(it.extension) }
+            ?.let {
+                registerNewExtension(it.extension.withUpdateCheck())
+                updatePendingUpdatesCount()
+            }
     }
 
     /**
@@ -405,21 +542,35 @@ class ExtensionManager(
      * Extension method to set the update field of an installed anime extension.
      */
     private fun Extension.Installed.withUpdateCheck(): Extension.Installed {
-        return if (updateExists()) {
-            copy(hasUpdate = true)
-        } else {
-            this
-        }
+        val available = availableExtensionListFlow.value
+        if (available.isEmpty()) return this
+        val availableExt = findListing(available)
+            ?: return copy(hasUpdate = false, isObsolete = true)
+        return copy(
+            hasUpdate = availableExt.isUpdateFor(this),
+            isObsolete = false,
+            repoUrl = availableExt.repoUrl,
+        )
     }
 
-    private fun Extension.Installed.updateExists(
-        availableExtension: Extension.Available? = null,
-    ): Boolean {
-        val availableExt = availableExtension
-            ?: availableExtensionsMapFlow.value[pkgName]
-            ?: return false
+    private fun Extension.Installed.pickRepo(
+        repos: List<ExtensionRepo>,
+        available: List<Extension.Available>,
+    ): ExtensionRepo? {
+        val normalizedSignatures = signatures.mapTo(HashSet()) { normalizeSigningKey(it) }
+        val signingRepos = repos.filter {
+            normalizeSigningKey(it.signingKeyFingerprint) in normalizedSignatures
+        }
+        if (signingRepos.isEmpty()) return null
 
-        return (availableExt.versionCode > versionCode || availableExt.libVersion > libVersion)
+        val availableRepoUrls = available
+            .asSequence()
+            .filter { it.pkgName == pkgName }
+            .mapTo(HashSet()) { it.repoUrl }
+
+        return signingRepos.firstOrNull { it.baseUrl == repoUrl }
+            ?: signingRepos.firstOrNull { it.baseUrl in availableRepoUrls }
+            ?: signingRepos.firstOrNull()
     }
 
     private fun updatePendingUpdatesCount() {
@@ -432,7 +583,7 @@ class ExtensionManager(
 
     private operator fun <T : Extension> Map<String, T>.plus(extension: T) = plus(extension.pkgName to extension)
 
-    private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensions(
+    private fun <K, T : Extension> StateFlow<Map<K, T>>.mapExtensions(
         scope: CoroutineScope,
     ): StateFlow<List<T>> {
         return map { it.values.toList() }.stateIn(scope, SharingStarted.Lazily, value.values.toList())

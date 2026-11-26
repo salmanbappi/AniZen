@@ -74,6 +74,18 @@ class SetAnimeEpisodeFlags(
         )
     }
 
+    // ANZ -->
+    suspend fun awaitSetThumbnailSize(anime: Anime, size: Int): Boolean { // ANZ
+        val flag = (size + 1).toLong() shl Anime.EPISODE_THUMBNAIL_SIZE_BIT_OFFSET
+        return animeRepository.update(
+            AnimeUpdate(
+                id = anime.id,
+                episodeFlags = anime.episodeFlags.setFlag(flag, Anime.EPISODE_THUMBNAIL_SIZE_MASK),
+            ),
+        )
+    }
+    // ANZ <--
+
     suspend fun awaitSetSeasonGrouping(manga: Anime, enabled: Boolean): Boolean {
         val flag = if (enabled) {
             // Default to Tabs if enabled via this simple toggle (legacy support)
@@ -132,6 +144,9 @@ class SetAnimeEpisodeFlags(
         seasonGrouping: Long,
         showPreviews: Long,
         showSummaries: Long,
+        // ANZ -->
+        thumbnailSize: Int = 4,
+        // ANZ <--
     ): Boolean {
         return animeRepository.update(
             AnimeUpdate(
@@ -147,7 +162,13 @@ class SetAnimeEpisodeFlags(
                     .setFlag(displayMode, Anime.EPISODE_DISPLAY_MASK)
                     .setFlag(seasonGrouping, Anime.EPISODE_SEASON_GROUP_MASK)
                     .setFlag(showPreviews, Anime.EPISODE_PREVIEWS_MASK)
-                    .setFlag(showSummaries, Anime.EPISODE_SUMMARIES_MASK),
+                    .setFlag(showSummaries, Anime.EPISODE_SUMMARIES_MASK)
+                    // ANZ -->
+                    .setFlag(
+                        (thumbnailSize + 1).toLong() shl Anime.EPISODE_THUMBNAIL_SIZE_BIT_OFFSET,
+                        Anime.EPISODE_THUMBNAIL_SIZE_MASK,
+                    ),
+                // ANZ <--
             ),
         )
     }
@@ -163,6 +184,9 @@ class SetAnimeEpisodeFlags(
         seasonGrouping: Long,
         showPreviews: Long,
         showSummaries: Long,
+        // ANZ -->
+        thumbnailSize: Int = 4,
+        // ANZ <--
     ) {
         val updates = getFavorites.await().map { anime ->
             AnimeUpdate(
@@ -178,7 +202,13 @@ class SetAnimeEpisodeFlags(
                     .setFlag(displayMode, Anime.EPISODE_DISPLAY_MASK)
                     .setFlag(seasonGrouping, Anime.EPISODE_SEASON_GROUP_MASK)
                     .setFlag(showPreviews, Anime.EPISODE_PREVIEWS_MASK)
-                    .setFlag(showSummaries, Anime.EPISODE_SUMMARIES_MASK),
+                    .setFlag(showSummaries, Anime.EPISODE_SUMMARIES_MASK)
+                    // ANZ -->
+                    .setFlag(
+                        (thumbnailSize + 1).toLong() shl Anime.EPISODE_THUMBNAIL_SIZE_BIT_OFFSET,
+                        Anime.EPISODE_THUMBNAIL_SIZE_MASK,
+                    ),
+                // ANZ <--
             )
         }
         animeRepository.updateAll(updates)
