@@ -177,7 +177,7 @@ fun InterpolationStatsOverlay() {
         val fpsLimitInt = decoderPreferences.interpolationFPSLimit().get()
         val targetLabel = when {
             !isInterpolating -> "Off"
-            fpsLimitInt == 0 -> "Auto (${format.format(osRefreshRate)} Hz)"
+            fpsLimitInt == 0 -> "Auto"
             else -> "$fpsLimitInt Hz"
         }
         StatLine("Target FPS", targetLabel, baseStyle)

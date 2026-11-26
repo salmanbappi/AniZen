@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -58,6 +57,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -88,8 +88,6 @@ import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.settings.InterpolationMode
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
 import eu.kanade.tachiyomi.util.system.findActivity
-import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
-import eu.kanade.tachiyomi.util.system.getSupportedRefreshRates
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.components.material.padding
@@ -97,7 +95,6 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -518,6 +515,8 @@ fun Anime4KCard() {
 }
 
 // ANZ -->
+private const val DEFAULT_INTERPOLATION_MAX_FPS = 144f
+
 @Composable
 fun InterpolationCard() {
     val decoderPreferences = remember { Injekt.get<DecoderPreferences>() }
@@ -588,46 +587,27 @@ fun InterpolationCard() {
                     }
                 }
 
-                Text(
-                    text = stringResource(AMR.strings.pref_interpolation_target_fps),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                val supportedRates = remember(context, smoothMotion) {
-                    context.getSupportedRefreshRates()
-                }
-                val activeRateHz = context.getDisplayRefreshRate().roundToInt()
-                val effectiveTargetRate = if (fpsLimit <= 0) {
-                    0
+                var sliderFps by remember(fpsLimit) { mutableFloatStateOf(fpsLimit.toFloat()) }
+                val sliderText = if (sliderFps.roundToInt() == 0) {
+                    "Auto"
                 } else {
-                    supportedRates.minByOrNull { abs(it - fpsLimit) } ?: 0
+                    "${sliderFps.roundToInt()} FPS"
                 }
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-                ) {
-                    item(key = "vf-interp-fps-auto") {
-                        InputChip(
-                            selected = effectiveTargetRate == 0,
-                            onClick = {
-                                decoderPreferences.interpolationFPSLimit().set(0)
-                                applyInterpolation(mpv, decoderPreferences, context)
-                            },
-                            label = { Text("Auto ($activeRateHz Hz)") },
-                        )
-                    }
-                    items(
-                        items = supportedRates,
-                        key = { "vf-interp-fps-$it" },
-                    ) { rate ->
-                        InputChip(
-                            selected = effectiveTargetRate == rate,
-                            onClick = {
-                                decoderPreferences.interpolationFPSLimit().set(rate)
-                                applyInterpolation(mpv, decoderPreferences, context)
-                            },
-                            label = { Text("$rate FPS") },
-                        )
-                    }
-                }
+
+                SliderItem(
+                    label = stringResource(AMR.strings.pref_interpolation_target_fps),
+                    value = sliderFps,
+                    valueText = sliderText,
+                    onChange = { sliderFps = it },
+                    onValueChangeFinished = {
+                        val chosen = sliderFps.roundToInt()
+                        decoderPreferences.interpolationFPSLimit().set(chosen)
+                        applyInterpolation(mpv, decoderPreferences, context)
+                    },
+                    min = 0f,
+                    max = DEFAULT_INTERPOLATION_MAX_FPS,
+                    steps = 0,
+                )
             }
         }
     }

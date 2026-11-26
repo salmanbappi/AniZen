@@ -12,7 +12,6 @@ import eu.kanade.domain.ui.model.TabletUiMode
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 private const val TABLET_UI_REQUIRED_SCREEN_WIDTH_DP = 720
 
@@ -130,37 +129,16 @@ private fun Activity.applyDisplayMode(mode: Display.Mode) {
 }
 
 /**
- * Returns distinct supported display refresh rates (rounded to nearest integer Hz, sorted ascending)
- * matching the current display resolution.
- */
-fun Context.getSupportedRefreshRates(): List<Int> {
-    return try {
-        val modes = resolveDisplay()?.sameResolutionModes().orEmpty()
-        modes.map { it.refreshRate.roundToInt() }
-            .filter { it > 0 }
-            .distinct()
-            .sorted()
-            .ifEmpty { listOf(getDisplayRefreshRate().roundToInt()) }
-    } catch (_: Exception) {
-        listOf(DEFAULT_REFRESH_RATE_HZ.roundToInt())
-    }
-}
-
-/**
- * Switches the window to the display mode matching [targetFps] (or the highest supported mode
- * when [targetFps] <= 0) and returns that mode's refresh rate in Hz.
+ * Switches the window to the display mode matching [targetFps] (defaulting to 60Hz when
+ * [targetFps] <= 0) and returns that mode's refresh rate in Hz.
  */
 fun Activity.setTargetRefreshRate(targetFps: Int): Float {
     return try {
         val display = resolveDisplay() ?: return DEFAULT_REFRESH_RATE_HZ
         val sameResModes = display.sameResolutionModes()
-        val chosenMode = if (targetFps <= 0) {
-            sameResModes.maxByOrNull { it.refreshRate }
-                ?: display.supportedModes?.maxByOrNull { it.refreshRate }
-        } else {
-            sameResModes.minByOrNull { abs(it.refreshRate - targetFps.toFloat()) }
-                ?: display.supportedModes?.minByOrNull { abs(it.refreshRate - targetFps.toFloat()) }
-        }
+        val desiredHz = if (targetFps <= 0) DEFAULT_REFRESH_RATE_HZ else targetFps.toFloat()
+        val chosenMode = sameResModes.minByOrNull { abs(it.refreshRate - desiredHz) }
+            ?: display.supportedModes?.minByOrNull { abs(it.refreshRate - desiredHz) }
         if (chosenMode != null) {
             applyDisplayMode(chosenMode)
             chosenMode.refreshRate
@@ -179,9 +157,16 @@ fun Activity.setTargetRefreshRate(targetFps: Int): Float {
  * upon launching the app, preventing the initial 60Hz scroll lag.
  */
 fun Activity.enableHighRefreshRate() {
-    // ANZ -->
-    setTargetRefreshRate(0)
-    // ANZ <--
+    try {
+        // ANZ -->
+        val display = resolveDisplay() ?: return
+        val highestRefreshRateMode = display.sameResolutionModes().maxByOrNull { it.refreshRate }
+            ?: display.supportedModes?.maxByOrNull { it.refreshRate }
+        highestRefreshRateMode?.let { applyDisplayMode(it) }
+        // ANZ <--
+    } catch (_: Exception) {
+        // Gracefully ignore on devices that do not permit display mode switching
+    }
 }
 
 /**
