@@ -40,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -61,7 +62,6 @@ import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.Sheets
 import eu.kanade.tachiyomi.ui.player.VideoAspect
 import eu.kanade.tachiyomi.ui.player.cast.components.CastButton
-import eu.kanade.tachiyomi.ui.player.controls.components.AutoPlaySwitch
 import eu.kanade.tachiyomi.ui.player.controls.components.ControlsButton
 import eu.kanade.tachiyomi.ui.player.controls.components.CurrentChapter
 import eu.kanade.tachiyomi.ui.player.getIcon
@@ -80,7 +80,6 @@ fun RenderPlayerButton(
     onCastClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val autoPlayEnabled by viewModel.playerPreferences.autoplayEnabled().collectAsState()
     val isEpisodeOnline by viewModel.isEpisodeOnline.collectAsState()
     val castState by castManager.castState.collectAsState()
     val aspectRatio by viewModel.playerPreferences.aspectState().collectAsState()
@@ -108,14 +107,11 @@ fun RenderPlayerButton(
             )
             // ANZ <--
         }
+        // ANZ --> the autoplay button was removed (never used); autoplay stays off so the next episode never starts alone
         PlayerButton.AutoPlay -> {
-            AutoPlaySwitch(
-                isChecked = autoPlayEnabled,
-                onToggleAutoPlay = { viewModel.setAutoPlay(it) },
-                modifier = Modifier
-                    .padding(vertical = MaterialTheme.padding.medium, horizontal = MaterialTheme.padding.mediumSmall),
-            )
+            LaunchedEffect(Unit) { viewModel.playerPreferences.autoplayEnabled().set(false) }
         }
+        // ANZ <--
         PlayerButton.Cast -> {
             if (viewModel.playerPreferences.enableCast().get()) {
                 CastButton(
