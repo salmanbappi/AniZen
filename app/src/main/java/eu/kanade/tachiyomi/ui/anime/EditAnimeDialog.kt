@@ -321,7 +321,13 @@ private fun resetInfo(anime: Anime, binding: EditAnimeDialogBinding, scope: Coro
     binding.title.setText("")
     binding.mangaAuthor.setText("")
     binding.mangaArtist.setText("")
+    // ANZ -->
+    binding.thumbnailUrl.setText("")
+    // ANZ <--
     binding.mangaDescription.setText("")
+    // ANZ -->
+    binding.status.setSelection(0)
+    // ANZ <--
     resetTags(anime, binding, scope)
 }
 

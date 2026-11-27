@@ -80,10 +80,12 @@ class CustomAnimeRepositoryImpl(context: Context) : CustomAnimeRepository {
 
     private fun saveCustomInfo() {
         val jsonElements = customAnimeMap.values.map { it.toJson() }
+        // ANZ -->
+        editJson.delete()
         if (jsonElements.isNotEmpty()) {
-            editJson.delete()
             editJson.writeText(Json.encodeToString(AnimeList(jsonElements)))
         }
+        // ANZ <--
     }
 
     @Serializable
