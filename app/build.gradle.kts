@@ -51,7 +51,7 @@ android {
         applicationId = "app.anizen"
 
         versionCode = 723
-        versionName = "0.5.223"
+        versionName = "0.6.0"
 
         manifestPlaceholders["author"] = "@salmanbappi"
 

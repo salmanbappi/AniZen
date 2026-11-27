@@ -121,13 +121,13 @@ import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.time.Duration.Companion.milliseconds
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 
 // ANZ -->
 private const val DISPLAY_RESYNC_FAST_MS = 60L
