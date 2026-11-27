@@ -53,7 +53,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -71,7 +73,8 @@ import animiru.feature.mpvfiles.MpvConfig
 import animiru.feature.mpvfiles.MpvConfig.Companion.MPV_DIR
 import com.hippo.unifile.UniFile
 import eu.kanade.domain.connections.service.ConnectionsPreferences
-import eu.kanade.presentation.theme.TachiyomiTheme
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.theme.DynamicTachiyomiTheme
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.HttpServer
@@ -96,6 +99,7 @@ import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
+import eu.kanade.tachiyomi.util.system.CoverColorObserver
 import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.resetRefreshRate
 import eu.kanade.tachiyomi.util.system.toShareIntent
@@ -115,7 +119,9 @@ import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.anime.model.asAnimeCover
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.util.collectAsState as collectAsStatePref
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.Calendar
@@ -433,7 +439,20 @@ class PlayerActivity : BaseActivity() {
         // <-- Cast
 
         setContent {
-            TachiyomiTheme {
+            // ANZ -->
+            val uiPreferences = remember { Injekt.get<UiPreferences>() }
+            val dynamicAnimeTheme by uiPreferences.dynamicAnimeTheme().collectAsStatePref()
+            val dynamicPlayerTheme by uiPreferences.dynamicPlayerTheme().collectAsStatePref()
+            val anime by viewModel.currentAnime.collectAsState()
+            val vibrantColor = remember(anime?.id) {
+                anime?.let { CoverColorObserver.get(it.id) ?: it.asAnimeCover().vibrantCoverColor }
+            }
+            DynamicTachiyomiTheme(
+                animate = false,
+                colorSeed = vibrantColor,
+                enabled = dynamicAnimeTheme && dynamicPlayerTheme,
+            ) {
+                // ANZ <--
                 Box(modifier = Modifier.fillMaxSize()) {
                     AndroidView(
                         factory = { player },
@@ -457,7 +476,9 @@ class PlayerActivity : BaseActivity() {
                         // ANZ <--
                     )
                 }
+                // ANZ -->
             }
+            // ANZ <--
         }
 
         // ANK -->
