@@ -398,11 +398,12 @@ private fun ColumnScope.DisplayPage(
         label = stringResource(MR.strings.action_display_download_badge_anime),
         pref = screenModel.libraryPreferences.downloadBadge(),
     )
-    // ANZ: ported from upstream; the library renderer does not show this badge yet.
+    // ANZ -->
     CheckboxItem(
         label = stringResource(AMR.strings.action_display_unseen_badge),
         pref = screenModel.libraryPreferences.unreadBadge(),
     )
+    // ANZ <--
     CheckboxItem(
         label = stringResource(MR.strings.action_display_local_badge),
         pref = screenModel.libraryPreferences.localBadge(),
