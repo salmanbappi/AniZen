@@ -14,6 +14,9 @@ data class LibraryItem(
     val sourceLanguage: String = "",
     val showSourceIcon: Boolean = false,
     val showLanguageIcon: Boolean = false,
+    // ANZ -->
+    val showUnseenBadge: Boolean = true,
+    // ANZ <--
     val domainSource: tachiyomi.domain.source.model.Source? = null,
 ) {
     private val sourceManager: SourceManager = Injekt.get()

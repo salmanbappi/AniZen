@@ -577,6 +577,7 @@ class LibraryScreenModel(
             libraryPreferences.filterCategories().changes(),
             libraryPreferences.filterCategoriesInclude().changes(),
             libraryPreferences.filterCategoriesExclude().changes(),
+            libraryPreferences.unreadBadge().changes(),
             // ANZ <--
             transform = {
                 ItemPreferences(
@@ -600,6 +601,7 @@ class LibraryScreenModel(
                     filterCategories = it[14] as Boolean,
                     includedCategories = (it[15] as Set<*>).mapNotNull { id -> (id as? String)?.toLongOrNull() }.toSet(),
                     excludedCategories = (it[16] as Set<*>).mapNotNull { id -> (id as? String)?.toLongOrNull() }.toSet(),
+                    unreadBadge = it[17] as Boolean,
                     // ANZ <--
                 )
             },
@@ -656,6 +658,9 @@ class LibraryScreenModel(
                         },
                         showSourceIcon = prefs.showSourceIcon,
                         showLanguageIcon = prefs.showLanguageIcon,
+                        // ANZ -->
+                        showUnseenBadge = prefs.unreadBadge,
+                        // ANZ <--
                         domainSource = sources.find { it.first.id == mangaWithFolder.anime.source }?.first,
                     )
                 }
@@ -1354,6 +1359,7 @@ class LibraryScreenModel(
         val filterCategories: Boolean,
         val includedCategories: Set<Long>,
         val excludedCategories: Set<Long>,
+        val unreadBadge: Boolean,
         // ANZ <--
     )
 

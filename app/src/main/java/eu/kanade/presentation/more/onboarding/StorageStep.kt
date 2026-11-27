@@ -62,40 +62,26 @@ internal class StorageStep : OnboardingStep {
                 ),
             )
 
-            if (!storagePref.isSet()) {
-                Button(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .tvGlowFocusHighlight(),
-                    onClick = {
-                        val storage = folderProvider.directory()
-                        if (!storage.exists()) {
-                            storage.mkdirs()
-                        }
-                        storagePref.set(storagePref.get())
-                    },
-                ) {
-                    Text(stringResource(MR.strings.onboarding_storage_action_create_folder))
-                }
-
-                if (!isTvBox) {
-                    androidx.compose.material3.OutlinedButton(
+            // ANZ -->
+            if (isTvBox) {
+                if (!storagePref.isSet()) {
+                    Button(
                         modifier = Modifier
                             .fillMaxWidth()
                             .tvGlowFocusHighlight(),
                         onClick = {
-                            try {
-                                pickStorageLocation.launch(null)
-                            } catch (e: ActivityNotFoundException) {
-                                context.toast(MR.strings.file_picker_error)
+                            val storage = folderProvider.directory()
+                            if (!storage.exists()) {
+                                storage.mkdirs()
                             }
+                            storagePref.set(storagePref.get())
                         },
                     ) {
-                        Text(stringResource(MR.strings.onboarding_storage_action_select))
+                        Text(stringResource(MR.strings.onboarding_storage_action_create_folder))
                     }
                 }
             } else {
-                androidx.compose.material3.OutlinedButton(
+                Button(
                     modifier = Modifier
                         .fillMaxWidth()
                         .tvGlowFocusHighlight(),
@@ -110,6 +96,7 @@ internal class StorageStep : OnboardingStep {
                     Text(stringResource(MR.strings.onboarding_storage_action_select))
                 }
             }
+            // ANZ <--
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),

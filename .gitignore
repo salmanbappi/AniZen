@@ -37,5 +37,7 @@ CODE_MAP.md
 # Local conductor tracking
 conductor/
 GEMINI.md
+agent.md
+AGENTS.md
 
 .env

@@ -76,7 +76,11 @@ fun LibraryCompactGrid(
                         coverData = anime.asAnimeCover(),
                         coverBadgeStart = {
                             DownloadsBadge(count = libraryItem.downloadCount)
-                            UnviewedBadge(count = libraryItem.unseenCount)
+                            // ANZ -->
+                            if (libraryItem.showUnseenBadge) {
+                                UnviewedBadge(count = libraryItem.unseenCount)
+                            }
+                            // ANZ <--
                         },
                         coverBadgeEnd = {
                             LanguageBadge(

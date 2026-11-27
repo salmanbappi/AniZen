@@ -94,7 +94,11 @@ internal fun LibraryList(
                         ),
                         badge = {
                             DownloadsBadge(count = libraryItem.downloadCount)
-                            UnviewedBadge(count = libraryItem.unseenCount)
+                            // ANZ -->
+                            if (libraryItem.showUnseenBadge) {
+                                UnviewedBadge(count = libraryItem.unseenCount)
+                            }
+                            // ANZ <--
                             LanguageBadge(
                                 isLocal = libraryItem.isLocal,
                                 sourceLanguage = libraryItem.sourceLanguage,

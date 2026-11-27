@@ -20,6 +20,10 @@ package eu.kanade.tachiyomi.ui.player
 import android.content.Context
 import eu.kanade.tachiyomi.ui.player.settings.DecoderPreferences
 import eu.kanade.tachiyomi.ui.player.utils.Anime4KManager
+import eu.kanade.tachiyomi.util.system.findActivity
+import eu.kanade.tachiyomi.util.system.getDisplayRefreshRate
+import eu.kanade.tachiyomi.util.system.resetRefreshRate
+import eu.kanade.tachiyomi.util.system.setTargetRefreshRate
 import `is`.xyz.mpv.MPV
 import logcat.LogPriority
 import logcat.logcat
@@ -58,15 +62,16 @@ fun applyDebandSetting(mpv: MPV?, setting: DebandSettings, value: Int) {
 // ANZ <--
 
 fun buildVFChain(decoderPreferences: DecoderPreferences): String {
-    val filters = mutableListOf<String>() // ANZ
+    // ANZ -->
+    val filters = mutableListOf<String>()
     if (decoderPreferences.useYUV420P().get()) {
         filters.add("format=yuv420p")
     }
-    val fpsLimit = decoderPreferences.interpolationFPSLimit().get()
-    if (decoderPreferences.smoothMotion().get() && fpsLimit > 0) {
-        filters.add("fps=$fpsLimit")
+    if (decoderPreferences.videoDebanding().get() == Debanding.CPU) {
+        filters.add("@deband:gradfun=radius=12")
     }
     return filters.joinToString(",")
+    // ANZ <--
 }
 
 // ANZ -->
@@ -146,35 +151,73 @@ fun applyAnime4K(mpv: MPV?, prefs: DecoderPreferences, manager: Anime4KManager, 
     }
 }
 
-fun applyInterpolation(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
-    val enabled = prefs.smoothMotion().get()
-    if (enabled) {
-        val fpsLimit = prefs.interpolationFPSLimit().get() // ANZ
+// ANZ -->
+fun resolveInterpolationHwdec(prefs: DecoderPreferences): String {
+    if (!prefs.tryHWDecoding().get()) return "no"
+    // vo=gpu renders MediaCodec frames into an internal OpenGL FBO before tscale blending.
+    // vo=gpu-next consumes SurfaceTexture buffers via libplacebo, where copy-back avoids stalls.
+    return if (prefs.smoothMotion().get() && prefs.gpuNext().get()) {
+        "mediacodec-copy"
+    } else {
+        "mediacodec"
+    }
+}
 
-        if (prefs.tryHWDecoding().get()) {
-            val hwdecMode = if (fpsLimit > 0) "mediacodec-copy" else "mediacodec"
-            mpv?.setPropertyString("hwdec", hwdecMode)
+fun syncInterpolationDisplayFps(mpv: MPV?, prefs: DecoderPreferences, context: Context?) {
+    if (mpv == null) return
+    if (prefs.smoothMotion().get()) {
+        val activeDisplayFps = context?.getDisplayRefreshRate()?.toDouble() ?: return
+        if (mpv.getPropertyDouble("display-fps-override") != activeDisplayFps) {
+            mpv.setPropertyDouble("display-fps-override", activeDisplayFps)
+        }
+    } else {
+        mpv.setPropertyDouble("display-fps-override", 0.0)
+    }
+}
+
+fun applyInterpolation(
+    mpv: MPV?,
+    prefs: DecoderPreferences,
+    context: Context?,
+    playerView: AniyomiMPVView? = (context?.findActivity() as? PlayerActivity)?.player,
+) {
+    val enabled = prefs.smoothMotion().get()
+    val activity = context?.findActivity()
+
+    if (enabled) {
+        val fpsLimit = prefs.interpolationFPSLimit().get()
+        val targetHz = activity?.setTargetRefreshRate(fpsLimit) ?: 0f
+        playerView?.applySurfaceFrameRate(targetHz)
+
+        if (prefs.tryHWDecoding().get() && mpv?.getPropertyString("hwdec") != "no") {
+            mpv?.setPropertyString("hwdec", resolveInterpolationHwdec(prefs))
         }
 
         mpv?.setPropertyString("vf", buildVFChain(prefs))
         mpv?.setPropertyString("video-sync", "display-resample")
         mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
         mpv?.setPropertyString("video-sync-max-video-change", "1")
-        mpv?.setPropertyString("interpolation", "yes")
-        mpv?.setPropertyString("interpolation-threshold", "-1")
-        mpv?.setPropertyString("correct-pts", "yes")
         mpv?.setPropertyString("tscale", prefs.interpolationMode().get().value)
+        mpv?.setPropertyString("interpolation-threshold", "-1")
         mpv?.setPropertyString("gpu-dumb-mode", "no")
+        mpv?.setPropertyString("correct-pts", "yes")
+        mpv?.setPropertyString("interpolation", "yes")
+        syncInterpolationDisplayFps(mpv, prefs, context)
+        (activity as? PlayerActivity)?.scheduleDisplayFpsResync()
     } else {
-        if (prefs.tryHWDecoding().get()) {
+        (activity as? PlayerActivity)?.cancelDisplayFpsResync()
+        if (prefs.tryHWDecoding().get() && mpv?.getPropertyString("hwdec") != "no") {
             mpv?.setPropertyString("hwdec", "mediacodec")
         }
         mpv?.setPropertyString("vf", buildVFChain(prefs))
+        mpv?.setPropertyString("interpolation", "no")
         mpv?.setPropertyString("video-sync", "audio")
         mpv?.setPropertyString("video-sync-max-audio-change", "0.125")
         mpv?.setPropertyString("video-sync-max-video-change", "1")
-        mpv?.setPropertyString("interpolation", "no")
         mpv?.setPropertyString("gpu-dumb-mode", "auto")
+        mpv?.setPropertyDouble("display-fps-override", 0.0)
+        playerView?.applySurfaceFrameRate(0f)
+        activity?.resetRefreshRate()
     }
 }
 // ANZ <--

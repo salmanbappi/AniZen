@@ -32,12 +32,15 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
 import android.media.AudioManager
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Rational
 import android.view.KeyEvent
@@ -94,6 +97,7 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.util.system.powerManager
+import eu.kanade.tachiyomi.util.system.resetRefreshRate
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPV
@@ -119,6 +123,13 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.time.Duration.Companion.milliseconds
 
+// ANZ -->
+private const val DISPLAY_RESYNC_FAST_MS = 60L
+private const val DISPLAY_RESYNC_MEDIUM_MS = 200L
+private const val DISPLAY_RESYNC_SLOW_MS = 500L
+private const val DISPLAY_RESYNC_SETTLE_MS = 1200L
+// ANZ <--
+
 class PlayerActivity : BaseActivity() {
     // ANZ -->
     private var httpServer: HttpServer? = null
@@ -141,6 +152,56 @@ class PlayerActivity : BaseActivity() {
 
     // ANZ -->
     private val decoderPreferences: DecoderPreferences = Injekt.get()
+    private val displayManager by lazy { getSystemService(DISPLAY_SERVICE) as? DisplayManager }
+    private val displaySyncHandler = Handler(Looper.getMainLooper())
+    private var isDisplayListenerRegistered = false
+
+    private val displayResyncRunnable = Runnable {
+        if (!isDestroyed && !isFinishing && !player.isExiting && decoderPreferences.smoothMotion().get()) {
+            syncInterpolationDisplayFps(mpv, decoderPreferences, this)
+        }
+    }
+
+    internal fun scheduleDisplayFpsResync() {
+        displaySyncHandler.removeCallbacks(displayResyncRunnable)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_FAST_MS)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_MEDIUM_MS)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_SLOW_MS)
+        displaySyncHandler.postDelayed(displayResyncRunnable, DISPLAY_RESYNC_SETTLE_MS)
+    }
+
+    internal fun cancelDisplayFpsResync() {
+        displaySyncHandler.removeCallbacks(displayResyncRunnable)
+    }
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+            if (isDestroyed || isFinishing) return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val currentDisplayId = runCatching { display?.displayId }.getOrNull()
+                if (currentDisplayId != null && displayId != currentDisplayId) return
+            }
+            if (decoderPreferences.smoothMotion().get()) {
+                syncInterpolationDisplayFps(mpv, decoderPreferences, this@PlayerActivity)
+            }
+        }
+    }
+
+    private fun registerDisplayListener() {
+        if (isDisplayListenerRegistered) return
+        displayManager?.registerDisplayListener(displayListener, displaySyncHandler)
+        isDisplayListenerRegistered = true
+    }
+
+    private fun unregisterDisplayListener() {
+        if (!isDisplayListenerRegistered) return
+        displayManager?.unregisterDisplayListener(displayListener)
+        isDisplayListenerRegistered = false
+    }
     // ANZ <--
 
     // ANK -->
@@ -458,6 +519,9 @@ class PlayerActivity : BaseActivity() {
         // <-- AM (DISCORD)
 
         // ANZ -->
+        cancelDisplayFpsResync()
+        unregisterDisplayListener()
+        resetRefreshRate()
         pipReceiver?.let {
             runCatching { unregisterReceiver(it) }
             pipReceiver = null
@@ -542,6 +606,11 @@ class PlayerActivity : BaseActivity() {
         }
         // ANZ <--
 
+        // ANZ -->
+        cancelDisplayFpsResync()
+        unregisterDisplayListener()
+        // ANZ <--
+
         super.onStop()
     }
 
@@ -582,8 +651,24 @@ class PlayerActivity : BaseActivity() {
         // ANK <--
     }
 
+    // ANZ -->
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !player.isExiting && decoderPreferences.smoothMotion().get()) {
+            syncInterpolationDisplayFps(mpv, decoderPreferences, this)
+            scheduleDisplayFpsResync()
+        }
+    }
+    // ANZ <--
+
     override fun onStart() {
         super.onStart()
+        // ANZ -->
+        registerDisplayListener()
+        if (decoderPreferences.smoothMotion().get()) {
+            applyInterpolation(mpv, decoderPreferences, this, player)
+        }
+        // ANZ <--
         setPictureInPictureParams(createPipParams())
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -756,6 +841,9 @@ class PlayerActivity : BaseActivity() {
             // Restoring instead of applying the stored VideoAspect keeps a custom aspect ratio
             // alive across rotation; applying the preset cleared `video-aspect-override`.
             viewModel.restoreAspectRatio()
+            if (decoderPreferences.smoothMotion().get()) {
+                applyInterpolation(mpv, decoderPreferences, this, player)
+            }
             // ANZ <--
         } else {
             viewModel.hideControls()
@@ -787,7 +875,7 @@ class PlayerActivity : BaseActivity() {
         when (property) {
             "interpolation" -> PlayerStats.isInterpolating.value = value
             // ANZ -->
-            "gpu-dumb-mode" -> PlayerStats.gpuDumbMode.value = value
+            "display-sync-active" -> PlayerStats.displaySyncActive.value = value
             // ANZ <--
             "pause" if value -> {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -814,6 +902,7 @@ class PlayerActivity : BaseActivity() {
             "tscale" -> PlayerStats.tscale.value = value
             // ANZ -->
             "current-vo" -> PlayerStats.currentVo.value = value
+            "gpu-dumb-mode" -> PlayerStats.gpuDumbMode.value = value == "yes"
             // ANZ <--
         }
         when (property.substringBeforeLast("/")) {
@@ -826,7 +915,7 @@ class PlayerActivity : BaseActivity() {
         if (player.isExiting) return
         when (property) {
             // ANZ -->
-            "display-fps" -> if (value > 0.0) PlayerStats.displayFps.value = value
+            "display-fps" -> PlayerStats.displayFps.value = if (value > 0.0) value else 0.0
             "estimated-display-fps" -> PlayerStats.estimatedDisplayFps.value = value
             // ANZ <--
             "mistime" -> PlayerStats.mistime.value = value

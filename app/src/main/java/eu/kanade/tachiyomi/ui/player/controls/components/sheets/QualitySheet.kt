@@ -674,19 +674,21 @@ private fun VideoText(
     noHoster: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    // ANZ -->
     Text(
         text = video.videoTitle,
-        fontStyle = if (selected && !defaultSelected) FontStyle.Italic else FontStyle.Normal,
+        fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
         fontWeight = when {
+            selected -> FontWeight.ExtraBold
             defaultSelected -> FontWeight.Bold
-            selected -> FontWeight.SemiBold
             else -> FontWeight.Normal
         },
         style = MaterialTheme.typography.bodyMedium,
         color = when {
-            defaultSelected -> MaterialTheme.colorScheme.primary
+            selected || defaultSelected -> MaterialTheme.colorScheme.primary
             else -> MaterialTheme.colorScheme.onSurface
         },
         modifier = modifier,
     )
+    // ANZ <--
 }
