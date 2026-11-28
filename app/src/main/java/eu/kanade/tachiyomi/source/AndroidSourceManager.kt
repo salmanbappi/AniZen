@@ -103,7 +103,8 @@ class AndroidSourceManager(
             sourceRepository.subscribeAll()
                 .collectLatest { sources ->
                     // ANZ -->
-                    sources.forEach { // ANZ
+                    sources.forEach {
+                        // ANZ
                         stubSourcesMap[it.id] = it
                     }
                     // ANZ <--

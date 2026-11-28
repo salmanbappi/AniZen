@@ -43,12 +43,14 @@ class StorageManager(
             .distinctUntilChanged()
             .onEach { uri ->
                 // ANZ -->
-                val resolvedBaseDir = synchronized(baseDirLock) { // ANZ
+                val resolvedBaseDir = synchronized(baseDirLock) {
+                    // ANZ
                     childDirectories.clear()
                     getBaseDir(uri).also { baseDir = it }
                 }
                 // ANZ <--
-                resolvedBaseDir?.let { parent -> // ANZ
+                resolvedBaseDir?.let { parent ->
+                    // ANZ
                     parent.createDirectory(AUTOMATIC_BACKUPS_PATH)
                     parent.createDirectory(LOCAL_SOURCE_PATH)
                     parent.createDirectory(DOWNLOADS_PATH).also {
@@ -76,7 +78,8 @@ class StorageManager(
     // ANZ -->
     private fun getOrResolveBaseDir(): UniFile? {
         baseDir?.let { return it }
-        return synchronized(baseDirLock) { // ANZ
+        return synchronized(baseDirLock) {
+            // ANZ
             baseDir ?: getBaseDir(storagePreferences.baseStorageDirectory().get()).also {
                 baseDir = it
             }
@@ -91,7 +94,8 @@ class StorageManager(
                 return cached.second
             }
             parent.createDirectory(name)?.let {
-                synchronized(baseDirLock) { // ANZ
+                synchronized(baseDirLock) {
+                    // ANZ
                     if (baseDir === parent) {
                         childDirectories[name] = parent to it
                     }

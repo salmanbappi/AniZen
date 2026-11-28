@@ -46,7 +46,8 @@ class EpisodeLoader {
             allowDownloaded: Boolean = true,
         ): List<Hoster> {
             // ANZ -->
-            return withIOContext { // ANZ
+            return withIOContext {
+                // ANZ
                 val isDownloaded = allowDownloaded && isDownload(episode, anime, skipCache = true)
                 when {
                     isDownloaded -> getHostersOnDownloaded(episode, anime, source)
