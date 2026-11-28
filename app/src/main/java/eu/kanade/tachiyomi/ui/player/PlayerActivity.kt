@@ -323,6 +323,10 @@ class PlayerActivity : BaseActivity() {
                 withUIContext {
                     setInitialEpisodeError(exception)
                 }
+                // ANZ -->
+                viewModel.updateIsLoadingHosters(false) // ANZ
+                return@launchNonCancellable
+                // ANZ <--
             }
 
             viewModel.updateIsLoadingHosters(false)

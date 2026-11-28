@@ -189,16 +189,15 @@ class DownloadManager(
         val episodeDir =
             provider.findEpisodeDir(episode.name, episode.scanlator, if (source.isLocal()) anime.url else anime.ogTitle, source, episode.episodeNumber)
 
-        val files = if (source.isLocal() && episodeDir?.isFile == true) {
+        // ANZ -->
+        val files = if (episodeDir?.isFile == true) { // ANZ
             listOf(episodeDir)
         } else {
             episodeDir?.listFiles().orEmpty()
-                .filter {
-                    val type = it.type.orEmpty().lowercase()
-                    val name = it.name.orEmpty().lowercase()
-                    "video" in type || name.endsWith(".mp4") || name.endsWith(".mkv")
-                }
+                .filter { it.isPlayableVideoFile() }
+                .sortedByDescending { it.length() }
         }
+        // ANZ <--
 
         if (files.isEmpty()) {
             throw Exception(context.stringResource(MR.strings.video_list_empty_error))

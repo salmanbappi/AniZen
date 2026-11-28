@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.util.size
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -363,99 +364,124 @@ class DownloadCache(
         notifyChanges()
     }
 
+    // ANZ -->
     fun invalidateCache() {
-        lastRenew = 0L
+        lastRenew = 0L // ANZ
         renewalJob?.cancel()
-        diskCacheFile.delete()
-        renewCache()
+        renewCache(force = true)
     }
 
     /**
      * Renews the downloads cache.
      */
-    private fun renewCache() {
+    private fun renewCache(force: Boolean = false) {
         // Avoid renewing cache if in the process nor too often
-        if (lastRenew + renewInterval >= System.currentTimeMillis() || renewalJob?.isActive == true) {
+        if (!force && (lastRenew + renewInterval >= System.currentTimeMillis() || renewalJob?.isActive == true)) {
             return
         }
 
-        renewalJob = scope.launchIO {
-            if (lastRenew == 0L) {
-                _isInitializing.emit(true)
-            }
+        lateinit var currentJob: Job
+        currentJob = scope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            var completedSuccessfully = false
+            try {
+                if (force || lastRenew == 0L) {
+                    _isInitializing.value = true
+                }
 
-            // Try to wait until extensions and sources have loaded
-            // SY -->
-            var sources = emptyList<Source>()
-            withTimeoutOrNull(30.seconds) {
-                extensionManager.isInitialized.first { it }
-                sourceManager.isInitialized.first { it }
+                // Try to wait until extensions and sources have loaded
+                // SY -->
+                var sources = emptyList<Source>()
+                val sourcesReady = withTimeoutOrNull(30.seconds) {
+                    extensionManager.isInitialized.first { it }
+                    sourceManager.isInitialized.first { it }
 
-                sources = getSources()
-            }
-            // SY <--
+                    sources = getSources()
+                    true
+                } == true
+                // SY <--
 
-            val sourceMap = sources.associate {
-                provider.getSourceDirName(it).lowercase() to it.id
-            }
-
-            rootDownloadsDirMutex.withLock {
-                val updatedRootDir = RootDirectory(storageManager.getDownloadsDirectory())
-
-                updatedRootDir.sourceDirs = updatedRootDir.dir?.listFiles().orEmpty()
-                    .filter { it.isDirectory && !it.name.isNullOrBlank() }
-                    .mapNotNull { dir ->
-                        val sourceId = sourceMap[dir.name!!.lowercase()]
-                        sourceId?.let { it to SourceDirectory(dir) }
+                if (!sourcesReady) {
+                    logcat(LogPriority.WARN) {
+                        "DownloadCache: timed out waiting for sources, preserving existing cache"
                     }
-                    .toMap()
+                    return@launch
+                }
 
-                updatedRootDir.sourceDirs.values.map { sourceDir ->
-                    async {
-                        sourceDir.animeDirs = sourceDir.dir?.listFiles().orEmpty()
-                            .filter { it.isDirectory && !it.name.isNullOrBlank() }
-                            .associate { it.name!! to AnimeDirectory(it) }
+                val downloadsDir = storageManager.getDownloadsDirectory()
+                if (downloadsDir == null) {
+                    logcat(LogPriority.WARN) {
+                        "DownloadCache: downloads directory unavailable, preserving existing cache"
+                    }
+                    return@launch
+                }
 
-                        sourceDir.animeDirs.values.forEach { animeDir ->
-                            val episodeDirs = animeDir.dir?.listFiles().orEmpty()
-                                .mapNotNull { file ->
-                                    when {
-                                        // Ignore incomplete downloads
-                                        file.name?.endsWith(Downloader.TMP_DIR_SUFFIX) == true -> null
-                                        // A file/folder counts only when it holds a playable video.
-                                        // Failed external handoffs leave empty folders; misclassified
-                                        // HLS responses can leave tiny playlist text files carrying
-                                        // an MP4/MKV extension.
-                                        !file.hasPlayableVideo() -> null
-                                        file.isDirectory -> file.name
-                                        else -> file.nameWithoutExtension
+                val sourceMap = sources.associate {
+                    provider.getSourceDirName(it).lowercase() to it.id
+                }
+
+                rootDownloadsDirMutex.withLock {
+                    val updatedRootDir = RootDirectory(downloadsDir)
+
+                    updatedRootDir.sourceDirs = updatedRootDir.dir?.listFiles().orEmpty()
+                        .filter { it.isDirectory && !it.name.isNullOrBlank() }
+                        .mapNotNull { dir ->
+                            val sourceId = sourceMap[dir.name!!.lowercase()]
+                            sourceId?.let { it to SourceDirectory(dir) }
+                        }
+                        .toMap()
+
+                    updatedRootDir.sourceDirs.values.map { sourceDir ->
+                        async {
+                            sourceDir.animeDirs = sourceDir.dir?.listFiles().orEmpty()
+                                .filter { it.isDirectory && !it.name.isNullOrBlank() }
+                                .associate { it.name!! to AnimeDirectory(it) }
+
+                            sourceDir.animeDirs.values.forEach { animeDir ->
+                                val episodeDirs = animeDir.dir?.listFiles().orEmpty()
+                                    .mapNotNull { file ->
+                                        when {
+                                            // Ignore incomplete downloads
+                                            file.name?.endsWith(Downloader.TMP_DIR_SUFFIX) == true -> null
+                                            // A file/folder counts only when it holds a playable video.
+                                            // Failed external handoffs leave empty folders; misclassified
+                                            // HLS responses can leave tiny playlist text files carrying
+                                            // an MP4/MKV extension.
+                                            !file.hasPlayableVideo() -> null
+                                            file.isDirectory -> file.name
+                                            else -> file.nameWithoutExtension
+                                        }
                                     }
-                                }
-                                .toMutableSet()
+                                    .toMutableSet()
 
-                            animeDir.episodeDirs = episodeDirs
+                                animeDir.episodeDirs = episodeDirs
+                            }
                         }
                     }
+                        .awaitAll()
+
+                    rootDownloadsDir = updatedRootDir
                 }
-                    .awaitAll()
-
-                rootDownloadsDir = updatedRootDir
+                completedSuccessfully = true
+            } finally {
+                if (renewalJob === currentJob) {
+                    _isInitializing.value = false
+                }
+                if (completedSuccessfully && renewalJob === currentJob) {
+                    lastRenew = System.currentTimeMillis()
+                    notifyChanges()
+                }
             }
-
-            _isInitializing.emit(false)
         }.also {
-            it.invokeOnCompletion(onCancelling = true) { exception ->
+            it.invokeOnCompletion(onCancelling = false) { exception ->
                 if (exception != null && exception !is CancellationException) {
                     logcat(LogPriority.ERROR, exception) { "DownloadCache: failed to create cache" }
                 }
-                lastRenew = System.currentTimeMillis()
-                notifyChanges()
             }
         }
-
-        // Mainly to notify the indexing notifier UI
-        notifyChanges()
+        renewalJob = currentJob
+        currentJob.start()
     }
+    // ANZ <--
 
     private fun getSources(): List<Source> {
         return sourceManager.getOnlineSources() + sourceManager.getStubSources()

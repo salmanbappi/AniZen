@@ -129,9 +129,11 @@ class DownloadProvider(
         if (source.isLocal()) {
             return animeDir?.listFiles().orEmpty().find { it.nameWithoutExtension == episodeName }
         }
-        val exact = getValidEpisodeDirNames(episodeName, episodeScanlator).asSequence()
+        // ANZ -->
+        val exact = getCandidateEpisodeNames(episodeName, episodeScanlator) // ANZ
             .mapNotNull { animeDir?.findFile(it) }
             .firstOrNull { it.hasPlayableVideo() }
+        // ANZ <--
         if (exact != null) return exact
 
         if (episodeNumber >= 0.0 && animeDir != null) {
@@ -169,7 +171,10 @@ class DownloadProvider(
             }
         }
         return animeDir to episodes.mapNotNull { episode ->
-            val exact = getValidEpisodeDirNames(episode.name, episode.scanlator).firstNotNullOfOrNull { filesByName[it] }
+            // ANZ -->
+            val exact = getCandidateEpisodeNames(episode.name, episode.scanlator) // ANZ
+                .firstNotNullOfOrNull { filesByName[it] }
+            // ANZ <--
             if (exact != null) return@mapNotNull exact
 
             if (episode.isRecognizedNumber) {
@@ -259,6 +264,17 @@ class DownloadProvider(
         val oldEpisodeDirName = getOldEpisodeDirName(episodeName, episodeScanlator)
         return listOf(episodeDirName, oldEpisodeDirName)
     }
+
+    // ANZ -->
+    private fun getCandidateEpisodeNames(episodeName: String, episodeScanlator: String?): Sequence<String> {
+        return getValidEpisodeDirNames(episodeName, episodeScanlator)
+            .asSequence()
+            .distinct() // ANZ
+            .flatMap { name ->
+                sequenceOf(name) + STRICT_VIDEO_EXTENSIONS.asSequence().map { ext -> "$name.$ext" }
+            }
+    }
+    // ANZ <--
 
     // AM (FILE_SIZE) -->
     /**

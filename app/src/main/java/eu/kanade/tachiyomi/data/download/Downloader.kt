@@ -977,6 +977,10 @@ class Downloader(
                 child.openInputStream().use { input ->
                     targetFile.openOutputStream().use { output ->
                         input.copyTo(output, 1024 * 1024)
+                        // ANZ -->
+                        output.flush() // ANZ
+                        runCatching { (output as? FileOutputStream)?.fd?.sync() }
+                        // ANZ <--
                     }
                 }
             }
@@ -994,7 +998,11 @@ class Downloader(
         store.remove(download)
         notifier.dismissProgress(download)
 
-        cache.addEpisode(filename, publicDir, download.anime)
+        // ANZ -->
+        if (publicDir.findFile(filename)?.hasPlayableVideo() == true) {
+            cache.addEpisode(filename, publicDir, download.anime)
+        }
+        // ANZ <--
     }
 
     private suspend fun copyUniFile(source: UniFile, dest: UniFile, download: Download) {
@@ -1019,6 +1027,10 @@ class Downloader(
                         lastUpdate = now
                     }
                 }
+                // ANZ -->
+                output.flush()
+                runCatching { (output as? FileOutputStream)?.fd?.sync() }
+                // ANZ <--
             }
         }
     }

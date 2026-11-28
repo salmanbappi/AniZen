@@ -22,7 +22,9 @@ import tachiyomi.domain.episode.service.EpisodeRecognition
 internal const val MIN_VALID_VIDEO_BYTES: Long = 1024L * 1024L
 
 /** Extensions accepted for stray top-level files in the anime directory. */
-private val STRICT_VIDEO_EXTENSIONS = setOf("mp4", "mkv")
+// ANZ -->
+internal val STRICT_VIDEO_EXTENSIONS = setOf("mp4", "mkv") // ANZ
+// ANZ <--
 
 /** Extensions accepted for files inside an episode directory. */
 private val VIDEO_EXTENSIONS = setOf(
@@ -64,6 +66,15 @@ fun UniFile.hasPlayableVideo(): Boolean {
         length == 0L || length >= MIN_VALID_VIDEO_BYTES
     }
 }
+
+// ANZ -->
+internal fun UniFile.isPlayableVideoFile(): Boolean {
+    if (!isFile) return false // ANZ
+    val extension = name?.substringAfterLast('.', "")?.lowercase().orEmpty()
+    val mimeType = type.orEmpty().lowercase()
+    return "video" in mimeType || extension in VIDEO_EXTENSIONS
+}
+// ANZ <--
 
 /**
  * Parses the episode number out of a downloaded directory name for the fallback match used

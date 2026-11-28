@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import exh.source.BlacklistedSources
 import exh.source.DelegatedHttpSource
 import exh.source.EnhancedHttpSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import tachiyomi.domain.source.model.StubSource
@@ -81,6 +83,18 @@ class AndroidSourceManager(
                     }
                 }
                 sourcesMapFlow.value = mutableMap
+                // ANZ -->
+                if (!_isInitialized.value) { // ANZ
+                    val initialStubs = try {
+                        sourceRepository.subscribeAll().first()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                    initialStubs.forEach { stubSourcesMap[it.id] = it }
+                }
+                // ANZ <--
                 _isInitialized.value = true
             }
         }
@@ -88,10 +102,11 @@ class AndroidSourceManager(
         scope.launch {
             sourceRepository.subscribeAll()
                 .collectLatest { sources ->
-                    val mutableMap = stubSourcesMap.toMutableMap()
-                    sources.forEach {
-                        mutableMap[it.id] = it
+                    // ANZ -->
+                    sources.forEach { // ANZ
+                        stubSourcesMap[it.id] = it
                     }
+                    // ANZ <--
                 }
         }
     }
@@ -104,7 +119,9 @@ class AndroidSourceManager(
         return sourcesMapFlow.value[sourceKey] ?: stubSourcesMap.getOrPut(sourceKey) {
             // Return empty stub immediately to avoid UI thread lag
             scope.launch {
-                createStubSource(sourceKey)
+                // ANZ -->
+                stubSourcesMap[sourceKey] = createStubSource(sourceKey)
+                // ANZ <--
             }
             StubSource(id = sourceKey, lang = "", name = "")
         }

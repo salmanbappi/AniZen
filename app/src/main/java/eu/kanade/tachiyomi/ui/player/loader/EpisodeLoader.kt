@@ -12,7 +12,9 @@ import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
 import eu.kanade.tachiyomi.util.subtitles.StremioSubtitleResolver
 import kotlinx.coroutines.CancellationException
+import logcat.LogPriority
 import tachiyomi.core.common.util.lang.withIOContext
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.i18n.MR
@@ -43,18 +45,20 @@ class EpisodeLoader {
             source: AnimeSource,
             allowDownloaded: Boolean = true,
         ): List<Hoster> {
-            val isDownloaded = allowDownloaded && isDownload(episode, anime)
-            return when {
-                isDownloaded -> getHostersOnDownloaded(episode, anime, source)
-                source is AnimeHttpSource -> getHostersOnHttp(episode, source)
-                source is LocalAnimeSource -> getHostersOnLocal(episode)
-                // ANZ -->
-                else -> throw PlayerViewModel.ExceptionWithStringResource(
-                    "Source not supported: ${source.name}",
-                    MR.strings.source_unsupported,
-                )
-                // ANZ <--
+            // ANZ -->
+            return withIOContext { // ANZ
+                val isDownloaded = allowDownloaded && isDownload(episode, anime, skipCache = true)
+                when {
+                    isDownloaded -> getHostersOnDownloaded(episode, anime, source)
+                    source is AnimeHttpSource -> getHostersOnHttp(episode, source)
+                    source is LocalAnimeSource -> getHostersOnLocal(episode)
+                    else -> throw PlayerViewModel.ExceptionWithStringResource(
+                        "Source not supported: ${source.name}",
+                        MR.strings.source_unsupported,
+                    )
+                }
             }
+            // ANZ <--
         }
 
         /**
@@ -63,17 +67,19 @@ class EpisodeLoader {
          * @param episode the episode being parsed.
          * @param anime the anime of the episode.
          */
-        fun isDownload(episode: Episode, anime: Anime): Boolean {
+        // ANZ -->
+        fun isDownload(episode: Episode, anime: Anime, skipCache: Boolean = false): Boolean {
             val downloadManager: DownloadManager = Injekt.get()
             return downloadManager.isEpisodeDownloaded(
                 episode.name,
                 episode.scanlator,
-                anime.title,
+                anime.ogTitle, // ANZ
                 anime.source,
-                skipCache = false,
+                skipCache = skipCache,
                 episodeNumber = episode.episodeNumber,
             )
         }
+        // ANZ <--
 
         private val HAS_HOSTERS_CACHE = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
         private val HOSTER_METHOD_NAMES = setOf("getHosterList", "hosterListRequest", "hosterListParse")
@@ -135,6 +141,10 @@ class EpisodeLoader {
                 val video = downloadManager.buildVideo(source, anime, episode)
                 listOf(video).toHosterList()
             } catch (e: Throwable) {
+                // ANZ -->
+                if (e is CancellationException) throw e // ANZ
+                logcat(LogPriority.ERROR, e) { "Failed to load downloaded episode: ${episode.name}" }
+                // ANZ <--
                 emptyList()
             }
         }

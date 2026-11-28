@@ -2249,7 +2249,9 @@ class AnimeScreenModel(
         try {
             if (currentAnime == null || currentSource == null || currentSource is StubSource) return
 
-            val animeDir = downloadProvider.findAnimeDir(currentAnime.title, currentSource) ?: return
+            // ANZ -->
+            val animeDir = downloadProvider.findAnimeDir(currentAnime.ogTitle, currentSource) ?: return // ANZ
+            // ANZ <--
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(animeDir.uri, DocumentsContract.Document.MIME_TYPE_DIR)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)

@@ -14,15 +14,24 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
+import java.util.concurrent.ConcurrentHashMap
 
 class StorageManager(
     private val context: Context,
-    storagePreferences: StoragePreferences,
+    // ANZ -->
+    private val storagePreferences: StoragePreferences, // ANZ
+    // ANZ <--
 ) {
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    // ANZ -->
+    private val baseDirLock = Any()
+    private val childDirectories = ConcurrentHashMap<String, Pair<UniFile, UniFile>>()
+
+    @Volatile
     private var baseDir: UniFile? = getBaseDir(storagePreferences.baseStorageDirectory().get())
+    // ANZ <--
 
     private val _changes: Channel<Unit> = Channel(Channel.UNLIMITED)
     val changes = _changes.receiveAsFlow()
@@ -33,8 +42,13 @@ class StorageManager(
             .drop(1)
             .distinctUntilChanged()
             .onEach { uri ->
-                baseDir = getBaseDir(uri)
-                baseDir?.let { parent ->
+                // ANZ -->
+                val resolvedBaseDir = synchronized(baseDirLock) { // ANZ
+                    childDirectories.clear()
+                    getBaseDir(uri).also { baseDir = it }
+                }
+                // ANZ <--
+                resolvedBaseDir?.let { parent -> // ANZ
                     parent.createDirectory(AUTOMATIC_BACKUPS_PATH)
                     parent.createDirectory(LOCAL_SOURCE_PATH)
                     parent.createDirectory(DOWNLOADS_PATH).also {
@@ -59,16 +73,59 @@ class StorageManager(
             .takeIf { it?.exists() == true }
     }
 
+    // ANZ -->
+    private fun getOrResolveBaseDir(): UniFile? {
+        baseDir?.let { return it }
+        return synchronized(baseDirLock) { // ANZ
+            baseDir ?: getBaseDir(storagePreferences.baseStorageDirectory().get()).also {
+                baseDir = it
+            }
+        }
+    }
+
+    private fun ensureSubdirectory(name: String): UniFile? {
+        val parent = getOrResolveBaseDir()
+        if (parent != null) {
+            val cached = childDirectories[name]
+            if (cached != null && cached.first === parent && cached.second.exists()) {
+                return cached.second
+            }
+            parent.createDirectory(name)?.let {
+                synchronized(baseDirLock) { // ANZ
+                    if (baseDir === parent) {
+                        childDirectories[name] = parent to it
+                    }
+                }
+                return it
+            }
+        }
+        return synchronized(baseDirLock) {
+            childDirectories.clear()
+            val refreshed = getBaseDir(storagePreferences.baseStorageDirectory().get())
+            baseDir = refreshed
+            refreshed?.createDirectory(name)?.also {
+                childDirectories[name] = refreshed to it
+            }
+        }
+    }
+    // ANZ <--
+
     fun getAutomaticBackupsDirectory(): UniFile? {
-        return baseDir?.createDirectory(AUTOMATIC_BACKUPS_PATH)
+        // ANZ -->
+        return ensureSubdirectory(AUTOMATIC_BACKUPS_PATH)
+        // ANZ <--
     }
 
     fun getDownloadsDirectory(): UniFile? {
-        return baseDir?.createDirectory(DOWNLOADS_PATH)
+        // ANZ -->
+        return ensureSubdirectory(DOWNLOADS_PATH)
+        // ANZ <--
     }
 
     fun getLocalSourceDirectory(): UniFile? {
-        return baseDir?.createDirectory(LOCAL_SOURCE_PATH)
+        // ANZ -->
+        return ensureSubdirectory(LOCAL_SOURCE_PATH)
+        // ANZ <--
     }
 
     fun getFontsDirectory(): UniFile? {
@@ -90,12 +147,16 @@ class StorageManager(
     // ANZ <--
 
     fun getMPVConfigDirectory(): UniFile? {
-        return baseDir?.createDirectory(MPV_CONFIG_PATH)
+        // ANZ -->
+        return ensureSubdirectory(MPV_CONFIG_PATH)
+        // ANZ <--
     }
 
     // SY -->
     fun getLogsDirectory(): UniFile? {
-        return baseDir?.createDirectory(LOGS_PATH)
+        // ANZ -->
+        return ensureSubdirectory(LOGS_PATH)
+        // ANZ <--
     }
     // SY <--
 }

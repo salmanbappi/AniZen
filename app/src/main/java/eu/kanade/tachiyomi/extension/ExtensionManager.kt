@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import logcat.LogPriority
@@ -88,12 +89,16 @@ class ExtensionManager(
     private val installedExtensionsMapFlow = MutableStateFlow(emptyMap<String, Extension.Installed>())
     private val availableExtensionListFlow = MutableStateFlow<List<Extension.Available>>(emptyList())
 
-    val installedExtensionsFlow = combine(
-        installedExtensionsMapFlow,
-        extensionRepoRepository.subscribeAll(),
-        availableExtensionListFlow,
-    ) { installedMap, repos, available ->
-        installedMap.values.map { extension ->
+    // ANZ -->
+    private val _installedExtensionsFlow = MutableStateFlow<List<Extension.Installed>>(emptyList()) // ANZ
+    val installedExtensionsFlow: StateFlow<List<Extension.Installed>> = _installedExtensionsFlow.asStateFlow()
+
+    private fun enrichInstalledExtensions(
+        installedMap: Map<String, Extension.Installed>,
+        repos: List<ExtensionRepo>,
+        available: List<Extension.Available>,
+    ): List<Extension.Installed> {
+        return installedMap.values.map { extension ->
             val matchingRepo = extension.pickRepo(repos, available)
             val author = matchingRepo?.author
                 ?: matchingRepo?.let { repo ->
@@ -107,7 +112,8 @@ class ExtensionManager(
                 repoUrl = extension.repoUrl ?: matchingRepo?.baseUrl,
             )
         }
-    }.stateIn(scope, SharingStarted.Lazily, emptyList())
+    }
+    // ANZ <--
 
     private val availableExtensionsMapFlow = MutableStateFlow(emptyMap<Pair<String, String>, Extension.Available>())
     val availableExtensionsFlow = availableExtensionsMapFlow.mapExtensions(scope)
@@ -185,6 +191,18 @@ class ExtensionManager(
     private suspend fun initAnimeExtensions() {
         val animeextensions = ExtensionLoader.loadExtensions(context)
 
+        // ANZ -->
+        if (cachedRepos.isEmpty()) { // ANZ
+            cachedRepos = try {
+                extensionRepoRepository.getAll()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+        // ANZ <--
+
         installedExtensionsMapFlow.value = animeextensions
             .filterIsInstance<LoadResult.Success>()
             .associate { it.extension.pkgName to it.extension }
@@ -198,7 +216,24 @@ class ExtensionManager(
             updatedInstalledAnimeExtensionsStatuses(currentAvailable, cachedRepos)
         }
 
+        // ANZ -->
+        _installedExtensionsFlow.value = enrichInstalledExtensions(
+            installedExtensionsMapFlow.value,
+            cachedRepos,
+            currentAvailable,
+        )
         _isInitialized.value = true
+
+        scope.launch {
+            combine(
+                installedExtensionsMapFlow,
+                extensionRepoRepository.subscribeAll().onStart { emit(cachedRepos) },
+                availableExtensionListFlow,
+            ) { installedMap, repos, available ->
+                enrichInstalledExtensions(installedMap, repos, available)
+            }.collect { _installedExtensionsFlow.value = it }
+        }
+        // ANZ <--
     }
 
     private suspend fun observeRepos() {
